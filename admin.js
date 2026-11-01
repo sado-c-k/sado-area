@@ -211,9 +211,9 @@
   // ---------- アカウント(ユーザー・グループ) ----------
   // 「編集」を押すと、その一覧の各項目が書き換えられるようになり、「保存」で変更をまとめて確認して保存する
   var A = { us: [], editU: false, editG: false, ud: {}, gd: {}, q: '', fg: '', fr: '' };
-  function loadAccounts() {
+  function loadAccounts(keep) {
     Promise.all([loadAd(), api('getUsers')]).then(function (r) {
-      A.us = r[1]; A.editU = false; A.editG = false; A.ud = {}; A.gd = {};
+      A.us = r[1]; if (keep !== true) { A.editU = false; A.editG = false; A.ud = {}; A.gd = {}; }
       drawAccounts();
     }, fail);
   }
@@ -221,11 +221,9 @@
   function groupName(id) { var g = C.ad.groups.filter(function (x) { return x.groupId === id; })[0]; return g ? g.groupName : ''; }
   function drawAccounts() {
     var d = C.ad;
-    body('<div class="card"><h3>ユーザーを追加</h3><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="11"><input id="nuPw" placeholder="パスワード(6文字以上)" size="13"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup">' + opts(realGroups(), 'groupId', 'groupName', '', 'グループなし') + '</select><select id="nuRole"><option value="editor">奉仕者</option><option value="admin">区域係</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div></div>' +
-      '<div class="card"><h3>ユーザー<span class="cnt" id="usCnt"></span></h3><div class="tbar"><input type="search" id="usQ" placeholder="ID・名前で探す" value="' + esc(A.q) + '"><select id="usFg"><option value="">すべてのグループ</option><option value="-">グループなし</option>' + opts(realGroups(), 'groupId', 'groupName', A.fg) + '</select><select id="usFr"><option value="">すべての権限</option><option value="admin">区域係</option><option value="editor">奉仕者</option></select></div>' +
-      '<div class="tbar" id="usBtns"></div><div id="usList"></div></div>' +
-      '<div class="card"><h3>グループ</h3><div class="note">「会衆」は全員が入っている特別なグループです(区域の担当を「会衆」にすると、ログインした全員が編集できます)。責任者は、そのグループに所属しているアカウントから選びます(会衆だけは全アカウントから選べます)。担当者とアカウントは同じデータです。</div><div class="tbar" id="grBtns"></div><div id="grList"></div>' +
-      '<div class="row" style="margin-top:10px"><input id="ngName" class="grow" placeholder="新しいグループ名"><button class="btn primary small" data-act="ad:groupAdd">追加</button></div></div>');
+    body('<div class="card"><h3>ユーザー<span class="cnt" id="usCnt"></span></h3><div class="tbar"><input type="search" id="usQ" placeholder="ID・名前で探す" value="' + esc(A.q) + '"><select id="usFg"><option value="">すべてのグループ</option><option value="-">グループなし</option>' + opts(realGroups(), 'groupId', 'groupName', A.fg) + '</select><select id="usFr"><option value="">すべての権限</option><option value="admin">区域係</option><option value="editor">奉仕者</option></select></div>' +
+      '<div class="tbar" id="usBtns"></div><div id="usAdd"></div><div id="usList"></div></div>' +
+      '<div class="card"><h3>グループ</h3><div class="note">「会衆」は全員が入っている特別なグループです(区域の担当を「会衆」にすると、ログインした全員が編集できます)。責任者は、そのグループに所属しているアカウントから選びます(会衆だけは全アカウントから選べます)。担当者とアカウントは同じデータです。</div><div class="tbar" id="grBtns"></div><div id="grAdd"></div><div id="grList"></div></div>');
     $('#usFr').value = A.fr; drawUsers(); drawGroups();
   }
   function btns(edit, kind) {
@@ -244,14 +242,15 @@
       if (A.editU) {
         h += '<div class="urow' + (chg ? ' chg' : '') + '"><div class="un"><b>' + id + '</b>' + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '<input data-ue="' + id + '" data-f="displayName" value="' + esc(uval(u, 'displayName')) + '" placeholder="表示名"></div>' +
           '<select data-ue="' + id + '" data-f="groupId">' + opts(realGroups(), 'groupId', 'groupName', grp, 'グループなし') + '</select><select data-ue="' + id + '" data-f="role"><option value="editor"' + (uval(u, 'role') === 'editor' ? ' selected' : '') + '>奉仕者</option><option value="admin"' + (uval(u, 'role') === 'admin' ? ' selected' : '') + '>区域係</option></select>' +
-          '<label><input type="checkbox" data-ue="' + id + '" data-f="active"' + (uval(u, 'active') ? ' checked' : '') + '> 有効</label></div>';
+          '<label><input type="checkbox" data-ue="' + id + '" data-f="active"' + (uval(u, 'active') ? ' checked' : '') + '> 有効</label><div class="row"><button class="btn small" data-act="ad:userPw" data-v="' + id + '">パスワード再設定</button>' + (u.locked ? '<button class="btn small" data-act="ad:userUnlock" data-v="' + id + '">ロック解除</button>' : '') + '<button class="btn small danger" data-act="ad:userDel" data-v="' + id + '">削除</button></div></div>';
       } else {
         h += '<div class="urow"><div class="un"><b>' + esc(u.displayName) + (u.active ? '' : '<span class="badge off">無効</span>') + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '</b><small>' + id + '</small></div><div class="ug">' + esc(groupName(u.groupId) || '―') + '</div><span class="badge ' + (u.role === 'admin' ? 'mine' : 'off') + '">' + (u.role === 'admin' ? '区域係' : '奉仕者') + '</span>' +
-          '<details><summary>操作</summary><div class="row"><button class="btn small" data-act="ad:userPw" data-v="' + id + '">パスワード再設定</button>' + (u.locked ? '<button class="btn small" data-act="ad:userUnlock" data-v="' + id + '">ロック解除</button>' : '') + '<button class="btn small danger" data-act="ad:userDel" data-v="' + id + '">削除</button></div></details></div>';
+          '</div>';
       }
     });
     $('#usList').innerHTML = h || '<div class="note">該当するユーザーがいません。</div>';
     $('#usCnt').textContent = n + ' / ' + A.us.length; $('#usBtns').innerHTML = btns(A.editU, 'u');
+    $('#usAdd').innerHTML = A.editU ? '<div class="addbox"><b>ユーザーを追加</b><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="11"><input id="nuPw" placeholder="パスワード(6文字以上)" size="13"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup">' + opts(realGroups(), 'groupId', 'groupName', '', 'グループなし') + '</select><select id="nuRole"><option value="editor">奉仕者</option><option value="admin">区域係</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div><div class="note">追加・削除はすぐに反映されます。書き換え中の内容はそのまま残ります。</div></div>' : '';
   }
   function gval(g, f) { var x = A.gd[g.groupId]; return x && x[f] !== undefined ? x[f] : g[f]; }
   function drawGroups() {
@@ -260,13 +259,14 @@
       var id = esc(g.groupId), active = A.us.filter(function (u) { return u.active; });
       var cands = g.builtin ? active : active.filter(function (u) { return String(u.groupId) === String(g.groupId); });
       if (A.editG) {
-        h += '<div class="urow' + (A.gd[g.groupId] ? ' chg' : '') + '"><div class="un">' + (g.builtin ? '<b>会衆</b><small>名前は変えられません</small>' : '<input data-ge="' + id + '" data-f="groupName" value="' + esc(gval(g, 'groupName')) + '">') + '</div><select data-ge="' + id + '" data-f="leaderLoginId">' + opts(cands, 'loginId', 'displayName', gval(g, 'leaderLoginId'), cands.length ? '責任者なし' : '(所属アカウントなし)') + '</select></div>';
+        h += '<div class="urow' + (A.gd[g.groupId] ? ' chg' : '') + '"><div class="un">' + (g.builtin ? '<b>会衆</b><small>名前は変えられません</small>' : '<input data-ge="' + id + '" data-f="groupName" value="' + esc(gval(g, 'groupName')) + '">') + '</div><select data-ge="' + id + '" data-f="leaderLoginId">' + opts(cands, 'loginId', 'displayName', gval(g, 'leaderLoginId'), cands.length ? '責任者なし' : '(所属アカウントなし)') + '</select>' + (g.builtin ? '' : '<button class="btn small danger" data-act="ad:groupDel" data-v="' + id + '">削除</button>') + '</div>';
       } else {
         var ld = A.us.filter(function (u) { return u.loginId === g.leaderLoginId; })[0];
-        h += '<div class="urow"><div class="un"><b>' + esc(g.groupName) + '</b><small>' + (g.builtin ? '全員が入る特別なグループ' : '所属 ' + A.us.filter(function (u) { return String(u.groupId) === String(g.groupId); }).length + '人') + '</small></div><div class="ug">責任者: ' + esc(ld ? ld.displayName : '―') + '</div>' + (g.builtin ? '' : '<button class="btn small danger" data-act="ad:groupDel" data-v="' + id + '">削除</button>') + '</div>';
+        h += '<div class="urow"><div class="un"><b>' + esc(g.groupName) + '</b><small>' + (g.builtin ? '全員が入る特別なグループ' : '所属 ' + A.us.filter(function (u) { return String(u.groupId) === String(g.groupId); }).length + '人') + '</small></div><div class="ug">責任者: ' + esc(ld ? ld.displayName : '―') + '</div>' + '</div>';
       }
     });
     $('#grList').innerHTML = h; $('#grBtns').innerHTML = btns(A.editG, 'g');
+    $('#grAdd').innerHTML = A.editG ? '<div class="addbox"><b>グループを追加</b><div class="row"><input id="ngName" class="grow" placeholder="新しいグループ名"><button class="btn primary small" data-act="ad:groupAdd">追加</button></div></div>' : '';
   }
   var USER_LABEL = { displayName: '表示名', groupId: 'グループ', role: '権限', active: '有効' };
   function showVal(f, v) { return f === 'groupId' ? (groupName(v) || 'グループなし') : (f === 'role' ? (v === 'admin' ? '区域係' : '奉仕者') : (f === 'active' ? (v ? '有効' : '無効') : String(v))); }
@@ -308,7 +308,7 @@
   }
 
   // ---------- 動作設定 ----------
-  var SET_FIELDS = [['appTitle', 'アプリのタイトル', 'text'], ['mapTileSource', '背景の地図', [['gsi', '地理院タイル'], ['osm', 'OpenStreetMap(事前保存は不可)']]], ['mapLat', '地図の最初の位置(緯度)', 'text'], ['mapLng', '地図の最初の位置(経度)', 'text'], ['mapZoom', '地図の最初の拡大率', 'text'], ['autoEndMonths', '開始日から自動で終了するまでの月数', 'text'], ['fiscalStartMonth', '年度のはじまりの月', 'text'], ['logDocId', '記録用GoogleドキュメントのID', 'text'], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', 'text']];
+  var SET_FIELDS = [['appTitle', 'アプリのタイトル', 'text'], ['mapTileSource', '背景の地図', [['gsi', '地理院タイル'], ['osm', 'OpenStreetMap(事前保存は不可)']]], ['mapLat', '地図の最初の位置(緯度)', 'text'], ['mapLng', '地図の最初の位置(経度)', 'text'], ['mapZoom', '地図の最初の拡大率', 'text'], ['apartmentUrl', '「アパート」ボタンの行き先(佐渡アパートGASのURL。空にするとボタンを隠す)', 'text'], ['autoEndMonths', '開始日から自動で終了するまでの月数', 'text'], ['fiscalStartMonth', '年度のはじまりの月', 'text'], ['logDocId', '記録用GoogleドキュメントのID', 'text'], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', 'text']];
   function loadSettings() {
     api('getSettings').then(function (s) {
       body('<div class="card">' + SET_FIELDS.map(function (f) {
@@ -409,12 +409,12 @@
       case 'gEdit': A.editG = true; A.gd = {}; drawGroups(); break;
       case 'gCancel': A.editG = false; A.gd = {}; drawGroups(); break;
       case 'gSave': confirmSave('g'); break;
-      case 'userAdd': after(api('addUser', { loginId: val('nuId'), password: val('nuPw'), displayName: val('nuName'), groupId: val('nuGroup'), role: val('nuRole') }), 'ユーザーを追加しました。', function () { bump(); loadAccounts(); }); break;
-      case 'userUnlock': after(api('updateUser', { loginId: v, unlock: true }), 'ロックを解除しました。', loadAccounts); break;
+      case 'userAdd': after(api('addUser', { loginId: val('nuId'), password: val('nuPw'), displayName: val('nuName'), groupId: val('nuGroup'), role: val('nuRole') }), 'ユーザーを追加しました。', function () { bump(); loadAccounts(true); }); break;
+      case 'userUnlock': after(api('updateUser', { loginId: v, unlock: true }), 'ロックを解除しました。', function () { loadAccounts(true); }); break;
       case 'userPw': var pw = window.prompt('新しいパスワード(6文字以上)'); if (pw) after(api('updateUser', { loginId: v, password: pw }), 'パスワードを変更しました。', null); break;
-      case 'userDel': if (window.confirm('ユーザー「' + v + '」を削除します。よろしいですか？')) after(api('deleteUser', { loginId: v }), '削除しました。', loadAccounts); break;
-      case 'groupAdd': after(api('saveGroup', { groupName: val('ngName') }), '追加しました。', function () { bump(); loadAccounts(); }); break;
-      case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(); }); break;
+      case 'userDel': if (window.confirm('ユーザー「' + v + '」を削除します。よろしいですか？')) after(api('deleteUser', { loginId: v }), '削除しました。', function () { loadAccounts(true); }); break;
+      case 'groupAdd': after(api('saveGroup', { groupName: val('ngName') }), '追加しました。', function () { bump(); loadAccounts(true); }); break;
+      case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(true); }); break;
       case 'saveSettings': var vals = {}; SET_FIELDS.forEach(function (x) { vals[x[0]] = val('st-' + x[0]); }); after(api('saveSettings', { values: vals }), '保存しました。', function () { SADO.refreshBootstrap(); }); break;
       case 'import': doImport(v); break;
       case 'export': api('exportCsv', { kind: v }).then(function (r) { SADO.saveBlob(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }), r.filename); }, fail); break;

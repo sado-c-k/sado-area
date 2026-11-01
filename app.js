@@ -168,11 +168,26 @@
     if (g.type === 'MultiPolygon') return g.coordinates.map(function (p) { return p.map(ringToLatLngs); });
     return [];
   }
+  // 区域の枠: 区域に境界線が保存されていれば(アプリで描いた・直した枠)それを優先し、なければ data/areas.geojson の枠を使う
+  var bdCache = {};
+  function frameFeatures() {
+    var over = {}, out = [];
+    S.areas.forEach(function (a) {
+      if (!a.boundary) return;
+      if (!bdCache[a.areaId] || bdCache[a.areaId].s !== a.boundary) { var g = null; try { g = JSON.parse(a.boundary); } catch (e) {} bdCache[a.areaId] = { s: a.boundary, g: g }; }
+      if (bdCache[a.areaId].g) over[a.areaId] = bdCache[a.areaId].g;
+    });
+    ((S.frames && S.frames.features) || []).forEach(function (f) { if (!over[f.properties.areaId]) out.push({ areaId: f.properties.areaId, geometry: f.geometry }); });
+    Object.keys(over).forEach(function (id) { out.push({ areaId: id, geometry: over[id] }); });
+    return out;
+  }
+  SADO.frameFeatures = frameFeatures;
   function drawFrames() {
     if (!frameLayer) return; frameLayer.clearLayers();
-    if (!S.frames || S.cur) return;
-    S.frames.features.forEach(function (f) {
-      var id = f.properties.areaId, a = areaById(id); if (!a || visibleAreas().indexOf(a) < 0) return;
+    if (S.cur && !S.edit) return;
+    frameFeatures().forEach(function (f) {
+      var id = f.areaId, a = areaById(id); if (!a || visibleAreas().indexOf(a) < 0) return;
+      if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
       var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
       poly.bindTooltip(a.areaName + (a.inUse ? '（使用中）' : ''), { permanent: true, direction: 'center', className: 'area-label' });
@@ -338,7 +353,6 @@
 
   // ---------- ホーム(国仲・遠方を選び、区域の一覧から地図へ) ----------
   var CATS = [['国仲', '国仲'], ['遠方', '遠方']];
-  var APARTMENT_URL = (CFG && CFG.apartmentUrl) || 'https://script.google.com/macros/s/AKfycbxUl6JIpJzbbZiQGPqORidVTHJSs8eeeJSWaEtcHN0IUzTUOHvcYxv0XTGGWLZnLbW4/exec'; // 佐渡アパートGAS(アパートの記録はこちらで行う)
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
   function roleLabel() { return isAdmin() ? '区域係' : '奉仕者'; }
   function inCat(a, cat) { return (a.category || '国仲') === cat; }
@@ -361,7 +375,8 @@
         var n = catAreas(c[0]).length, use = catAreas(c[0]).filter(function (a) { return a.inUse; }).length;
         h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : '担当の区域 ' + n + '件(使用中 ' + use + '件)') + '</span></button>';
       });
-      h += '<a class="catbtn link" href="' + esc(APARTMENT_URL) + '" target="_blank" rel="noopener">佐渡アパートGASを開く<span class="sub">アパートの記録は、こちらのアプリで行います</span></a>';
+      var aptUrl = (S.settings && S.settings.apartmentUrl) || CFG.apartmentUrl || '';
+      if (/^https?:\/\//.test(aptUrl)) h += '<a class="catbtn link" href="' + esc(aptUrl) + '" target="_blank" rel="noopener">アパート<span class="sub">アパートの記録は、別のアプリ(佐渡アパートGAS)で行います</span></a>';
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else {
       var list = catAreas(cat);
@@ -489,7 +504,7 @@
 
   SADO.goHome = goHome; SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
   SADO.toast = toast; SADO.openMenu = openMenu;
-  SADO.S = S; SADO.api = api; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = closeSheet; SADO.areaById = areaById;
+  SADO.S = S; SADO.api = api; SADO.drawFrames = drawFrames; SADO.refreshBootstrap = refreshBootstrap; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = closeSheet; SADO.areaById = areaById;
   SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return loadAreaData(S.cur, true).then(function () { drawBuildings(false); renderSheet(); }); };
   boot();
 })();
