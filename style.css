@@ -125,3 +125,19 @@ select[data-cat]{margin:0 8px;padding:3px 8px;border-radius:99px;font-size:.85em
 .cnt{display:inline-block;min-width:1.6em;text-align:center;padding:0 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary-strong);font-size:.8em;margin-left:6px}
 #modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:5000;background:rgba(0,0,0,.45);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;padding:16px}
 #modal .mb{background:var(--surface);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:80vh;overflow:auto}#modal h3{margin:0 0 10px}
+/* 編集モード(区域係): 地図の上で建物を追加・移動・削除する */
+#editBtn{top:calc(66px + var(--safe-t))}
+#editBtn.on{background:var(--warning);color:#fff}
+#editFrame{position:absolute;left:0;right:0;top:0;bottom:calc(var(--nav) + var(--safe-b));z-index:950;border:3px solid var(--warning);pointer-events:none}
+#editFrame span{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);bottom:0;background:var(--warning);color:#fff;font-size:.75em;font-weight:700;padding:2px 12px;border-radius:8px 8px 0 0;white-space:nowrap}
+#editBar{position:absolute;left:10px;right:66px;top:calc(62px + var(--safe-t));z-index:960;background:var(--surface);border-radius:var(--radius);padding:8px 10px;box-shadow:0 1px 6px rgba(60,64,67,.35)}
+#editHint{font-size:.8em;color:var(--text-2);white-space:pre-line;margin-bottom:4px}#editBar.adding #editHint{color:var(--warning);font-weight:700}
+#editBar .row>*{margin:2px 6px 2px 0}
+.tools{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}
+.edpin{width:22px;height:22px;border-radius:50% 50% 50% 0;-webkit-transform:rotate(-45deg);transform:rotate(-45deg);background:var(--warning);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.modal-msg{color:var(--danger);min-height:1.4em;margin-top:6px;white-space:pre-wrap}
+#modal label{display:block;margin:10px 0 3px;color:var(--text-2);font-size:.88em}#modal input,#modal select{width:100%}
+.gen{display:-webkit-flex;display:flex}.gen>div{-webkit-flex:1;flex:1;margin-right:8px}.gen>div:last-child{margin-right:0}
+.prev{color:var(--text-3);font-size:.85em;margin-top:6px}
+#editBar{z-index:1200}
+body.editing #sheet{max-height:calc(100% - var(--nav) - 150px)}

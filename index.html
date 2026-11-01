@@ -32,6 +32,9 @@
   <div id="map"></div>
   <div id="legend"></div>
   <button class="fab" id="locBtn" data-act="locate" aria-label="現在地">◎</button>
+  <button class="fab hidden" id="editBtn" data-act="ed:toggle" aria-label="編集モード">✐</button>
+  <div id="editFrame" class="hidden"><span>管理者モード　編集モード</span></div>
+  <div id="editBar" class="hidden"><div id="editHint"></div><div class="row"><button class="btn small primary" data-act="ed:addB" id="edAddBtn">＋ 建物を追加</button><button class="btn small" data-act="ed:undo" id="edUndoBtn">↶ 戻す</button><button class="btn small" data-act="ed:save" id="edSaveBtn">保存</button><button class="btn small" data-act="ed:toggle">終了</button></div></div>
     <div id="sheet" class="hidden"></div>
 </div>
 
@@ -51,5 +54,6 @@
 <script src="lib/leaflet.js"></script>
 <script src="app.js"></script>
 <script src="admin.js"></script>
+<script src="edit.js"></script>
 </body>
 </html>

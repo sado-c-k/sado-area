@@ -118,7 +118,7 @@
   function enterApp() {
     $('#boot').classList.add('hidden'); $('#loginScreen').classList.add('hidden'); $('#appScreen').classList.remove('hidden'); $('#nav').classList.remove('hidden');
     $('#hdrTitle').textContent = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    initMap(); renderLegend(); $('#navAdmin').classList.toggle('hidden', !isAdmin());
+    initMap(); renderLegend(); $('#navAdmin').classList.toggle('hidden', !isAdmin()); if (SADO.onEnter) SADO.onEnter(isAdmin());
     refreshBootstrap(); countPending();
     loadFrames(); goHome();
   }
@@ -215,6 +215,7 @@
   function selectArea(areaId) {
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
     loadAreaData(areaId).then(function () {
+      if (SADO.onAreaChange) SADO.onAreaChange();
       S.cur = areaId; closeSheet(); drawFrames(); drawBuildings(true); updateTitle(); closePanels();
       var d = S.data[areaId]; if (d && d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(areaId); if (i >= 0) S.areas[i] = d.area; }
       if (a && !a.canEdit) toast(a.inUse ? '「' + a.areaName + '」は担当外のため、見るだけです。' : '「' + a.areaName + '」は使用中ではないため、見るだけです。', 3500);
@@ -238,7 +239,7 @@
     d.buildings.forEach(function (b) {
       var f = feat[b.buildingId], shape = null, st = buildingStyle(S.cur, b);
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
-      else if (b.lat != null && b.lng != null) { st.radius = 9; shape = L.circleMarker([b.lat, b.lng], st); }
+      else if (b.lat != null && b.lng != null) { if (S.edit && SADO.editMarker) shape = SADO.editMarker(b); else { st.radius = 9; shape = L.circleMarker([b.lat, b.lng], st); } }
       if (!shape) return;
       shape.on('click', function () { openBuilding(b.buildingId); });
       bLayer.addLayer(shape); bShapes[b.buildingId] = shape;
@@ -247,7 +248,7 @@
     });
     if (fit && bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
   }
-  function restyle(bid) { var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (b) shape.setStyle(buildingStyle(S.cur, b)); }
+  function restyle(bid) { var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (b && shape.setStyle) shape.setStyle(buildingStyle(S.cur, b)); }
 
   // ---------- 建物のシート(部屋ごとの記録) ----------
   function openBuilding(bid) { S.sheetBid = bid; renderSheet(); }
@@ -259,10 +260,11 @@
     var a = d.area, can = a.canEdit, rs = roomsOf(S.cur, b.buildingId), keep = sh.querySelector('.body') ? sh.querySelector('.body').scrollTop : 0;
     var h = '<div class="head"><div class="row"><div class="name grow">' + esc(b.buildingName) + '</div><button class="btn small" data-act="report">報告</button><button class="btn small" data-act="closeSheet">閉じる</button></div>';
     h += '<div class="note">' + esc(a.areaName) + (can ? '' : '　※見るだけ（' + (a.inUse ? '担当外' : '使用中ではありません') + '）') + '</div></div><div class="body">';
-    if (S.user && S.user.role === 'admin') h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
+    var ed = !!(S.edit && S.user && S.user.role === 'admin');
+    if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
     else if (b.buildingMemo) h += '<div class="note">メモ: ' + esc(b.buildingMemo) + '</div>';
     rs.forEach(function (r) {
-      h += '<div class="room st-' + esc(r.status) + '" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + '</div><div>';
+      h += '<div class="room st-' + esc(r.status) + '" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + (ed ? '<button class="btn small danger" style="float:right" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div><div>';
       statusList().forEach(function (s) { h += '<button class="chip s-' + esc(s.id) + (r.status === s.id ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setStatus" data-room="' + esc(r.roomId) + '" data-v="' + esc(s.id) + '">' + esc(s.label) + '</button>'; });
       h += '</div><div>';
       [['reject', '拒否'], ['caution', '注意']].forEach(function (m) { h += '<button class="chip mark-' + m[0] + (r.mark === m[0] ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setMark" data-room="' + esc(r.roomId) + '" data-v="' + m[0] + '">' + m[1] + '</button>'; });
@@ -270,6 +272,7 @@
       if (r.updatedAt) h += '<div class="note">更新: ' + esc(String(r.updatedAt).slice(0, 16).replace('T', ' ')) + (r.updatedBy ? ' ' + esc(r.updatedBy) : '') + '</div>';
       h += '</div>';
     });
+    if (ed && SADO.sheetTools) h += SADO.sheetTools(b);
     sh.innerHTML = h + '</div>'; sh.classList.remove('hidden'); if (keep) sh.querySelector('.body').scrollTop = keep;
   }
   function persistArea() { return idb.set('area', S.cur, S.data[S.cur]); }
@@ -470,7 +473,7 @@
         toast('ダウンロード中…', 2000);
         api('downloadAreaFile', { areaId: v, fileType: t.getAttribute('data-t') }).then(function (r) { SADO.saveBlob(b64Blob(r.base64, r.mime), r.name); }, function (e) { toast(e.message, 5000); });
         break;
-      default: if (SADO.onAdminClick) SADO.onAdminClick(act, t, v);
+      default: if (SADO.onAdminClick) SADO.onAdminClick(act, t, v); if (SADO.onEditClick) SADO.onEditClick(act, t, v);
     }
   }
   // メモと建物名は、入力欄から離れたときに保存する
@@ -484,5 +487,7 @@
 
   SADO.goHome = goHome; SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
   SADO.toast = toast; SADO.openMenu = openMenu;
+  SADO.S = S; SADO.api = api; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = closeSheet; SADO.areaById = areaById;
+  SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return loadAreaData(S.cur, true).then(function () { drawBuildings(false); renderSheet(); }); };
   boot();
 })();
