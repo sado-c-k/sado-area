@@ -154,7 +154,7 @@
     SADO.map = map;
   }
   function renderLegend() {
-    $('#legend').innerHTML = '<b><i style="background:#1a73e8"></i>未訪問</b><b><i style="background:#f57c00"></i>途中</b><b><i style="background:#188038"></i>完了</b><b><i style="background:#9aa0a6"></i>編集不可</b><b><i style="background:#fff;border:2px solid #d93025"></i>拒否あり</b>';
+    $('#legend').innerHTML = '<b><i style="background:#1a73e8"></i>未訪問</b><b><i style="background:#ef6c00"></i>途中</b><b><i style="background:#188038"></i>完了</b><b><i style="background:#9aa0a6"></i>編集不可</b><b><i style="background:#fff;border:2px solid #b91c1c"></i>拒否あり</b>';
   }
   function loadFrames() {
     var show = function (g) { S.frames = g; drawFrames(); };
@@ -227,8 +227,8 @@
   function buildingStyle(areaId, b) {
     var rs = roomsOf(areaId, b.buildingId), n = rs.length, done = 0, visited = 0, rej = false, cau = false, a = areaById(areaId) || (S.data[areaId] && S.data[areaId].area) || {};
     rs.forEach(function (r) { var s = statusOf(r.status); if (s.done) done++; if (s.visited) visited++; if (r.mark === 'reject') rej = true; if (r.mark === 'caution') cau = true; });
-    var editable = a.canEdit !== false, fill = !editable ? '#9aa0a6' : (n && done === n ? '#188038' : (visited > 0 ? '#f57c00' : '#1a73e8'));
-    return { color: rej ? '#d93025' : (cau ? '#e37400' : fill), weight: rej || cau ? 3 : 1.5, fillColor: fill, fillOpacity: 0.6 };
+    var editable = a.canEdit !== false, fill = !editable ? '#9aa0a6' : (n && done === n ? '#188038' : (visited > 0 ? '#ef6c00' : '#1a73e8'));
+    return { color: rej ? '#b91c1c' : (cau ? '#ca8a04' : fill), weight: rej || cau ? 3 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   function drawBuildings(fit) {
     if (!bLayer) return; bLayer.clearLayers(); bShapes = {};
@@ -262,7 +262,7 @@
     if (S.user && S.user.role === 'admin') h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
     else if (b.buildingMemo) h += '<div class="note">メモ: ' + esc(b.buildingMemo) + '</div>';
     rs.forEach(function (r) {
-      h += '<div class="room" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + '</div><div>';
+      h += '<div class="room st-' + esc(r.status) + '" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + '</div><div>';
       statusList().forEach(function (s) { h += '<button class="chip s-' + esc(s.id) + (r.status === s.id ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setStatus" data-room="' + esc(r.roomId) + '" data-v="' + esc(s.id) + '">' + esc(s.label) + '</button>'; });
       h += '</div><div>';
       [['reject', '拒否'], ['caution', '注意']].forEach(function (m) { h += '<button class="chip mark-' + m[0] + (r.mark === m[0] ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setMark" data-room="' + esc(r.roomId) + '" data-v="' + m[0] + '">' + m[1] + '</button>'; });
