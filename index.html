@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0f766e">
+<title>佐渡住宅GAS</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="boot">読み込み中…</div>
+
+<div id="loginScreen" class="screen hidden">
+  <div class="login-box">
+    <h1 id="loginTitle">佐渡住宅GAS</h1>
+    <div class="note" id="loginNote"></div>
+    <div id="memberPanel" class="hidden">
+      <label for="loginId">ID</label><input id="loginId" autocapitalize="none" autocomplete="username">
+      <label for="loginPw">パスワード</label><input id="loginPw" type="password" autocomplete="current-password">
+      <button class="btn primary block" data-act="login">ログイン</button>
+    </div>
+    <div id="guestPanel" class="hidden">
+      <label for="guestName">お名前</label><input id="guestName" autocomplete="name">
+      <label for="guestGroup">グループ</label><select id="guestGroup"></select>
+      <button class="btn primary block" data-act="guest">はじめる</button>
+      <button class="btn block" data-act="showMember" id="showMemberBtn">IDとパスワードでログイン(管理者など)</button>
+    </div>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="appScreen" class="screen hidden">
+  <div id="hdr"><button data-act="menu" aria-label="メニュー">☰</button><div class="t" id="hdrTitle"></div><span id="syncBadge">同期済み</span></div>
+  <div id="map"></div>
+  <div id="legend"><i style="background:#8a9592"></i>未訪問<i style="background:#2563eb"></i>途中<i style="background:#1f8a4c"></i>完了<i style="background:#fff;border:2px solid #c8372d"></i>拒否あり</div>
+  <button class="fab" id="locBtn" data-act="locate" aria-label="現在地">◎</button>
+  <button class="fab" id="areaBtn" data-act="areas">エリア</button>
+  <div id="sheet" class="hidden"></div>
+</div>
+
+<div id="menu" class="screen hidden"></div>
+<div id="admin" class="screen hidden"></div>
+<div id="toast" class="hidden"></div>
+
+<script src="config.js"></script>
+<script src="lib/leaflet.js"></script>
+<script src="app.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
