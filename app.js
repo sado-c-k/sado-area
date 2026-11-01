@@ -445,6 +445,7 @@
       case 'login': doLogin(); break;
       case 'logout': logout(); break;
       case 'nav':
+        $('#admin').classList.add('hidden'); // 管理画面が開いていたら閉じてから、選んだ画面へ移る
         if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'help') openMenu('help');
         else if (v === 'admin' && SADO.openAdmin) { closePanels(); activeNav('admin'); SADO.openAdmin(); }
         break;

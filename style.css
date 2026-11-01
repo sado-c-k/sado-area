@@ -101,3 +101,27 @@ details.bd{border:1px solid var(--border);border-radius:12px;margin:6px 0;backgr
 .tabs.scroll .tab{white-space:nowrap;-webkit-flex-shrink:0;flex-shrink:0}
 #admin .mbody{padding-bottom:calc(var(--nav) + var(--safe-b) + 24px)}
 select[data-cat]{margin:0 8px;padding:3px 8px;border-radius:99px;font-size:.85em;font-weight:700}
+/* 管理: 区域管理(進み具合の一覧と詳細)・一括クリア・報告(佐渡アパートGASに合わせた形) */
+.prow{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin:0 0 10px;cursor:pointer}
+.prow.use{border-left:4px solid var(--success)}
+.prow .ph{display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;-webkit-align-items:center;align-items:center}
+.prow .pn{font-weight:700}.prow .pp{color:var(--primary);font-weight:700}
+.pbar{height:8px;border-radius:99px;background:var(--surface-3);margin:8px 0;overflow:hidden}.pbar i{display:block;height:100%;background:var(--primary)}
+.prow .pm{display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;font-size:.82em;color:var(--text-3);margin-top:2px}
+.fxg{border-top:1px solid var(--border);padding:12px 0}.fxg:first-of-type{border-top:0}
+.fxg .gt{font-weight:700;margin-bottom:6px}
+.fxsw{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between}
+.fxsw small,.fxg small{display:block;color:var(--text-3)}
+.fxgrid{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap}.fxgrid>div{-webkit-flex:1;flex:1;min-width:140px;margin:0 8px 8px 0}
+.fxgrid label{display:block;color:var(--text-2);font-size:.85em;margin-bottom:3px}.fxgrid input,.fxgrid select{width:100%}
+.fxact{display:-webkit-flex;display:flex;-webkit-justify-content:flex-end;justify-content:flex-end;margin-top:10px}.fxact .btn{margin-left:8px}
+.bseg{display:-webkit-flex;display:flex;margin:6px 0 10px}.bseg button{-webkit-flex:1;flex:1;border:1px solid var(--border);background:var(--surface);padding:9px 0;font-weight:600;color:var(--text-2)}
+.bseg button:first-child{border-radius:10px 0 0 10px}.bseg button:last-child{border-radius:0 10px 10px 0;border-left:0}.bseg button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.bstep{font-weight:700;margin:14px 0 6px}.bstep em{font-style:normal;font-size:.75em;color:var(--danger);margin-left:6px}
+.bchoice{display:-webkit-flex;display:flex;margin:0 -4px}.bchoice label{-webkit-flex:1;flex:1;margin:0 4px;border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface);cursor:pointer}
+.bchoice label.on{border-color:var(--primary);background:var(--primary-soft)}.bchoice b{display:block}.bchoice small{color:var(--text-3)}.bchoice input{margin-right:6px}
+.bsum{margin:14px 0 10px;padding:10px 12px;border-radius:12px;background:var(--primary-soft);color:var(--text)}.bsum.muted{background:var(--surface-2);color:var(--text-3)}
+.bcr{display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;padding:3px 0}.bcr span{color:var(--text-3)}
+.cnt{display:inline-block;min-width:1.6em;text-align:center;padding:0 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary-strong);font-size:.8em;margin-left:6px}
+#modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:5000;background:rgba(0,0,0,.45);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;padding:16px}
+#modal .mb{background:var(--surface);border-radius:16px;padding:18px;width:100%;max-width:420px;max-height:80vh;overflow:auto}#modal h3{margin:0 0 10px}
