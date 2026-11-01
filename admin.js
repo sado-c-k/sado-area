@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, api = SADO.api, toast = SADO.toast;
-  var TABS = [['areas', '管理'], ['edit', 'データ編集'], ['reports', '報告一覧'], ['logs', '履歴・ログ'], ['bulk', '一括クリア'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['analysis', '分析'], ['io', '取込・書出']];
+  var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
   var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '' };
   function body(h) { var b = $('#adBody'); if (b) b.innerHTML = h; }
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
@@ -10,12 +10,12 @@
   function opts(list, valKey, labKey, sel, blank) { return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(function (x) { return '<option value="' + esc(x[valKey]) + '"' + (String(x[valKey]) === String(sel) ? ' selected' : '') + '>' + esc(x[labKey]) + '</option>'; }).join(''); }
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
 
-  function open() { var a = $('#admin'); a.classList.remove('hidden'); a.innerHTML = '<div class="mhead"><div class="t">管理者モード</div><button data-act="ad:close">✕</button></div><div class="tabs">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>'; go(tab); }
-  function close() { $('#admin').classList.add('hidden'); SADO.refreshBootstrap(); }
+  function open() { var a = $('#admin'); a.classList.remove('hidden'); a.innerHTML = '<div class="mhead"><div class="t">区域係モード</div><button data-act="ad:close">✕</button></div><div class="tabs scroll">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>'; go(tab); }
+  function close() { $('#admin').classList.add('hidden'); if (SADO.activeNav) SADO.activeNav('map'); SADO.refreshBootstrap(); }
   function go(t) {
     tab = t; TABS.forEach(function (x) { var b = $('#adt-' + x[0]); if (b) b.classList.toggle('on', x[0] === t); });
     body('<div class="note">読み込み中…</div>');
-    var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, analysis: loadAnalysis, io: loadIO }[t];
+    var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, analysis: loadAnalysis, io: loadIO, guide: loadGuide }[t];
     f();
   }
   function loadAd() { return api('getAdminAreas').then(function (d) { C.ad = d; return d; }); }
@@ -23,9 +23,10 @@
   // ---------- 管理(エリアの使用・担当) ----------
   function loadAreas() {
     loadAd().then(function (d) {
-      var h = '<div class="card"><h3>エリアを追加</h3><div class="row"><input id="newAreaName" class="grow" placeholder="エリア名(例: 1-4)"><button class="btn primary small" data-act="ad:addArea">追加</button></div></div>';
+      var h = '<div class="card"><h3>1件ずつ追加する</h3><div class="note">CSVを使わずに、1件ずつ追加できます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">建物・部屋を追加(区域編集)</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウント・グループ・担当者を追加</button></div></div>' +
+        '<div class="card"><h3>区域を追加</h3><div class="row"><input id="newAreaName" class="grow" placeholder="区域の名前(例: 1-4)"><select id="newAreaCat">' + '<option value="国仲">国仲</option><option value="遠方">遠方</option><option value="アパート">アパート</option>' + '</select><button class="btn primary small" data-act="ad:addArea">追加</button></div></div>';
       d.areas.forEach(function (a) {
-        h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.active ? '' : '<span class="badge off">非表示</span>') + (a.inUse ? '<span class="badge use">使用中</span>' : (a.expired ? '<span class="badge rej">期限切れ</span>' : '<span class="badge off">未使用</span>')) +
+        h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b><select data-cat="' + esc(a.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (a.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>' + (a.active ? '' : '<span class="badge off">非表示</span>') + (a.inUse ? '<span class="badge use">使用中</span>' : (a.expired ? '<span class="badge rej">期限切れ</span>' : '<span class="badge off">未使用</span>')) +
           '<div class="note">' + (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) + '(終了日' + (a.useEndDate ? '指定あり' : 'は開始日から自動') + ')' : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '使用の記録なし')) + '</div></div></div><div class="row">' +
           (a.inUse ? '<button class="btn small" data-act="ad:endForm" data-v="' + esc(a.areaId) + '">使用を終了</button>' : '<button class="btn primary small" data-act="ad:startForm" data-v="' + esc(a.areaId) + '">使用を開始</button>') +
           '<button class="btn small" data-act="ad:assignForm" data-v="' + esc(a.areaId) + '">担当グループ・担当者</button><button class="btn small" data-act="ad:rename" data-v="' + esc(a.areaId) + '">名前を変更</button>' +
@@ -39,7 +40,7 @@
   function areaName(id) { var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0]; return a ? a.areaName : ''; }
   function slot(id) { return document.getElementById('af-' + id); }
 
-  // ---------- データ編集 ----------
+  // ---------- 区域編集 ----------
   function loadEdit() {
     (C.ad ? Promise.resolve(C.ad) : loadAd()).then(function (d) {
       var h = '<div class="card"><div class="row"><select id="edArea" class="grow">' + opts(d.areas, 'areaId', 'areaName', C.editArea, 'エリアを選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div></div><div id="edBody"></div>';
@@ -51,7 +52,7 @@
   }
   function renderEdit() {
     var d = C.edit, el = document.getElementById('edBody'); if (!el) return;
-    var h = '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
+    var h = '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><div class="row"><button class="btn small" data-act="ad:posMap">地図の中心を入れる</button><button class="btn small" data-act="ad:posGps">いまの位置を入れる</button></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
     h += '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
     var bs = d.buildings.filter(function (b) { return (C.showHidden || !isOff(b.active)) && (!C.filter || String(b.buildingName).indexOf(C.filter) >= 0); });
     bs.sort(function (a, b) { return String(a.buildingName) > String(b.buildingName) ? 1 : -1; });
@@ -105,12 +106,15 @@
     Promise.all([loadAd(), api('getUsers')]).then(function (r) {
       var d = r[0], us = r[1];
       var h = '<div class="card"><h3>ユーザー(ログイン用)</h3><table class="t"><tr><th>ID</th><th>表示名</th><th>権限</th><th>グループ</th><th></th></tr>' + us.map(function (u) {
-        return '<tr><td>' + esc(u.loginId) + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + (u.active ? '' : '<span class="badge off">無効</span>') + '</td><td>' + esc(u.displayName) + '</td><td>' + (u.role === 'admin' ? '管理者' : '一般') + '</td><td>' + esc((d.groups.filter(function (g) { return g.groupId === u.groupId; })[0] || {}).groupName || '') + '</td><td>' +
-          '<button class="btn small" data-act="ad:userRole" data-v="' + esc(u.loginId) + '" data-r="' + (u.role === 'admin' ? 'editor' : 'admin') + '">' + (u.role === 'admin' ? '一般にする' : '管理者にする') + '</button>' +
+        return '<tr><td>' + esc(u.loginId) + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + (u.active ? '' : '<span class="badge off">無効</span>') + '</td><td>' + esc(u.displayName) + '</td><td>' + (u.role === 'admin' ? '区域係' : '奉仕者') + '</td><td>' + esc((d.groups.filter(function (g) { return g.groupId === u.groupId; })[0] || {}).groupName || '') + '</td><td>' +
+          '<button class="btn small" data-act="ad:userRole" data-v="' + esc(u.loginId) + '" data-r="' + (u.role === 'admin' ? 'editor' : 'admin') + '">' + (u.role === 'admin' ? '奉仕者にする' : '区域係にする') + '</button>' +
           '<button class="btn small" data-act="ad:userPw" data-v="' + esc(u.loginId) + '">パスワード再設定</button>' + (u.locked ? '<button class="btn small" data-act="ad:userUnlock" data-v="' + esc(u.loginId) + '">ロック解除</button>' : '') +
           '<button class="btn small" data-act="ad:userActive" data-v="' + esc(u.loginId) + '" data-on="' + (u.active ? '0' : '1') + '">' + (u.active ? '無効にする' : '有効にする') + '</button><button class="btn small danger" data-act="ad:userDel" data-v="' + esc(u.loginId) + '">削除</button></td></tr>';
-      }).join('') + '</table><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="12"><input id="nuPw" placeholder="パスワード(6文字以上)" size="14"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup">' + opts(d.groups, 'groupId', 'groupName', '', 'グループなし') + '</select><select id="nuRole"><option value="editor">一般</option><option value="admin">管理者</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div></div>';
-      h += '<div class="card"><h3>グループ</h3>' + d.groups.map(function (g) { return '<div class="row"><input class="grow" data-g="' + esc(g.groupId) + '" data-f="groupName" value="' + esc(g.groupName) + '"><select data-g="' + esc(g.groupId) + '" data-f="leaderMemberId">' + opts(d.members, 'memberId', 'memberName', g.leaderMemberId, '責任者なし') + '</select><button class="btn small" data-act="ad:groupSave" data-v="' + esc(g.groupId) + '">保存</button><button class="btn small danger" data-act="ad:groupDel" data-v="' + esc(g.groupId) + '">削除</button></div>'; }).join('') +
+      }).join('') + '</table><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="12"><input id="nuPw" placeholder="パスワード(6文字以上)" size="14"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup">' + opts(d.groups, 'groupId', 'groupName', '', 'グループなし') + '</select><select id="nuRole"><option value="editor">奉仕者</option><option value="admin">区域係</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div></div>';
+      h += '<div class="card"><h3>グループ</h3><div class="note">責任者は、そのグループに所属しているアカウントから選びます(アカウントの「グループ」を先に設定してください)。グループの名前を変えても、アカウントの表示は自動で変わります。</div>' + d.groups.map(function (g) {
+        var members = us.filter(function (u) { return u.active && String(u.groupId) === String(g.groupId); });
+        return '<div class="row"><input class="grow" data-g="' + esc(g.groupId) + '" data-f="groupName" value="' + esc(g.groupName) + '"><select data-g="' + esc(g.groupId) + '" data-f="leaderLoginId">' + opts(members, 'loginId', 'displayName', g.leaderLoginId, members.length ? '責任者なし' : '(所属アカウントなし)') + '</select><button class="btn small" data-act="ad:groupSave" data-v="' + esc(g.groupId) + '">保存</button><button class="btn small danger" data-act="ad:groupDel" data-v="' + esc(g.groupId) + '">削除</button></div>';
+      }).join('') +
         '<div class="row"><input id="ngName" class="grow" placeholder="新しいグループ名"><button class="btn primary small" data-act="ad:groupAdd">追加</button></div></div>';
       h += '<div class="card"><h3>担当者名簿</h3>' + d.members.map(function (m) { return '<div class="row"><input class="grow" data-m="' + esc(m.memberId) + '" data-f="memberName" value="' + esc(m.memberName) + '"><select data-m="' + esc(m.memberId) + '" data-f="groupId">' + opts(d.groups, 'groupId', 'groupName', m.groupId, 'グループなし') + '</select><button class="btn small" data-act="ad:memberSave" data-v="' + esc(m.memberId) + '">保存</button><button class="btn small danger" data-act="ad:memberDel" data-v="' + esc(m.memberId) + '">削除</button></div>'; }).join('') +
         '<div class="row"><input id="nmName" class="grow" placeholder="新しい担当者の名前"><select id="nmGroup">' + opts(d.groups, 'groupId', 'groupName', '', 'グループなし') + '</select><button class="btn primary small" data-act="ad:memberAdd">追加</button></div></div>';
@@ -119,7 +123,7 @@
   }
 
   // ---------- 動作設定 ----------
-  var SET_FIELDS = [['appTitle', 'アプリのタイトル', 'text'], ['loginRequired', 'ログイン', [['false', '不要(名前とグループを選んで使う)'], ['true', '必要(IDとパスワード)']]], ['mapTileSource', '背景の地図', [['gsi', '地理院タイル'], ['osm', 'OpenStreetMap(事前保存は不可)']]], ['mapLat', '地図の最初の位置(緯度)', 'text'], ['mapLng', '地図の最初の位置(経度)', 'text'], ['mapZoom', '地図の最初の拡大率', 'text'], ['autoEndMonths', '開始日から自動で終了するまでの月数', 'text'], ['fiscalStartMonth', '年度のはじまりの月', 'text'], ['logDocId', '記録用GoogleドキュメントのID', 'text'], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', 'text']];
+  var SET_FIELDS = [['appTitle', 'アプリのタイトル', 'text'], ['mapTileSource', '背景の地図', [['gsi', '地理院タイル'], ['osm', 'OpenStreetMap(事前保存は不可)']]], ['mapLat', '地図の最初の位置(緯度)', 'text'], ['mapLng', '地図の最初の位置(経度)', 'text'], ['mapZoom', '地図の最初の拡大率', 'text'], ['autoEndMonths', '開始日から自動で終了するまでの月数', 'text'], ['fiscalStartMonth', '年度のはじまりの月', 'text'], ['logDocId', '記録用GoogleドキュメントのID', 'text'], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', 'text']];
   function loadSettings() {
     api('getSettings').then(function (s) {
       body('<div class="card">' + SET_FIELDS.map(function (f) {
@@ -136,6 +140,20 @@
     }, fail);
   }
 
+  // ---------- 利用ガイド ----------
+  function loadGuide() {
+    var items = [['区域管理', '区域の使用の開始・終了、担当グループ・担当者の設定、区分(国仲・遠方・アパート)の変更、区域の追加ができます。期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わります。'],
+      ['一括クリア', '年度の切り替えなどで、区域の訪問状況やメモをまとめて消します。直前の1回は、元に戻せます。'],
+      ['報告一覧', '奉仕者から送られた報告を読み、対応したら削除します。'],
+      ['区域編集', '建物と部屋を、1件ずつ追加・編集・非表示・削除します。建物の位置(緯度・経度)は、地図の中心や現在地から入れられます。'],
+      ['アカウント', 'ログイン用のユーザー(奉仕者・区域係)、グループ、担当者名簿を管理します。グループの責任者は、そのグループに所属するアカウントから選びます。'],
+      ['動作設定', 'アプリの名前、地図の最初の位置、自動終了までの月数、記録用ドキュメントや印刷用ファイルのフォルダを設定します。'],
+      ['履歴・ログ', '区域の使用記録と、データの更新履歴を見られます(閲覧のみ)。'],
+      ['分析', '次に訪問する区域の目安(おすすめ度・残り・再訪候補)を表で見られます。'],
+      ['取込・書出', 'QGISなどで作ったCSVを取り込みます。建物・部屋の記録を、uuid2つきのCSVで書き出して、QGISに戻せます。']];
+    body(items.map(function (x) { return '<div class="card"><h3>' + esc(x[0]) + '</h3>' + esc(x[1]) + '</div>'; }).join(''));
+  }
+
   // ---------- 取込・書出 ----------
   function parseCsv(t) {
     var rows = [], row = [], f = '', q = false, i; t = t.replace(/^﻿/, '');
@@ -144,7 +162,7 @@
     var h = rows.shift() || [];
     return rows.filter(function (r) { return r.length > 1 || (r[0] || '') !== ''; }).map(function (r) { var o = {}; h.forEach(function (k, j) { o[k.trim()] = r[j] === undefined ? '' : r[j]; }); return o; });
   }
-  var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, …'], ['group', 'グループ', 'groupId, groupName, leaderMemberId'], ['member', '担当者名簿', 'memberId, memberName, groupId'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark']];
+  var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, category(国仲/遠方/アパート), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['member', '担当者名簿', 'memberId, memberName, groupId'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark']];
   function loadIO() {
     body('<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、エリア → グループ → 担当者 → 建物 → 部屋 です。</div>' +
       IMPORTS.map(function (x) { return '<div class="row"><b style="min-width:5em">' + x[1] + '</b><input type="file" accept=".csv,text/csv" id="imp-' + x[0] + '"><button class="btn small primary" data-act="ad:import" data-v="' + x[0] + '">取り込む</button></div><div class="note">列: ' + x[2] + '</div>'; }).join('') + '<div class="note" id="impMsg"></div></div>' +
@@ -174,7 +192,7 @@
     switch (a) {
       case 'close': close(); break;
       case 'tab': go(v); break;
-      case 'addArea': after(api('addArea', { areaName: val('newAreaName') }), 'エリアを追加しました。', function () { bump(); go('areas'); }); break;
+      case 'addArea': after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), 'エリアを追加しました。', function () { bump(); go('areas'); }); break;
       case 'rename': var nm = window.prompt('新しいエリア名', areaName(v)); if (nm) after(api('renameArea', { areaId: v, areaName: nm }), '変更しました。', function () { bump(); go('areas'); }); break;
       case 'toggleArea': after(api('setActive', { kind: 'area', id: v, active: on === '1' }), '変更しました。', function () { bump(); go('areas'); }); break;
       case 'startForm':
@@ -191,6 +209,8 @@
       case 'autoEnd': after(api('runAutoEnd'), function (r) { return r.ended.length ? '自動で終了: ' + r.ended.join('、') + (r.warnings.length ? '\n(注意) ' + r.warnings[0] : '') : '期限が来たエリアはありません。'; }, function () { go('areas'); }); break;
       case 'newYear': if (window.confirm('今の記録ドキュメントをコピーして、新しい年度のファイルを作ります。各エリアの「前回完了した日付」が転記されます。よろしいですか？')) after(api('createNewYearDoc'), function (r) { return r.label + '年度のファイルを作りました(' + r.areasCarried + '区域を転記)。\n' + r.url; }, null); break;
       // データ編集
+      case 'posMap': { var m = SADO.map; if (!m) { toast('地図が開かれていません。'); break; } var c = m.getCenter(); $('#nbLat').value = c.lat.toFixed(6); $('#nbLng').value = c.lng.toFixed(6); toast('地図の中心の位置を入れました。(管理画面を閉じて地図を動かし、もう一度開いて入れ直せます)'); break; }
+      case 'posGps': { if (!navigator.geolocation) { toast('位置情報が使えません。'); break; } navigator.geolocation.getCurrentPosition(function (p) { $('#nbLat').value = p.coords.latitude.toFixed(6); $('#nbLng').value = p.coords.longitude.toFixed(6); }, function () { toast('位置を取得できませんでした。'); }, { enableHighAccuracy: true, timeout: 15000 }); break; }
       case 'addB': after(api('createBuilding', { areaId: C.editArea, buildingName: val('nbName'), lat: val('nbLat'), lng: val('nbLng'), rooms: val('nbRooms').split('\n') }), '建物を追加しました。', loadEditBody); break;
       case 'saveB': f = fields('b', v); after(api('updateBuilding', { buildingId: v, buildingName: f.buildingName, buildingMemo: f.buildingMemo, lat: f.lat, lng: f.lng }), '保存しました。', loadEditBody); break;
       case 'activeB': after(api('setActive', { kind: 'building', id: v, active: on === '1' }), '変更しました。', loadEditBody); break;
@@ -212,7 +232,7 @@
       case 'userPw': var pw = window.prompt('新しいパスワード(6文字以上)'); if (pw) after(api('updateUser', { loginId: v, password: pw }), 'パスワードを変更しました。', null); break;
       case 'userDel': if (window.confirm('ユーザー「' + v + '」を削除します。よろしいですか？')) after(api('deleteUser', { loginId: v }), '削除しました。', loadAccounts); break;
       case 'groupAdd': after(api('saveGroup', { groupName: val('ngName') }), '追加しました。', function () { bump(); loadAccounts(); }); break;
-      case 'groupSave': f = fields('g', v); after(api('saveGroup', { groupId: v, groupName: f.groupName, leaderMemberId: f.leaderMemberId }), '保存しました。', function () { bump(); loadAccounts(); }); break;
+      case 'groupSave': f = fields('g', v); after(api('saveGroup', { groupId: v, groupName: f.groupName, leaderLoginId: f.leaderLoginId }), '保存しました。', function () { bump(); loadAccounts(); }); break;
       case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(); }); break;
       case 'memberAdd': after(api('saveMember', { memberName: val('nmName'), groupId: val('nmGroup') }), '追加しました。', function () { bump(); loadAccounts(); }); break;
       case 'memberSave': f = fields('m', v); after(api('saveMember', { memberId: v, memberName: f.memberName, groupId: f.groupId }), '保存しました。', function () { bump(); loadAccounts(); }); break;
@@ -229,6 +249,7 @@
   }
   document.addEventListener('change', function (ev) {
     var t = ev.target;
+    if (t.getAttribute && t.getAttribute('data-cat')) { api('setAreaCategory', { areaId: t.getAttribute('data-cat'), category: t.value }).then(function () { toast('区分を「' + t.value + '」にしました。'); if (C.ad) C.ad.areas.forEach(function (a) { if (a.areaId === t.getAttribute('data-cat')) a.category = t.value; }); }, fail); return; }
     if (t.id === 'edArea') { C.editArea = t.value; if (C.editArea) loadEditBody(); else document.getElementById('edBody').innerHTML = ''; }
     else if (t.id === 'edHidden') { C.showHidden = t.checked; if (C.edit) renderEdit(); }
     else if (t.id === 'edFilter') { C.filter = t.value; renderEdit(); var e = document.getElementById('edFilter'); if (e) e.focus(); }

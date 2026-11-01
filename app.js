@@ -96,14 +96,8 @@
   }
 
   function showLogin() {
-    $('#boot').classList.add('hidden'); $('#appScreen').classList.add('hidden'); $('#loginScreen').classList.remove('hidden');
-    var apply = function (pub) {
-      S.pub = pub; $('#loginTitle').textContent = pub.appTitle || '佐渡住宅GAS';
-      $('#memberPanel').classList.toggle('hidden', !pub.loginRequired); $('#guestPanel').classList.toggle('hidden', pub.loginRequired);
-      $('#guestGroup').innerHTML = '<option value="">（選択しない）</option>' + (pub.groups || []).map(function (g) { return '<option value="' + esc(g.groupId) + '">' + esc(g.groupName) + '</option>'; }).join('');
-      var last = getPrefs(); if (last.guestName) $('#guestName').value = last.guestName; if (last.guestGroup) $('#guestGroup').value = last.guestGroup;
-      $('#loginNote').textContent = pub.loginRequired ? '' : 'お名前とグループを選んではじめます。';
-    };
+    $('#boot').classList.add('hidden'); $('#appScreen').classList.add('hidden'); $('#nav').classList.add('hidden'); $('#home').classList.add('hidden'); $('#menu').classList.add('hidden'); $('#loginScreen').classList.remove('hidden');
+    var apply = function (pub) { S.pub = pub; $('#loginTitle').textContent = pub.appTitle || '佐渡住宅GAS'; $('#loginNote').textContent = ''; };
     api('getPublicInfo').then(function (pub) { idb.set('kv', 'pub', pub); apply(pub); }, function (e) {
       if (S.pub) apply(S.pub); else $('#loginMsg').textContent = e.server ? e.message : '最初の1回は、電波のあるところで開いてください。';
     });
@@ -116,32 +110,26 @@
     $('#loginMsg').textContent = '';
     api('login', { loginId: $('#loginId').value, password: $('#loginPw').value }).then(afterLogin, function (e) { $('#loginMsg').textContent = e.message; });
   }
-  function doGuest() {
-    $('#loginMsg').textContent = '';
-    var name = $('#guestName').value.trim(), gid = $('#guestGroup').value;
-    setPref('guestName', name); setPref('guestGroup', gid);
-    api('guestLogin', { name: name, groupId: gid }).then(afterLogin, function (e) { $('#loginMsg').textContent = e.message; });
-  }
   function logout() {
     var go = function () { S.token = null; S.user = null; S.cur = null; idb.del('kv', 'session').then(function () { location.reload(); }); };
     if (S.online) api('logout').then(go, go); else go();
   }
 
   function enterApp() {
-    $('#boot').classList.add('hidden'); $('#loginScreen').classList.add('hidden'); $('#appScreen').classList.remove('hidden');
+    $('#boot').classList.add('hidden'); $('#loginScreen').classList.add('hidden'); $('#appScreen').classList.remove('hidden'); $('#nav').classList.remove('hidden');
     $('#hdrTitle').textContent = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    initMap(); renderLegend();
+    initMap(); renderLegend(); $('#navAdmin').classList.toggle('hidden', !isAdmin());
     refreshBootstrap(); countPending();
-    loadFrames();
+    loadFrames(); goHome();
   }
   function refreshBootstrap() {
     return api('getBootstrap').then(function (b) {
       S.settings = b.settings; S.areas = b.areas; S.user = b.user;
       idb.set('kv', 'bootstrap', { settings: b.settings, areas: b.areas });
       $('#hdrTitle').textContent = b.settings.appTitle || '佐渡住宅GAS';
-      renderLegend(); drawFrames();
+      renderLegend(); drawFrames(); $('#navAdmin').classList.toggle('hidden', !isAdmin());
       if (S.cur) { var a = areaById(S.cur); if (a && S.data[S.cur]) { S.data[S.cur].area = a; drawBuildings(); renderSheet(); } }
-      if (!$('#menu').classList.contains('hidden') && SADO.menuTab === 'areas') renderMenuBody();
+      if (!$('#home').classList.contains('hidden')) renderHome();
     }, function (e) { if (e.expired) sessionExpired(); });
   }
   function sessionExpired() { toast('ログインの有効期限が切れました。未送信の記録は端末に残っています。'); S.token = null; idb.del('kv', 'session').then(function () { showLogin(); }); }
@@ -166,8 +154,7 @@
     SADO.map = map;
   }
   function renderLegend() {
-    var l = statusList();
-    $('#legend').innerHTML = '<i style="background:#8a9592"></i>未訪問<i style="background:#2563eb"></i>途中<i style="background:#1f8a4c"></i>完了<i style="background:#fff;border:2px solid #c8372d"></i>拒否あり' + (l.length ? '' : '');
+    $('#legend').innerHTML = '<b><i style="background:#1a73e8"></i>未訪問</b><b><i style="background:#f57c00"></i>途中</b><b><i style="background:#188038"></i>完了</b><b><i style="background:#9aa0a6"></i>編集不可</b><b><i style="background:#fff;border:2px solid #d93025"></i>拒否あり</b>';
   }
   function loadFrames() {
     var show = function (g) { S.frames = g; drawFrames(); };
@@ -185,8 +172,8 @@
     if (!frameLayer) return; frameLayer.clearLayers();
     if (!S.frames || S.cur) return;
     S.frames.features.forEach(function (f) {
-      var id = f.properties.areaId, a = areaById(id); if (!a) return;
-      var color = a.inUse ? (a.assigned ? '#1f8a4c' : '#64748b') : '#0f766e';
+      var id = f.properties.areaId, a = areaById(id); if (!a || visibleAreas().indexOf(a) < 0) return;
+      var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
       poly.bindTooltip(a.areaName + (a.inUse ? '（使用中）' : ''), { permanent: true, direction: 'center', className: 'area-label' });
       poly.on('click', function () { selectArea(id); });
@@ -228,7 +215,7 @@
   function selectArea(areaId) {
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
     loadAreaData(areaId).then(function () {
-      S.cur = areaId; closeSheet(); drawFrames(); drawBuildings(true); updateTitle(); closeMenu();
+      S.cur = areaId; closeSheet(); drawFrames(); drawBuildings(true); updateTitle(); closePanels();
       var d = S.data[areaId]; if (d && d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(areaId); if (i >= 0) S.areas[i] = d.area; }
       if (a && !a.canEdit) toast(a.inUse ? '「' + a.areaName + '」は担当外のため、見るだけです。' : '「' + a.areaName + '」は使用中ではないため、見るだけです。', 3500);
     })['catch'](function (e) { toast(e.message, 5000); });
@@ -240,8 +227,8 @@
   function buildingStyle(areaId, b) {
     var rs = roomsOf(areaId, b.buildingId), n = rs.length, done = 0, visited = 0, rej = false, cau = false, a = areaById(areaId) || (S.data[areaId] && S.data[areaId].area) || {};
     rs.forEach(function (r) { var s = statusOf(r.status); if (s.done) done++; if (s.visited) visited++; if (r.mark === 'reject') rej = true; if (r.mark === 'caution') cau = true; });
-    var fill = n && done === n ? '#1f8a4c' : (visited > 0 ? '#2563eb' : '#8a9592'), editable = a.canEdit !== false;
-    return { color: rej ? '#c8372d' : (cau ? '#d97706' : fill), weight: rej || cau ? 3 : 1.5, fillColor: fill, fillOpacity: editable ? 0.6 : 0.3 };
+    var editable = a.canEdit !== false, fill = !editable ? '#9aa0a6' : (n && done === n ? '#188038' : (visited > 0 ? '#f57c00' : '#1a73e8'));
+    return { color: rej ? '#d93025' : (cau ? '#e37400' : fill), weight: rej || cau ? 3 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   function drawBuildings(fit) {
     if (!bLayer) return; bLayer.clearLayers(); bShapes = {};
@@ -272,7 +259,7 @@
     var a = d.area, can = a.canEdit, rs = roomsOf(S.cur, b.buildingId), keep = sh.querySelector('.body') ? sh.querySelector('.body').scrollTop : 0;
     var h = '<div class="head"><div class="row"><div class="name grow">' + esc(b.buildingName) + '</div><button class="btn small" data-act="report">報告</button><button class="btn small" data-act="closeSheet">閉じる</button></div>';
     h += '<div class="note">' + esc(a.areaName) + (can ? '' : '　※見るだけ（' + (a.inUse ? '担当外' : '使用中ではありません') + '）') + '</div></div><div class="body">';
-    if (can) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
+    if (S.user && S.user.role === 'admin') h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
     else if (b.buildingMemo) h += '<div class="note">メモ: ' + esc(b.buildingMemo) + '</div>';
     rs.forEach(function (r) {
       h += '<div class="room" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + '</div><div>';
@@ -297,7 +284,7 @@
     applyOp(d, op); persistArea(); enqueue(op); restyle(r.buildingId); renderSheet();
   }
   function patchBuilding(bid, patch) {
-    var d = S.data[S.cur]; if (!d || !d.area.canEdit) return;
+    var d = S.data[S.cur]; if (!d || !S.user || S.user.role !== 'admin') return; // 建物の名前・メモは区域係のみ
     var op = { type: 'building', areaId: S.cur, buildingId: bid, label: d.area.areaName + ' 建物' };
     for (var k in patch) op[k] = patch[k];
     applyOp(d, op); persistArea(); enqueue(op);
@@ -309,9 +296,11 @@
   function updateBadge() {
     var b = $('#syncBadge'); if (!b) return;
     b.className = ''; b.id = 'syncBadge';
+    var hb = $('#homeBadge'); if (hb) hb.textContent = ''; 
     if (S.pending > 0) { b.textContent = (S.online ? '送信待ち ' : '未送信 ') + S.pending + '件'; b.classList.add('pend'); }
     else if (!S.online) { b.textContent = 'オフライン'; b.classList.add('off'); }
     else b.textContent = '同期済み';
+    if (hb) hb.textContent = b.textContent;
     if (S.online && S.pending === 0 && !b.classList.length) b.className = '';
   }
   var flushing = false;
@@ -344,41 +333,73 @@
     }, function () { toast('現在地を取得できませんでした。端末の位置情報の許可を確認してください。'); watchId = null; }, { enableHighAccuracy: true, maximumAge: 5000 });
   }
 
-  // ---------- メニュー(エリア・設定・ダウンロード) ----------
-  function openMenu(tab) { SADO.menuTab = tab || 'areas'; var m = $('#menu'); m.classList.remove('hidden'); renderMenu(); }
-  function closeMenu() { $('#menu').classList.add('hidden'); }
+  // ---------- ホーム(国仲・遠方・アパートを選び、区域の一覧から地図へ) ----------
+  var CATS = [['国仲', '国仲'], ['遠方', '遠方'], ['アパート', 'アパート']];
+  function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
+  function roleLabel() { return isAdmin() ? '区域係' : '奉仕者'; }
+  function inCat(a, cat) { return (a.category || '国仲') === cat; }
+  // 区域係はすべて。奉仕者は、国仲・遠方は自分か所属グループが担当の区域、アパートは使用中の区域
+  function visibleAreas() {
+    return S.areas.filter(function (a) { return isAdmin() || (inCat(a, 'アパート') ? a.inUse : a.mine); });
+  }
+  function catAreas(cat) { return visibleAreas().filter(function (a) { return inCat(a, cat); }); }
+  function activeNav(v) { var bs = document.querySelectorAll('#nav button'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-v') === v); }
+  function closePanels() { $('#home').classList.add('hidden'); $('#menu').classList.add('hidden'); activeNav('map'); }
+  SADO.activeNav = activeNav;
+  function goHome() {
+    S.homeCat = null; closeSheet(); $('#menu').classList.add('hidden'); $('#home').classList.remove('hidden'); activeNav('areas'); renderHome();
+  }
+  function renderHome() {
+    var el = $('#home'), cat = S.homeCat, title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
+    var h = '<div class="mhead">' + (cat ? '<button data-act="homeBack" aria-label="戻る" style="margin-left:0;margin-right:6px">‹</button>' : '') + '<div class="t">' + esc(cat || title) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div><div class="mbody">';
+    if (!cat) {
+      CATS.forEach(function (c) {
+        var n = catAreas(c[0]).length, use = catAreas(c[0]).filter(function (a) { return a.inUse; }).length;
+        h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : (c[0] === 'アパート' ? '使用中の区域 ' + n + '件' : '担当の区域 ' + n + '件(使用中 ' + use + '件)')) + '</span></button>';
+      });
+      if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
+    } else {
+      var list = catAreas(cat);
+      h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : (cat === 'アパート' ? '使用中の区域です。' : 'あなた、またはあなたのグループが担当の区域です。')) + '</div><div style="height:8px"></div>';
+      list.forEach(function (a) {
+        h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
+          (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
+          '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button><button class="btn small" data-act="saveTiles" data-v="' + esc(a.areaId) + '">地図を端末に保存</button></div></div>';
+      });
+      if (!list.length) h += '<div class="note" style="padding:12px 4px">' + (cat === 'アパート' ? '使用中のアパートの区域はありません。' : '担当の区域はありません。区域係に、担当の設定を確認してください。') + '</div>';
+    }
+    el.innerHTML = h + '</div>';
+  }
+
+  // ---------- メニュー(設定・ダウンロード) ----------
+  function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'help' ? 'help' : 'settings'); renderMenu(); }
+  function closeMenu() { $('#menu').classList.add('hidden'); if ($('#home').classList.contains('hidden')) activeNav('map'); }
   function renderMenu() {
-    var tabs = [['areas', 'エリア'], ['dl', '印刷用'], ['prefs', '設定']];
-    if (S.user && S.user.role === 'admin') tabs.push(['admin', '管理']);
-    $('#menu').innerHTML = '<div class="mhead"><div class="t">' + esc((S.settings && S.settings.appTitle) || '') + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName : '') + '</span></div><button data-act="closeMenu">✕</button></div><div class="tabs">' +
-      tabs.map(function (t) { return '<button class="tab' + (SADO.menuTab === t[0] ? ' on' : '') + '" data-act="menuTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="menuBody"></div>';
+    var tabs = SADO.menuTab === 'help' ? [] : [['prefs', '設定'], ['dl', '印刷用']];
+    $('#menu').innerHTML = '<div class="mhead"><div class="t">' + (SADO.menuTab === 'help' ? 'ヘルプ' : '設定') + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
+      (tabs.length ? '<div class="tabs">' + tabs.map(function (t) { return '<button class="tab' + (SADO.menuTab === t[0] ? ' on' : '') + '" data-act="menuTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '') + '<div class="mbody" id="menuBody"></div>';
     renderMenuBody();
   }
   function renderMenuBody() {
     var el = $('#menuBody'), t = SADO.menuTab; if (!el) return;
-    if (t === 'areas') {
-      var h = (S.cur ? '<button class="btn block" data-act="clearArea">エリアの選択をやめて、全体を見る</button>' : '');
-      h += '<div style="height:8px"></div>';
-      S.areas.forEach(function (a) {
-        var saved = '';
-        h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.assigned && a.inUse ? '<span class="badge mine">担当</span>' : '') + (S.cur === a.areaId ? '<span class="badge use">表示中</span>' : '') + '<div class="note">' +
-          (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
-          '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button><button class="btn small" data-act="saveTiles" data-v="' + esc(a.areaId) + '">地図を端末に保存</button></div></div>';
-      });
-      el.innerHTML = h || '<div class="note">エリアがありません。</div>';
-    } else if (t === 'dl') {
+    if (t === 'dl') {
       if (!S.settings || !S.settings.hasDownloads) { el.innerHTML = '<div class="card">印刷用の地図(PDF・PNG)は、まだ設定されていません。</div>'; return; }
-      el.innerHTML = '<div class="note">エリアを選んで、ダウンロードします(電波が必要です)。</div>' + S.areas.map(function (a) {
+      el.innerHTML = '<div class="note">エリアを選んで、ダウンロードします(電波が必要です)。</div>' + visibleAreas().map(function (a) {
         return '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b></div><button class="btn small" data-act="dlFile" data-v="' + esc(a.areaId) + '" data-t="pdf">PDF</button><button class="btn small" data-act="dlFile" data-v="' + esc(a.areaId) + '" data-t="png">PNG</button></div></div>';
       }).join('');
     } else if (t === 'prefs') {
       var p = getPrefs();
-      el.innerHTML = '<div class="card"><h3>文字の大きさ</h3><div class="row">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="chip' + (String(p.font || '3') === String(n) ? ' on' : '') + '" style="' + (String(p.font || '3') === String(n) ? 'background:var(--primary)' : '') + '" data-act="prefFont" data-v="' + n + '">' + n + '</button>'; }).join('') + '</div></div>' +
-        '<div class="card"><h3>画面の色</h3><div class="row">' + [['auto', '自動'], ['light', 'ライト'], ['dark', 'ダーク']].map(function (x) { return '<button class="chip' + ((p.theme || 'auto') === x[0] ? ' on' : '') + '" style="' + ((p.theme || 'auto') === x[0] ? 'background:var(--primary)' : '') + '" data-act="prefTheme" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
-        (S.user && S.user.role !== 'guest' ? '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' : '') +
+      el.innerHTML = '<div class="card"><h3>文字の大きさ</h3><div class="seg">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="chip' + (String(p.font || '3') === String(n) ? ' on' : '') + '" data-act="prefFont" data-v="' + n + '">' + n + '</button>'; }).join('') + '</div></div>' +
+        '<div class="card"><h3>画面モード</h3><div class="seg">' + [['light', 'ライト'], ['dark', 'ダーク'], ['auto', '端末に合わせる']].map(function (x) { return '<button class="chip' + ((p.theme || 'auto') === x[0] ? ' on' : '') + '" data-act="prefTheme" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+        '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
         '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件<br>通信: ' + (S.online ? 'オンライン' : 'オフライン') + '</div><button class="btn small" data-act="syncNow">今すぐ送信する</button></div>' +
         '<button class="btn danger block" data-act="logout">ログアウト</button>';
-    } else if (t === 'admin') { closeMenu(); if (SADO.openAdmin) SADO.openAdmin(); }
+    } else if (t === 'help') {
+      el.innerHTML = '<div class="card"><h3>はじめに</h3>ログイン後、「国仲・遠方・アパート」から選び、区域の「開く」を押すと、地図に建物が出ます。建物を押すと、部屋ごとに訪問状況を記録できます。</div>' +
+        '<div class="card"><h3>色の意味</h3>建物の色: 青=未訪問 / オレンジ=途中 / 緑=完了 / 灰色=編集不可(担当外、または使用中でない)。赤い枠=拒否あり、橙の枠=注意あり。</div>' +
+        '<div class="card"><h3>圏外のとき</h3>電波がなくても、保存済みの区域は開けて、入力もできます。入力は端末に残り、電波が戻ると自動で送信されます(画面の上に「未送信 ○件」と出ます)。区域は、電波のあるところで「地図を端末に保存」を押しておくと、地図の背景も圏外で見られます。</div>' +
+        '<div class="card"><h3>困ったとき</h3>「見るだけ」と出るときは、その区域が使用中でない、または担当でありません。区域係に連絡してください。</div>';
+    }
   }
   function b64Blob(b64, mime) { var bin = atob(b64), n = bin.length, u = new Uint8Array(n); for (var i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime }); }
   SADO.saveBlob = function (blob, name) {
@@ -422,21 +443,22 @@
     var act = t.getAttribute('data-act'), v = t.getAttribute('data-v');
     switch (act) {
       case 'login': doLogin(); break;
-      case 'guest': doGuest(); break;
-      case 'showMember': $('#guestPanel').classList.add('hidden'); $('#memberPanel').classList.remove('hidden'); $('#loginMsg').textContent = ''; $('#loginId').focus(); break;
       case 'logout': logout(); break;
-      case 'menu': openMenu('areas'); break;
-      case 'closeMenu': closeMenu(); break;
+      case 'nav':
+        if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'help') openMenu('help');
+        else if (v === 'admin' && SADO.openAdmin) { closePanels(); activeNav('admin'); SADO.openAdmin(); }
+        break;
+      case 'navClose': closePanels(); break;
       case 'menuTab': SADO.menuTab = v; renderMenu(); break;
-      case 'areas': openMenu('areas'); break;
+      case 'homeCat': S.homeCat = v; renderHome(); break;
+      case 'homeBack': S.homeCat = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
-      case 'clearArea': clearArea(); closeMenu(); break;
       case 'locate': locate(); break;
       case 'closeSheet': closeSheet(); break;
       case 'setStatus': patchRoom(t.getAttribute('data-room'), { status: v }); break;
       case 'setMark': var r = roomById(t.getAttribute('data-room')); patchRoom(t.getAttribute('data-room'), { mark: r && r.mark === v ? '' : v }); break;
       case 'report':
-        var text = window.prompt('管理者への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
+        var text = window.prompt('区域係への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
         break;
       case 'prefFont': setPref('font', v); renderMenuBody(); break;
       case 'prefTheme': setPref('theme', v); renderMenuBody(); break;
@@ -459,7 +481,7 @@
   });
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && ev.target && (ev.target.id === 'loginPw' || ev.target.id === 'loginId')) doLogin(); });
 
-  SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
+  SADO.goHome = goHome; SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
   SADO.toast = toast; SADO.openMenu = openMenu;
   boot();
 })();
