@@ -336,14 +336,15 @@
     }, function () { toast('現在地を取得できませんでした。端末の位置情報の許可を確認してください。'); watchId = null; }, { enableHighAccuracy: true, maximumAge: 5000 });
   }
 
-  // ---------- ホーム(国仲・遠方・アパートを選び、区域の一覧から地図へ) ----------
-  var CATS = [['国仲', '国仲'], ['遠方', '遠方'], ['アパート', 'アパート']];
+  // ---------- ホーム(国仲・遠方を選び、区域の一覧から地図へ) ----------
+  var CATS = [['国仲', '国仲'], ['遠方', '遠方']];
+  var APARTMENT_URL = (CFG && CFG.apartmentUrl) || 'https://script.google.com/macros/s/AKfycbxUl6JIpJzbbZiQGPqORidVTHJSs8eeeJSWaEtcHN0IUzTUOHvcYxv0XTGGWLZnLbW4/exec'; // 佐渡アパートGAS(アパートの記録はこちらで行う)
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
   function roleLabel() { return isAdmin() ? '区域係' : '奉仕者'; }
   function inCat(a, cat) { return (a.category || '国仲') === cat; }
-  // 区域係はすべて。奉仕者は、国仲・遠方は自分か所属グループが担当の区域、アパートは使用中の区域
+  // 区域係はすべて。奉仕者は、自分か所属グループ(会衆を含む)が担当の区域
   function visibleAreas() {
-    return S.areas.filter(function (a) { return isAdmin() || (inCat(a, 'アパート') ? a.inUse : a.mine); });
+    return S.areas.filter(function (a) { return isAdmin() || a.mine; });
   }
   function catAreas(cat) { return visibleAreas().filter(function (a) { return inCat(a, cat); }); }
   function activeNav(v) { var bs = document.querySelectorAll('#nav button'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-v') === v); }
@@ -358,18 +359,19 @@
     if (!cat) {
       CATS.forEach(function (c) {
         var n = catAreas(c[0]).length, use = catAreas(c[0]).filter(function (a) { return a.inUse; }).length;
-        h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : (c[0] === 'アパート' ? '使用中の区域 ' + n + '件' : '担当の区域 ' + n + '件(使用中 ' + use + '件)')) + '</span></button>';
+        h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : '担当の区域 ' + n + '件(使用中 ' + use + '件)') + '</span></button>';
       });
+      h += '<a class="catbtn link" href="' + esc(APARTMENT_URL) + '" target="_blank" rel="noopener">佐渡アパートGASを開く<span class="sub">アパートの記録は、こちらのアプリで行います</span></a>';
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else {
       var list = catAreas(cat);
-      h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : (cat === 'アパート' ? '使用中の区域です。' : 'あなた、またはあなたのグループが担当の区域です。')) + '</div><div style="height:8px"></div>';
+      h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
       list.forEach(function (a) {
         h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
           (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
           '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button><button class="btn small" data-act="saveTiles" data-v="' + esc(a.areaId) + '">地図を端末に保存</button></div></div>';
       });
-      if (!list.length) h += '<div class="note" style="padding:12px 4px">' + (cat === 'アパート' ? '使用中のアパートの区域はありません。' : '担当の区域はありません。区域係に、担当の設定を確認してください。') + '</div>';
+      if (!list.length) h += '<div class="note" style="padding:12px 4px">' + '担当の区域はありません。区域係に、担当の設定を確認してください。' + '</div>';
     }
     el.innerHTML = h + '</div>';
   }
@@ -398,7 +400,7 @@
         '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件<br>通信: ' + (S.online ? 'オンライン' : 'オフライン') + '</div><button class="btn small" data-act="syncNow">今すぐ送信する</button></div>' +
         '<button class="btn danger block" data-act="logout">ログアウト</button>';
     } else if (t === 'help') {
-      el.innerHTML = '<div class="card"><h3>はじめに</h3>ログイン後、「国仲・遠方・アパート」から選び、区域の「開く」を押すと、地図に建物が出ます。建物を押すと、部屋ごとに訪問状況を記録できます。</div>' +
+      el.innerHTML = '<div class="card"><h3>はじめに</h3>ログイン後、「国仲・遠方」から選び、区域の「開く」を押すと、地図に建物が出ます。建物を押すと、部屋ごとに訪問状況を記録できます。</div>' +
         '<div class="card"><h3>色の意味</h3>建物の色: 青=未訪問 / オレンジ=途中 / 緑=完了 / 灰色=編集不可(担当外、または使用中でない)。赤い枠=拒否あり、橙の枠=注意あり。</div>' +
         '<div class="card"><h3>圏外のとき</h3>電波がなくても、保存済みの区域は開けて、入力もできます。入力は端末に残り、電波が戻ると自動で送信されます(画面の上に「未送信 ○件」と出ます)。区域は、電波のあるところで「地図を端末に保存」を押しておくと、地図の背景も圏外で見られます。</div>' +
         '<div class="card"><h3>困ったとき</h3>「見るだけ」と出るときは、その区域が使用中でない、または担当でありません。区域係に連絡してください。</div>';
