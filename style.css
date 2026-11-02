@@ -173,3 +173,4 @@ a.catbtn.link::after{content:"↗"}
 .urow .row{margin-top:6px}
 .pcard{cursor:pointer}.pcard .chev{font-size:1.6em;color:var(--text-2);padding:0 6px}.homeq{width:100%;margin:6px 0 10px}
 .ptree .prow.child{margin-left:18px}.pgrp{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}
+.rn .tn{display:block;font-weight:400;font-size:.8em;color:var(--text-2)}

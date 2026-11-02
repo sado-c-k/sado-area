@@ -286,7 +286,7 @@
     if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
     else if (b.buildingMemo) h += '<div class="note">メモ: ' + esc(b.buildingMemo) + '</div>';
     rs.forEach(function (r) {
-      h += '<div class="room st-' + esc(r.status) + '" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + (ed ? '<button class="btn small danger" style="float:right" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div><div>';
+      h += '<div class="room st-' + esc(r.status) + '" data-room="' + esc(r.roomId) + '"><div class="rn">' + esc(r.roomName) + (r.tenant ? '<span class="tn">' + esc(r.tenant) + '</span>' : '') + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + (ed ? '<button class="btn small danger" style="float:right" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div><div>';
       statusList().forEach(function (s) { h += '<button class="chip s-' + esc(s.id) + (r.status === s.id ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setStatus" data-room="' + esc(r.roomId) + '" data-v="' + esc(s.id) + '">' + esc(s.label) + '</button>'; });
       h += '</div><div>';
       [['reject', '拒否'], ['caution', '注意']].forEach(function (m) { h += '<button class="chip mark-' + m[0] + (r.mark === m[0] ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setMark" data-room="' + esc(r.roomId) + '" data-v="' + m[0] + '">' + m[1] + '</button>'; });
@@ -359,7 +359,7 @@
   }
 
   // ---------- ホーム(国仲・遠方を選び、区域の一覧から地図へ) ----------
-  var CATS = [['国仲', '国仲'], ['遠方', '遠方']];
+  var CATS = [['国仲', '国仲'], ['遠方', '遠方'], ['アパート', 'アパート']];
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
   function roleLabel() { return isAdmin() ? '区域係' : '奉仕者'; }
   function inCat(a, cat) { return (a.category || '国仲') === cat; }
@@ -403,12 +403,12 @@
         h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : '担当の区域 ' + n + '件(使用中 ' + use + '件)') + '</span></button>';
       });
       var aptUrl = (S.settings && S.settings.apartmentUrl) || CFG.apartmentUrl || '';
-      if (/^https?:\/\//.test(aptUrl)) h += '<a class="catbtn link" href="' + esc(aptUrl) + '" target="_blank" rel="noopener">アパート<span class="sub">アパートの記録は、別のアプリ(佐渡アパートGAS)で行います</span></a>';
+      if (/^https?:\/\//.test(aptUrl)) h += '<a class="catbtn link" href="' + esc(aptUrl) + '" target="_blank" rel="noopener">アパートGAS(旧)<span class="sub">これまでのアパートの記録は、別のアプリ(佐渡アパートGAS)で行います</span></a>';
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else {
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null;
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きなエリア一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div style="height:8px"></div>'; }
-      else if (hasParents()) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
+      else if (parentsOf(cat).length) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
       else h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
       list.forEach(function (a) {
         h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +

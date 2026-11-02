@@ -54,7 +54,7 @@
       var h = '<div class="card"><h3>区域管理</h3><div id="apSum" class="note">進み具合を計算中…</div>' +
         '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="エリア名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中のエリアだけ表示</label><div id="apList" class="ptree"></div></div>' +
         '<div class="card"><h3>1件ずつ追加する</h3><div class="note">CSVを使わずに、1件ずつ追加できます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">建物・部屋を追加(区域編集)</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウント・グループ・担当者を追加</button></div>' +
-        '<div class="row" style="margin-top:8px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><select id="newAreaCat"><option value="国仲">国仲</option><option value="遠方">遠方</option></select><button class="btn primary small" data-act="ad:addArea">区域を追加</button></div></div>' +
+        '<div class="row" style="margin-top:8px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><select id="newAreaCat"><option value="国仲">国仲</option><option value="遠方">遠方</option><option value="アパート">アパート</option></select><button class="btn primary small" data-act="ad:addArea">区域を追加</button></div></div>' +
         '<div class="card"><h3>自動終了と記録ドキュメント</h3><div class="note">期限(終了日、または開始日から○か月)が来たエリアは、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
         '<button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div>';
       body('<div id="arIndex">' + h + '</div><div id="arDetail" class="hidden"></div>');
@@ -74,7 +74,7 @@
   function drawAreaList() {
     var el = document.getElementById('apList'); if (!el || !C.ad) return;
     var all = C.ad.areas.filter(function (a) { return a.active; }), hasPar = all.some(function (a) { return a.isParent; });
-    var cats = ['国仲', '遠方'], cc = document.getElementById('apCats');
+    var cats = ['国仲', '遠方', 'アパート'], cc = document.getElementById('apCats');
     if (cc) cc.innerHTML = !hasPar ? '' : '<div class="seg">' + cats.map(function (c) { return '<button class="chip' + (C.cat === c ? ' on' : '') + '" data-act="ad:catTab" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>';
     var q = (C.q || '').replace(/[\s　]/g, '').toLowerCase(), hit = function (a) { return !q || a.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; };
     var P = C.prog || {}, empty = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }, h = '', n = 0;
@@ -153,7 +153,7 @@
   function renderEdit() {
     var d = C.edit, el = document.getElementById('edBody'); if (!el) return;
     var ar = C.ad && C.ad.areas.filter(function (x) { return x.areaId === C.editArea; })[0], h = '';
-    if (ar) h += '<div class="card"><h3>エリアの設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
+    if (ar) h += '<div class="card"><h3>エリアの設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
     h += '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><div class="row"><button class="btn small" data-act="ad:posMap">地図の中心を入れる</button><button class="btn small" data-act="ad:posGps">いまの位置を入れる</button></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
     h += '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
     var bs = d.buildings.filter(function (b) { return (C.showHidden || !isOff(b.active)) && (!C.filter || String(b.buildingName).indexOf(C.filter) >= 0); });
