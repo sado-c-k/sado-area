@@ -28,7 +28,7 @@
   }
   function areaAt(lat, lng) {
     var f = SADO.frameFeatures ? SADO.frameFeatures() : [];
-    for (var i = 0; i < f.length; i++) if (inGeom(lat, lng, f[i].geometry)) return f[i].areaId;
+    for (var i = 0; i < f.length; i++) { var fa = SADO.areaById(f[i].areaId); if (fa && !fa.isParent && inGeom(lat, lng, f[i].geometry)) return f[i].areaId; }
     return '';
   }
   SADO.areaAt = areaAt;
@@ -116,7 +116,9 @@
     };
     return close;
   }
-  function areaOptions(sel) { return S.areas.map(function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === sel ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; }).join(''); }
+  function kids() { return S.areas.filter(function (a) { return !a.isParent; }); }
+  function areaOptions(sel) { return kids().map(function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === sel ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; }).join(''); }
+  function parentsList() { return S.areas.filter(function (a) { return a.isParent; }); }
   function areaName(id) { var a = SADO.areaById(id); return a ? a.areaName : ''; }
   function num(id, def, lo, hi) { var v = parseInt((document.getElementById(id) || {}).value, 10); return isNaN(v) ? def : Math.max(lo, Math.min(hi, v)); }
   function defaultArea(lat, lng) { return areaAt(lat, lng) || S.cur || ''; }
@@ -230,9 +232,9 @@
   function ringGeom(pts) { var r = pts.map(function (p) { return [p.lng, p.lat]; }); r.push(r[0].slice()); return { type: 'Polygon', coordinates: [r] }; }
   function areaDialog() {
     if (E.av.length < 3) { toast('3点以上置いてください。'); return; }
-    modal('新しいエリアを追加', '<label>エリア名</label><input id="naN" maxlength="30" placeholder="例: 1-4"><label>区分</label><select id="naC"><option value="国仲">国仲</option><option value="遠方">遠方</option></select><div class="note">描いた枠(' + E.av.length + '点)がこのエリアの境界線になります。建物は、このあと「＋集合住宅」「＋一軒家」で追加できます。</div>', '追加する', function () {
+    modal('新しいエリアを追加', '<label>エリア名</label><input id="naN" maxlength="30" placeholder="例: 1-4">' + (parentsList().length ? '<label>所属する大きなエリア</label><select id="naP"><option value="">なし(区分を自分で選ぶ)</option>' + parentsList().map(function (p) { return '<option value="' + esc(p.areaId) + '">' + esc(p.areaName) + '(' + esc(p.category) + ')</option>'; }).join('') + '</select>' : '') + '<label>区分(大きなエリアを選ぶと、その区分になります)</label><select id="naC"><option value="国仲">国仲</option><option value="遠方">遠方</option></select><div class="note">描いた枠(' + E.av.length + '点)がこのエリアの境界線になります。建物は、このあと「＋集合住宅」「＋一軒家」で追加できます。</div>', '追加する', function () {
       var name = ($('#naN').value || '').trim(); if (!name) throw new Error('エリア名を入力してください。');
-      return api('addArea', { areaName: name, category: $('#naC').value, boundary: ringGeom(E.av) }).then(function () {
+      return api('addArea', { areaName: name, category: $('#naC').value, parentId: ($('#naP') || {}).value || '', boundary: ringGeom(E.av) }).then(function () {
         endMode(); paint(); toast('エリア「' + name + '」を追加しました。'); return SADO.refreshBootstrap().then(redraw);
       });
     });
@@ -241,7 +243,7 @@
   // ---------- 境界線を直す ----------
   function clearBd() { if (E.bd) { (E.bd.layers || []).forEach(rm); E.bd.layers = []; } }
   function pickBoundArea() {
-    var withFrame = S.areas.filter(function (a) { return SADO.frameFeatures().some(function (f) { return f.areaId === a.areaId; }); });
+    var withFrame = kids().filter(function (a) { return SADO.frameFeatures().some(function (f) { return f.areaId === a.areaId; }); });
     if (!withFrame.length) { toast('枠のあるエリアがありません。先に「＋エリア」で枠を描いてください。'); endMode(); paint(); return; }
     var def = withFrame.some(function (a) { return a.areaId === S.cur; }) ? S.cur : withFrame[0].areaId;
     modal('境界線を直すエリア', '<label>エリア</label><select id="bdA">' + withFrame.map(function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === def ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; }).join('') + '</select>', '枠を表示する', function () { startBound($('#bdA').value); });

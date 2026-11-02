@@ -171,3 +171,5 @@ a.catbtn.link::after{content:"↗"}
 .hrow{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:4px 0}.hrow b{width:24px}.hrow input{-webkit-flex:1;flex:1;margin-right:6px}.hrow select{width:40%}
 .addbox{background:var(--surface-2,#f1f3f4);border-radius:10px;padding:8px 10px;margin:8px 0}.addbox .row>*{margin:3px 6px 3px 0}
 .urow .row{margin-top:6px}
+.pcard{cursor:pointer}.pcard .chev{font-size:1.6em;color:var(--text-2);padding:0 6px}.homeq{width:100%;margin:6px 0 10px}
+.ptree .prow.child{margin-left:18px}.pgrp{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}

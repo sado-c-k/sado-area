@@ -3,7 +3,7 @@
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, toast = SADO.toast;
   var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
-  var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '', seq: 0 };
+  var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '', seq: 0, cat: '国仲', q: '', exp: {} };
   // データを読み込む呼び出し(get〜)は、読み込み中に別のタブへ切り替えたら結果を捨てる(古いタブの内容で画面が上書きされて、切り替わらなく見えるのを防ぐ)
   function api(a, p) {
     var my = C.seq, q = SADO.api(a, p);
@@ -25,6 +25,14 @@
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
   function fail(e) { busy(false); toast(e.message || String(e), 6000); }
   function opts(list, valKey, labKey, sel, blank) { return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(function (x) { return '<option value="' + esc(x[valKey]) + '"' + (String(x[valKey]) === String(sel) ? ' selected' : '') + '>' + esc(x[labKey]) + '</option>'; }).join(''); }
+  // 小さなエリアの選択肢を、大きなエリアごとにまとめて出す(親区域そのものは含めない)
+  function areaOpts(list, sel, blank) {
+    var kids = list.filter(function (a) { return !a.isParent; }), pn = {}; list.forEach(function (a) { if (a.isParent) pn[a.areaId] = a.areaName; });
+    var by = {}, order = [], loose = [];
+    kids.forEach(function (a) { if (a.parentId && pn[a.parentId]) { if (!by[a.parentId]) { by[a.parentId] = []; order.push(a.parentId); } by[a.parentId].push(a); } else loose.push(a); });
+    var o = function (a) { return '<option value="' + esc(a.areaId) + '"' + (String(a.areaId) === String(sel) ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; };
+    return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + loose.map(o).join('') + order.map(function (id) { return '<optgroup label="' + esc(pn[id]) + '">' + by[id].map(o).join('') + '</optgroup>'; }).join('');
+  }
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
 
   function open() { var a = $('#admin'); a.classList.remove('hidden'); a.innerHTML = '<div class="mhead"><div class="t">区域係モード</div><button data-act="ad:close">✕</button></div><div class="tabs scroll">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>'; go(tab); }
@@ -44,7 +52,7 @@
       var only = false; try { only = localStorage.getItem('adOnlyInUse') === '1'; } catch (e) {}
       C.only = only;
       var h = '<div class="card"><h3>区域管理</h3><div id="apSum" class="note">進み具合を計算中…</div>' +
-        '<label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中のエリアだけ表示</label><div id="apList"></div></div>' +
+        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="エリア名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中のエリアだけ表示</label><div id="apList" class="ptree"></div></div>' +
         '<div class="card"><h3>1件ずつ追加する</h3><div class="note">CSVを使わずに、1件ずつ追加できます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">建物・部屋を追加(区域編集)</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウント・グループ・担当者を追加</button></div>' +
         '<div class="row" style="margin-top:8px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><select id="newAreaCat"><option value="国仲">国仲</option><option value="遠方">遠方</option></select><button class="btn primary small" data-act="ad:addArea">区域を追加</button></div></div>' +
         '<div class="card"><h3>自動終了と記録ドキュメント</h3><div class="note">期限(終了日、または開始日から○か月)が来たエリアは、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
@@ -55,30 +63,54 @@
     }, fail);
   }
   function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
+  // 区域管理の一覧: 区分 → 大きなエリア(親) → 小さなエリア(子)。大きなエリアの右の▸で、中の小さなエリアを開く
+  function kidsOf(pid) { return C.ad.areas.filter(function (x) { return x.active && x.parentId === pid && !x.isParent; }); }
+  function sumProg(list) { var P = C.prog || {}, t = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }; list.forEach(function (k) { var p = P[k.areaId]; if (p) { t.total += p.total; t.visited += p.visited; t.buildings += p.buildings; t.doneBuildings += p.doneBuildings; } }); return t; }
+  function progRow(a, p, extra, cls, kids, open) {
+    return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '未使用')) + '</span>' + (kids ? '<span class="badge mine">小さなエリア ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '% ▸</div></div>' +
+      '<div class="pbar"><i style="width:' + pct(p.visited, p.total) + '%"></i></div><div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '部屋 ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟</span><span>' + (a.inUse ? esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
+      (a.inUse ? '<div class="pm"><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + (extra || '') + '</button>' + (kids ? '<button type="button" class="btn small pexp" data-act="ad:parExp" data-v="' + esc(a.areaId) + '" aria-label="開閉">' + (open ? '▾' : '▸') + '</button>' : '') + '</div>';
+  }
   function drawAreaList() {
     var el = document.getElementById('apList'); if (!el || !C.ad) return;
-    var P = C.prog || {}, list = C.ad.areas.filter(function (a) { return a.active && (!C.only || a.inUse); }), tot = 0, vis = 0;
-    el.innerHTML = list.length ? list.map(function (a) {
-      var p = P[a.areaId] || { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }; tot += p.total; vis += p.visited;
-      return '<button type="button" class="prow' + (a.inUse ? ' use' : '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '編集不可')) + '</span><span class="badge mine">' + esc(a.category) + '</span></div><div class="pp">' + pct(p.visited, p.total) + '% ▸</div></div>' +
-        '<div class="pbar"><i style="width:' + pct(p.visited, p.total) + '%"></i></div><div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '部屋 ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟</span><span>' + (a.inUse ? esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
-        (a.inUse ? '<div class="pm"><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + '</button>';
-    }).join('') : '<div class="note">表示するエリアがありません。</div>';
-    var s = document.getElementById('apSum'); if (s) s.textContent = C.prog ? '全体: 訪問済み ' + vis + ' / ' + tot + '部屋(' + pct(vis, tot) + '%)。エリアを押すと設定を開きます。' : '進み具合を計算中…';
+    var all = C.ad.areas.filter(function (a) { return a.active; }), hasPar = all.some(function (a) { return a.isParent; });
+    var cats = ['国仲', '遠方'], cc = document.getElementById('apCats');
+    if (cc) cc.innerHTML = !hasPar ? '' : '<div class="seg">' + cats.map(function (c) { return '<button class="chip' + (C.cat === c ? ' on' : '') + '" data-act="ad:catTab" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>';
+    var q = (C.q || '').replace(/[\s　]/g, '').toLowerCase(), hit = function (a) { return !q || a.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; };
+    var P = C.prog || {}, empty = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }, h = '', n = 0;
+    var inCatA = function (a) { return !hasPar || a.category === C.cat; };
+    var parents = all.filter(function (a) { return a.isParent && inCatA(a); }), loose = all.filter(function (a) { return !a.isParent && !a.parentId && inCatA(a); });
+    parents.forEach(function (pa) {
+      var ks = kidsOf(pa.areaId), shown = ks.filter(function (k) { return hit(k) && (!C.only || k.inUse); });
+      var self = hit(pa) && (!C.only || pa.inUse || ks.some(function (k) { return k.inUse; }));
+      if (!(self && (!q || hit(pa))) && !shown.length) return;
+      if (C.only && !pa.inUse && !shown.length) return;
+      n++;
+      var open = !!C.exp[pa.areaId] || (!!q && shown.length && !hit(pa)), p = sumProg(ks);
+      h += progRow(pa, p, '', '', ks.length, open);
+      if (open) shown.forEach(function (k) { h += progRow(k, P[k.areaId] || empty, '', ' child', 0); });
+    });
+    loose.filter(function (a) { return hit(a) && (!C.only || a.inUse); }).forEach(function (a) { n++; h += progRow(a, P[a.areaId] || empty, '', '', 0); });
+    el.innerHTML = h || '<div class="note">表示するエリアがありません。</div>';
+    var tp = sumProg(all.filter(function (a) { return !a.isParent; })), s = document.getElementById('apSum');
+    if (s) s.textContent = C.prog ? '全体: 訪問済み ' + tp.visited + ' / ' + tp.total + '部屋(' + pct(tp.visited, tp.total) + '%)。大きなエリアを押すと、グループ担当などの設定を開きます。右の ▸ で、中の小さなエリアを開きます。' : '進み具合を計算中…';
   }
   function renderAreaDetail(id) {
     var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0], ix = document.getElementById('arIndex'), dv = document.getElementById('arDetail'); if (!a || !dv) return;
     C.openArea = id; ix.classList.add('hidden'); dv.classList.remove('hidden');
     var cur = {}; C.ad.assigns.forEach(function (x) { if (x.areaId === id) cur[x.targetType + ':' + x.targetId] = true; });
     var hasUser = C.ad.users.some(function (u) { return cur['user:' + u.loginId]; }), hasAll = !!cur['group:all'], hasGrp = C.ad.groups.some(function (g) { return !g.builtin && cur['group:' + g.groupId]; });
-    var mode = hasUser ? 'user' : (hasAll && !hasGrp ? 'all' : 'group'), on = !!a.storedInUse;
+    var mode = hasUser ? 'user' : (hasAll && !hasGrp ? 'all' : (a.isParent || hasGrp ? 'group' : 'user')), on = !!a.storedInUse, modes = a.isParent ? [['group', 'グループ'], ['all', '会衆']] : [['user', '個人'], ['group', 'グループ'], ['all', '会衆']];
+    if (a.isParent && mode === 'user') mode = 'group';
+    var par = a.isParent ? null : (a.parentId ? C.ad.areas.filter(function (x) { return x.areaId === a.parentId; })[0] : null), nKids = a.isParent ? kidsOf(a.areaId).length : 0;
     C.arOn0 = on;
     dv.innerHTML = '<div class="card"><div class="row dh"><button class="btn small" data-act="ad:areaBack">← 一覧へ</button><b class="grow" style="font-size:1.1em">' + esc(a.areaName) + '</b><span class="badge mine">' + esc(a.category) + '</span></div>' +
+      (a.isParent ? '<div class="note">大きなエリアです。使用を開始すると、中の小さなエリア ' + nKids + '件がすべて対象になります(グループ・会衆で担当を決めます)。個人で担当する場合は、小さなエリアを個別に設定してください。</div>' : (par ? '<div class="note">大きなエリア「' + esc(par.areaName) + '」' + (par.inUse ? 'が使用中のため、この区域も使用中です(担当: ' + esc(par.assigneeName) + ')。個別の設定は、大きなエリアの使用が終わったあと、または個人担当にしたいときに使います。' : 'に所属しています。') + '</div>' : '')) +
       '<div class="fxg"><label class="fxsw"><span><b>使用中</b><small>オンにすると、この区域に訪問状況を入力できます</small></span><input type="checkbox" class="sw" id="arIn"' + (on ? ' checked' : '') + '></label>' +
       (a.expired ? '<div class="note" style="color:var(--danger)">使用期間が終わっています。「保存」を押すか、日付を変えてください。</div>' : '') + '</div>' +
       '<div id="arOn"' + (on ? '' : ' class="hidden"') + '>' +
         '<div class="fxg"><div class="gt">担当<small style="display:inline;margin-left:6px">チェックした人(グループ)だけが編集できます</small></div>' +
-          '<div class="bseg">' + [['group', 'グループ'], ['user', '個人'], ['all', '会衆']].map(function (m) { return '<button data-act="ad:asgMode" data-v="' + m[0] + '" id="asg-' + m[0] + '" class="' + (mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+          '<div class="bseg">' + modes.map(function (m) { return '<button data-act="ad:asgMode" data-v="' + m[0] + '" id="asg-' + m[0] + '" class="' + (mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div>' +
           '<div id="asgGroup"' + (mode === 'group' ? '' : ' class="hidden"') + '>' + C.ad.groups.filter(function (g) { return !g.builtin; }).map(function (g) { return '<label class="asg"><input type="checkbox" data-asg="group:' + esc(g.groupId) + '"' + (cur['group:' + g.groupId] ? ' checked' : '') + '> ' + esc(g.groupName) + '</label>'; }).join('') + '</div>' +
           '<div id="asgUser"' + (mode === 'user' ? '' : ' class="hidden"') + '><input type="search" id="asgQ" placeholder="名前で探す" style="width:100%;margin-bottom:4px">' + C.ad.users.filter(function (u) { return u.active; }).map(function (u) { return '<label class="asg" data-name="' + esc((u.displayName + ' ' + u.loginId).toLowerCase()) + '"><input type="checkbox" data-asg="user:' + esc(u.loginId) + '"' + (cur['user:' + u.loginId] ? ' checked' : '') + '> ' + esc(u.displayName) + '</label>'; }).join('') + '</div>' +
           '<div id="asgAll"' + (mode === 'all' ? '' : ' class="hidden"') + '><label class="asg"><input type="checkbox" data-asg="group:all"' + (hasAll ? ' checked' : '') + '> 会衆(ログインした全員)</label></div>' +
@@ -111,7 +143,7 @@
   // ---------- 区域編集 ----------
   function loadEdit() {
     (C.ad ? Promise.resolve(C.ad) : loadAd()).then(function (d) {
-      var h = '<div class="card"><div class="row"><select id="edArea" class="grow">' + opts(d.areas, 'areaId', 'areaName', C.editArea, 'エリアを選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div></div><div id="edBody"></div>';
+      var h = '<div class="card"><div class="row"><select id="edArea" class="grow">' + areaOpts(d.areas, C.editArea, 'エリアを選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div></div><div id="edBody"></div>';
       body(h); if (C.editArea) loadEditBody();
     }, fail);
   }
@@ -167,8 +199,8 @@
   }
   function bulkTarget() {
     var d = C.ad, h = '';
-    if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象エリア</label><select id="bkId">' + opts(d.areas, 'areaId', 'areaName', B.id, 'エリアを選んでください') + '</select></div></div>';
-    h = '<div class="fxgrid"><div><label>エリア</label><select id="bkArea">' + opts(d.areas, 'areaId', 'areaName', B.area, 'エリアを選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先にエリアを選ぶ)</option>') + '</select></div></div>';
+    if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象エリア</label><select id="bkId">' + areaOpts(d.areas, B.id, 'エリアを選んでください') + '</select></div></div>';
+    h = '<div class="fxgrid"><div><label>エリア</label><select id="bkArea">' + areaOpts(d.areas, B.area, 'エリアを選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先にエリアを選ぶ)</option>') + '</select></div></div>';
     return h;
   }
   function choice(name, v, cur, t, sub, type) { return '<label class="' + (cur ? 'on' : '') + '"><input type="' + type + '" name="' + name + '" value="' + v + '"' + (cur ? ' checked' : '') + '><b style="display:inline">' + t + '</b><br><small>' + sub + '</small></label>'; }
@@ -349,9 +381,25 @@
   }
   var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, category(国仲/遠方), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark']];
   function loadIO() {
-    body('<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、エリア → グループ → 担当者 → 建物 → 部屋 です。</div>' +
+    body('<div class="card"><h3>区域の表を取り込む(QGIS・大きなエリアと小さなエリア)</h3><div class="note">QGISで書き出した区域のCSVを選びます。列名は、QGISの名前(name・boundary_detail_uuid・parent_name・parent_boundary_uuid・category)でも、アプリの名前(areaName・areaId・parentName・parentId・category)でも読めます。大きなエリアは、この表から自動で作られます。すでにあるエリアは、名前・所属・区分だけが更新され、使用中などの記録は消えません。1行でも問題があれば、どれも取り込みません。</div>' +
+      '<div class="row"><input type="file" accept=".csv,text/csv" id="imp-tree"><button class="btn small primary" data-act="ad:importTree">取り込む</button></div><div class="note" id="impTreeMsg"></div></div>' +
+      '<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、エリア → グループ → 担当者 → 建物 → 部屋 です。</div>' +
       IMPORTS.map(function (x) { return '<div class="row"><b style="min-width:5em">' + x[1] + '</b><input type="file" accept=".csv,text/csv" id="imp-' + x[0] + '"><button class="btn small primary" data-act="ad:import" data-v="' + x[0] + '">取り込む</button></div><div class="note">列: ' + x[2] + '</div>'; }).join('') + '<div class="note" id="impMsg"></div></div>' +
       '<div class="card"><h3>CSVに書き出す(QGISに戻す用)</h3><div class="note">建物は「uuid2・建物名・メモ」、部屋は「部屋ID・uuid2・部屋名・印・訪問状況・メモ」です。QGISでuuid2を目印に結合してください。</div><button class="btn small" data-act="ad:export" data-v="buildings">建物のCSV</button><button class="btn small" data-act="ad:export" data-v="rooms">部屋のCSV</button></div>');
+  }
+  var TREE_COLS = { areaId: ['areaId', 'boundary_detail_uuid'], areaName: ['areaName', 'name'], parentId: ['parentId', 'parent_boundary_uuid'], parentName: ['parentName', 'parent_name'], category: ['category'] };
+  function doImportTree() {
+    var f = document.getElementById('imp-tree').files[0], msg = document.getElementById('impTreeMsg'); if (!f) { toast('CSVファイルを選んでください。'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var raw = parseCsv(String(rd.result)); if (!raw.length) { toast('データの行がありません。'); return; }
+      var rows = raw.map(function (r) { var o = {}; Object.keys(TREE_COLS).forEach(function (k) { TREE_COLS[k].forEach(function (c) { if (o[k] === undefined && r[c] !== undefined) o[k] = r[c]; }); }); return o; });
+      var miss = Object.keys(TREE_COLS).filter(function (k) { return rows[0][k] === undefined; });
+      if (miss.length) { msg.textContent = '必要な列がありません: ' + miss.map(function (k) { return TREE_COLS[k].join(' または '); }).join(' / '); return; }
+      msg.textContent = rows.length + '件を取り込み中…'; busy(true);
+      api('importAreaTree', { rows: rows }).then(function (r) { busy(false); C.ad = null; C.prog = null; msg.textContent = '完了: 大きなエリア ' + r.parents + '件、小さなエリア ' + r.children + '件(新しく作成 ' + r.added + '件、更新 ' + r.updated + '件)'; toast('区域の表を取り込みました。'); }, function (e) { busy(false); msg.textContent = '取り込めませんでした:\n' + e.message; msg.style.whiteSpace = 'pre-line'; });
+    };
+    rd.readAsText(f, 'utf-8');
   }
   function doImport(kind) {
     var f = document.getElementById('imp-' + kind).files[0]; if (!f) { toast('CSVファイルを選んでください。'); return; }
@@ -377,8 +425,11 @@
     switch (a) {
       case 'close': close(); break;
       case 'tab': go(v); break;
-      case 'addArea': after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), 'エリアを追加しました。', refreshAreas); break;
+      case 'addArea': C.cat = val('newAreaCat'); after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), 'エリアを追加しました。', refreshAreas); break;
+      case 'importTree': doImportTree(); break;
       case 'areaOpen': renderAreaDetail(v); break;
+      case 'parExp': C.exp[v] = !C.exp[v]; drawAreaList(); break;
+      case 'catTab': C.cat = v; drawAreaList(); break;
       case 'areaBack': C.openArea = ''; loadAreas(); break;
       case 'clearEnd': if ($('#arEnd')) $('#arEnd').value = ''; break;
       case 'areaSave': areaSave(v); break;
@@ -420,7 +471,7 @@
       case 'export': api('exportCsv', { kind: v }).then(function (r) { SADO.saveBlob(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }), r.filename); }, fail); break;
     }
   };
-  document.addEventListener('input', function (ev) { var t = ev.target; if (t.id === 'asgQ') { var q = t.value.trim().toLowerCase(), ls = document.querySelectorAll('#asgUser .asg'); for (var i = 0; i < ls.length; i++) ls[i].classList.toggle('hidden', !!q && ls[i].getAttribute('data-name').indexOf(q) < 0); } else if (t.id === 'usQ') { A.q = t.value; drawUsers(); } else if (t.getAttribute && t.getAttribute('data-ue') && t.getAttribute('data-f') === 'displayName') { var k = t.getAttribute('data-ue'); (A.ud[k] = A.ud[k] || {}).displayName = t.value; t.closest('.urow').classList.add('chg'); } });
+  document.addEventListener('input', function (ev) { var t = ev.target; if (t.id === 'asgQ') { var q = t.value.trim().toLowerCase(), ls = document.querySelectorAll('#asgUser .asg'); for (var i = 0; i < ls.length; i++) ls[i].classList.toggle('hidden', !!q && ls[i].getAttribute('data-name').indexOf(q) < 0); } else if (t.id === 'usQ') { A.q = t.value; drawUsers(); } else if (t.id === 'arQ') { C.q = t.value; drawAreaList(); } else if (t.getAttribute && t.getAttribute('data-ue') && t.getAttribute('data-f') === 'displayName') { var k = t.getAttribute('data-ue'); (A.ud[k] = A.ud[k] || {}).displayName = t.value; t.closest('.urow').classList.add('chg'); } });
   document.addEventListener('change', function (ev) {
     var t = ev.target;
     if (t.getAttribute && t.getAttribute('data-cat')) { api('setAreaCategory', { areaId: t.getAttribute('data-cat'), category: t.value }).then(function () { toast('区分を「' + t.value + '」にしました。'); if (C.ad) C.ad.areas.forEach(function (a) { if (a.areaId === t.getAttribute('data-cat')) a.category = t.value; }); }, fail); return; }
@@ -429,6 +480,7 @@
     if (t.id === 'arIn') { $('#arOn').classList.toggle('hidden', !t.checked); return; }
     if (t.id === 'usFg') { A.fg = t.value; drawUsers(); return; }
     if (t.id === 'usFr') { A.fr = t.value; drawUsers(); return; }
+    if (t.id === 'arQ') { C.q = t.value; drawAreaList(); return; }
     if (t.id === 'adOnly') { C.only = t.checked; try { localStorage.setItem('adOnlyInUse', t.checked ? '1' : '0'); } catch (e) {} drawAreaList(); return; }
     if (t.id === 'edArea') { C.editArea = t.value; if (C.editArea) loadEditBody(); else document.getElementById('edBody').innerHTML = ''; }
     else if (t.id === 'edHidden') { C.showHidden = t.checked; if (C.edit) renderEdit(); }
