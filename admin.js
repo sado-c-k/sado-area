@@ -155,10 +155,13 @@
     var ar = C.ad && C.ad.areas.filter(function (x) { return x.areaId === C.editArea; })[0], h = '';
     if (ar) h += '<div class="card"><h3>エリアの設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
     h += '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><div class="row"><button class="btn small" data-act="ad:posMap">地図の中心を入れる</button><button class="btn small" data-act="ad:posGps">いまの位置を入れる</button></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
-    h += '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
+    h += '<div class="card"><details id="mvBox"' + (C.mvOpen ? ' open' : '') + '><summary><b>建物をまとめて別のエリアへ移す</b></summary><div class="note">アパートの区域づくりなどに使います。移したい建物にチェックを入れ、移す先のエリアを選びます。(絞り込みも使えます)</div>' +
+      '<div id="mvList"></div><div class="row"><select id="mvTo" class="grow">' + areaOpts(C.ad.areas.filter(function (x) { return x.areaId !== C.editArea; }), '', '移す先のエリアを選んでください') + '</select><button class="btn small primary" data-act="ad:mvGo">チェックした建物を移す</button></div></details></div>' +
+      '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
     var bs = d.buildings.filter(function (b) { return (C.showHidden || !isOff(b.active)) && (!C.filter || String(b.buildingName).indexOf(C.filter) >= 0); });
     bs.sort(function (a, b) { return String(a.buildingName) > String(b.buildingName) ? 1 : -1; });
     h += '<div class="note">' + bs.length + '件' + (bs.length > 300 ? '(先頭の300件を表示。絞り込みを使ってください)' : '') + '</div>';
+    var mvHtml = '<div class="row"><label><input type="checkbox" id="mvAll"> 表示中の ' + Math.min(bs.length, 300) + ' 件をすべて選ぶ</label></div><div style="max-height:30vh;overflow:auto">' + bs.slice(0, 300).map(function (b) { return '<label class="asg"><input type="checkbox" data-mv="' + esc(b.buildingId) + '"> ' + esc(b.buildingName || '(名前なし)') + '</label>'; }).join('') + '</div>';
     bs.slice(0, 300).forEach(function (b) {
       var rs = d.rooms.filter(function (r) { return r.buildingId === b.buildingId && (C.showHidden || !isOff(r.active)); }).sort(function (a, b) { return a.sortOrder - b.sortOrder; });
       var off = isOff(b.active);
@@ -174,7 +177,7 @@
       });
       h += '<div class="row"><textarea rows="1" class="grow" id="ar-' + esc(b.buildingId) + '" placeholder="部屋を追加(1行に1つ)"></textarea><button class="btn small" data-act="ad:addRooms" data-v="' + esc(b.buildingId) + '">追加</button></div></div></details>';
     });
-    el.innerHTML = h;
+    el.innerHTML = h; var mv = document.getElementById('mvList'); if (mv) mv.innerHTML = mvHtml;
   }
   function fields(attr, id) { var o = {}, els = document.querySelectorAll('[data-' + attr + '="' + id + '"]'); for (var i = 0; i < els.length; i++) o[els[i].getAttribute('data-f')] = els[i].value; return o; }
 
@@ -427,6 +430,10 @@
       case 'tab': go(v); break;
       case 'addArea': C.cat = val('newAreaCat'); after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), 'エリアを追加しました。', refreshAreas); break;
       case 'importTree': doImportTree(); break;
+      case 'mvGo':
+        var mids = [].slice.call(document.querySelectorAll('[data-mv]')).filter(function (x) { return x.checked; }).map(function (x) { return x.getAttribute('data-mv'); }), to = val('mvTo');
+        if (!mids.length) { toast('移す建物にチェックを入れてください。'); break; } if (!to) { toast('移す先のエリアを選んでください。'); break; }
+        C.mvOpen = true; after(api('moveBuildings', { buildingIds: mids, areaId: to }), function (r) { return r.moved + '件を「' + areaName(to) + '」へ移しました。'; }, loadEditBody); break;
       case 'areaOpen': renderAreaDetail(v); break;
       case 'parExp': C.exp[v] = !C.exp[v]; drawAreaList(); break;
       case 'catTab': C.cat = v; drawAreaList(); break;
@@ -480,6 +487,7 @@
     if (t.id === 'arIn') { $('#arOn').classList.toggle('hidden', !t.checked); return; }
     if (t.id === 'usFg') { A.fg = t.value; drawUsers(); return; }
     if (t.id === 'usFr') { A.fr = t.value; drawUsers(); return; }
+    if (t.id === 'mvAll') { [].slice.call(document.querySelectorAll('[data-mv]')).forEach(function (x) { x.checked = t.checked; }); return; }
     if (t.id === 'arQ') { C.q = t.value; drawAreaList(); return; }
     if (t.id === 'adOnly') { C.only = t.checked; try { localStorage.setItem('adOnlyInUse', t.checked ? '1' : '0'); } catch (e) {} drawAreaList(); return; }
     if (t.id === 'edArea') { C.editArea = t.value; if (C.editArea) loadEditBody(); else document.getElementById('edBody').innerHTML = ''; }
