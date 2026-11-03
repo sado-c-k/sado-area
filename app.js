@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
-  var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {};
+  var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {}, bLabels = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
   // ---------- 端末内の保存(IndexedDB) ----------
@@ -149,7 +149,7 @@
     S.mapReady = true;
     var st = S.settings || {};
     map = L.map('map', { zoomControl: false, attributionControl: true, tap: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
-    var lblZoom = function () { document.getElementById('map').classList.toggle('nolbl', map.getZoom() < 16); }; map.on('zoomend', lblZoom); lblZoom();
+    map.on('zoomend', function () { syncLabels(); });
     var td = tileDef(st.mapTileSource); tileLayer = L.tileLayer(td.url, td.opt).addTo(map);
     frameLayer = L.layerGroup().addTo(map); bLayer = L.layerGroup().addTo(map);
     SADO.map = map;
@@ -256,7 +256,24 @@
   }
   // アパート扱い: 部屋が2つ以上ある・アパート区域・名前がある建物。これ以外(一軒家など)は、地図を直接タップして記録する。
   function isApt(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1 || !!String(b.buildingName || '').trim(); }
-  function pinIcon(b, color) { return L.divIcon({ className: 'bpinw', html: '<div class="bpin" style="background:' + color + '"></div><span class="bpl">' + esc(b.buildingName || '') + '</span>', iconSize: [22, 22], iconAnchor: [11, 22] }); }
+  // 旧GAS(佐渡アパートGAS)と同じ見た目: 拡大したときは、しずく形のピン+建物名の札。縮小したときは、小さな丸だけ
+  var PIN_DOT_BELOW_ZOOM = 16;
+  function pinIcon(b, color) {
+    if (map && map.getZoom() < PIN_DOT_BELOW_ZOOM) return L.divIcon({ className: '', html: '<i style="display:block;width:15px;height:15px;border-radius:50%;background:' + color + ';border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.45)"></i>', iconSize: [15, 15], iconAnchor: [7, 7] });
+    return L.divIcon({ className: '', html: '<svg viewBox="0 0 25 41" width="20" height="33" style="display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="' + color + '" stroke="rgba(0,0,0,.28)" stroke-width="1"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>', iconSize: [20, 33], iconAnchor: [10, 33] });
+  }
+  function labelIcon(b) {
+    return L.divIcon({ className: '', html: '<div style="position:absolute;left:0;top:0;transform:translate(-50%,6px);white-space:nowrap;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none">' + esc(b.buildingName || '') + '</div>', iconSize: [0, 0], iconAnchor: [0, 0] });
+  }
+  function syncLabels() {
+    if (!bLayer || !map) return; var show = map.getZoom() >= PIN_DOT_BELOW_ZOOM, d = S.data[S.cur];
+    Object.keys(bPins).forEach(function (bid) {
+      var p = bPins[bid], b = d && d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (!b) return;
+      p.setIcon(pinIcon(b, p._color || '#1a73e8'));
+      if (show && !bLabels[bid] && p.getLatLng) { var ll = p.getLatLng(); bLabels[bid] = L.marker(ll, { icon: labelIcon(b), interactive: false }); bLayer.addLayer(bLabels[bid]); }
+      if (!show && bLabels[bid]) { bLayer.removeLayer(bLabels[bid]); delete bLabels[bid]; }
+    });
+  }
   function quickRecord(bid) {
     var d = S.data[S.cur]; if (!d) return;
     if (!d.area.canEdit) { openBuilding(bid); return; }
@@ -265,7 +282,7 @@
     var nx = l[(i + 1) % l.length]; patchRoom(r.roomId, { status: nx.id }); toast('記録: ' + nx.label + '(もう一度タップで次の状況。長押しで詳細)', 1800);
   }
   function drawBuildings(fit) {
-    if (!bLayer) return; bLayer.clearLayers(); bShapes = {}; bPins = {};
+    if (!bLayer) return; bLayer.clearLayers(); bShapes = {}; bPins = {}; bLabels = {};
     var d = S.data[S.cur]; if (!d) return;
     var geo = S.geo[S.cur], feat = {}, bounds = null;
     if (geo && geo.features) geo.features.forEach(function (f) { feat[f.properties.uuid2] = f; });
@@ -273,7 +290,7 @@
       var f = feat[b.buildingId], shape = null, st = buildingStyle(S.cur, b), apt = isApt(S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
       var hasPt = b.lat != null && b.lng != null;
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
-      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (apt) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); } else { st.radius = 5; st.weight = 1; shape = L.circleMarker([b.lat, b.lng], st); } }
+      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (apt) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = 7; st.weight = 1; /* 半径7m: 地図の拡大・縮小に合わせて大きさが変わる */ shape = L.circle([b.lat, b.lng], st); } }
       if (!shape) return;
       var simple = !apt && !ed;
       var act = function () { if (simple) quickRecord(b.buildingId); else openBuilding(b.buildingId); };
@@ -281,17 +298,18 @@
       bLayer.addLayer(shape); bShapes[b.buildingId] = shape;
       if (apt && !pin && !ed) {
         var c = shape.getBounds ? shape.getBounds().getCenter() : null;
-        if (c) { pin = L.marker(c, { icon: pinIcon(b, st.fillColor) }); pin.on('click', act); bLayer.addLayer(pin); }
+        if (c) { pin = L.marker(c, { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; pin.on('click', act); bLayer.addLayer(pin); }
       }
       if (pin) bPins[b.buildingId] = pin;
       var bb = shape.getBounds ? shape.getBounds() : L.latLngBounds([shape.getLatLng()]);
       if (!bounds) bounds = L.latLngBounds(bb.getSouthWest(), bb.getNorthEast()); else bounds.extend(bb);
     });
     if (fit && bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
+    syncLabels();
   }
   function restyle(bid) {
     var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (!b) return;
-    var st = buildingStyle(S.cur, b); if (shape.setStyle) shape.setStyle(st); if (bPins[bid]) bPins[bid].setIcon(pinIcon(b, st.fillColor));
+    var st = buildingStyle(S.cur, b); if (shape.setStyle) shape.setStyle(st); if (bPins[bid]) { bPins[bid]._color = st.fillColor; bPins[bid].setIcon(pinIcon(b, st.fillColor)); }
   }
 
   // ---------- 建物のシート(部屋ごとの記録) ----------
@@ -390,16 +408,17 @@
     return S.areas.filter(function (a) { return !a.isParent && (isAdmin() || a.mine); }); // 親区域(大きなエリア)は、まとめ用なので、地図で開く対象には入れない
   }
   function catAreas(cat) { return visibleAreas().filter(function (a) { return inCat(a, cat); }); }
+  function catAreasShown(cat) { return catAreas(cat).filter(function (a) { return !S.onlyUse || a.inUse; }); }
   function activeNav(v) { var bs = document.querySelectorAll('#nav button'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-v') === v); }
   function closePanels() { $('#home').classList.add('hidden'); $('#menu').classList.add('hidden'); activeNav('map'); }
   SADO.activeNav = activeNav;
   function goHome() {
-    S.homeCat = null; S.homeParent = null; closeSheet(); $('#menu').classList.add('hidden'); $('#home').classList.remove('hidden'); activeNav('areas'); renderHome();
+    S.homeCat = null; S.homeStage = null; S.homeParent = null; closeSheet(); $('#menu').classList.add('hidden'); $('#home').classList.remove('hidden'); activeNav('areas'); renderHome();
   }
   // ---------- 大きなエリア(親区域)→ 小さなエリア(子区域) ----------
   function hasParents() { return S.areas.some(function (a) { return a.isParent; }); }
   function parentsOf(cat) {
-    var kids = catAreas(cat), by = {};
+    var kids = catAreasShown(cat), by = {};
     kids.forEach(function (k) { if (k.parentId) (by[k.parentId] = by[k.parentId] || []).push(k); });
     var out = S.areas.filter(function (p) { return p.isParent && inCat(p, cat) && by[p.areaId]; });
     out.forEach(function (p) { p._kids = by[p.areaId]; });
@@ -416,27 +435,39 @@
     return '<div class="note">' + (isAdmin() ? 'すべての大きなエリアです。' : 'あなた、またはあなたのグループが担当のエリアです。') + '</div><input type="search" id="homeQ" class="homeq" placeholder="エリア名で探す" value="' + esc(S.homeQ || '') + '"><div id="homeList">' + parentRows(cat, S.homeQ) + '</div>';
   }
   function bindHomeQ() { var i = $('#homeQ'); if (i) i.oninput = function () { S.homeQ = i.value; $('#homeList').innerHTML = parentRows(S.homeCat, S.homeQ); }; }
+  function areaCard(a) {
+    return '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
+      (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
+      '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button><button class="btn small" data-act="saveTiles" data-v="' + esc(a.areaId) + '">地図を端末に保存</button></div></div>';
+  }
+  function onlyUseBox() { return '<div class="onlyuse" data-act="toggleOnly" style="margin:4px 2px 10px;padding:8px 6px;cursor:pointer"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;vertical-align:middle"' + (S.onlyUse ? ' checked' : '') + '> <span style="vertical-align:middle">使用中のエリアのみ表示</span></div>'; }
   function renderHome() {
     var el = $('#home'), cat = S.homeCat, title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    var h = '<div class="mhead">' + (cat ? '<button data-act="homeBack" aria-label="戻る" style="margin-left:0;margin-right:6px">‹</button>' : '') + '<div class="t">' + esc(cat || title) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v24</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div><div class="mbody">';
-    if (!cat) {
+    var h = '<div class="mhead">' + ((cat || S.homeStage === 'list') ? '<button data-act="homeBack" aria-label="戻る" style="margin-left:0;margin-right:6px">‹</button>' : '') + '<div class="t">' + esc(cat || (S.homeStage === 'list' ? 'エリア一覧' : title)) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v26</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div><div class="mbody">';
+    if (!cat && S.homeStage !== 'list') {
+      var gname = (S.user && S.user.groupName) || '';
+      h += '<div class="card"><b>' + esc(S.user ? S.user.displayName : '') + 'さん、ようこそ</b>' + (gname ? '<div class="note">' + esc(gname) + 'グループ</div>' : '') + '</div>';
+      h += '<div style="font-weight:700;margin:14px 4px 8px">使用する区域を選択してください</div>';
+      [['all', '会衆'], ['group', 'グループ'], ['user', '個人']].forEach(function (k) {
+        var l = visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k[0]) >= 0; });
+        h += '<div class="note" style="margin:12px 4px 6px"><b>' + k[1] + '</b>(' + l.length + '件)</div>';
+        l.forEach(function (a) { h += areaCard(a); });
+        if (!l.length) h += '<div class="note" style="padding:2px 8px 6px">使用できる区域はありません。</div>';
+      });
+      h += '<button class="catbtn" data-act="homeList" style="margin-top:16px">エリア一覧を見る</button>';
+      if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
+    } else if (!cat) {
       CATS.forEach(function (c) {
         var n = catAreas(c[0]).length, use = catAreas(c[0]).filter(function (a) { return a.inUse; }).length;
         h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : '担当の区域 ' + n + '件(使用中 ' + use + '件)') + '</span></button>';
       });
-      var aptUrl = (S.settings && S.settings.apartmentUrl) || CFG.apartmentUrl || '';
-      if (/^https?:\/\//.test(aptUrl)) h += '<a class="catbtn link" href="' + esc(aptUrl) + '" target="_blank" rel="noopener">アパートGAS(旧)<span class="sub">これまでのアパートの記録は、別のアプリ(佐渡アパートGAS)で行います</span></a>';
-      if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else {
-      var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null;
+      h += onlyUseBox();
+      var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きなエリア一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div style="height:8px"></div>'; }
       else if (parentsOf(cat).length) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
       else h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
-      list.forEach(function (a) {
-        h += '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
-          (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
-          '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button><button class="btn small" data-act="saveTiles" data-v="' + esc(a.areaId) + '">地図を端末に保存</button></div></div>';
-      });
+      list.forEach(function (a) { h += areaCard(a); });
       if (!list.length) h += '<div class="note" style="padding:12px 4px">' + '担当の区域はありません。区域係に、担当の設定を確認してください。' + '</div>';
     }
     el.innerHTML = h + '</div>';
@@ -523,7 +554,9 @@
       case 'navClose': closePanels(); break;
       case 'menuTab': SADO.menuTab = v; renderMenu(); break;
       case 'homeCat': S.homeCat = v; S.homeParent = null; S.homeQ = ''; renderHome(); break;
-      case 'homeBack': S.homeCat = null; S.homeParent = null; renderHome(); break;
+      case 'homeBack': if (S.homeCat) { S.homeCat = null; S.homeParent = null; } else S.homeStage = null; renderHome(); break;
+      case 'homeList': S.homeStage = 'list'; renderHome(); break;
+      case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
       case 'homeParent': S.homeParent = v; renderHome(); break;
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;

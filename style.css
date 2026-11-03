@@ -174,3 +174,12 @@ a.catbtn.link::after{content:"↗"}
 .pcard{cursor:pointer}.pcard .chev{font-size:1.6em;color:var(--text-2);padding:0 6px}.homeq{width:100%;margin:6px 0 10px}
 .ptree .prow.child{margin-left:18px}.pgrp{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}
 .rn .tn{display:block;font-weight:400;font-size:.8em;color:var(--text-2)}
+
+.bpinw{background:none;border:0}
+.bpin{width:22px;height:22px;border-radius:50% 50% 50% 0;-webkit-transform:rotate(-45deg);transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.bpl{position:absolute;left:25px;top:0;white-space:nowrap;font-size:12px;font-weight:700;color:#202124;background:rgba(255,255,255,.88);padding:0 4px;border-radius:4px;pointer-events:none}
+.nolbl .bpl{display:none}
+
+.leaflet-control-attribution{font-size:5.5px!important;line-height:1.2!important;padding:0 3px!important}
+.leaflet-control-attribution a{font-size:inherit!important}
+.leaflet-control-attribution svg,.leaflet-control-attribution img{width:6px!important;height:4px!important}
