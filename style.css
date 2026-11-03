@@ -372,3 +372,38 @@ body.editing #sheet{max-height:calc(100% - 150px)}
 @keyframes sheetUp{from{opacity:.4;transform:translateY(24px)}to{opacity:1;transform:none}}
 #home:not(.hidden),#menu:not(.hidden),#admin:not(.hidden){-webkit-animation:sheetUp .22s ease;animation:sheetUp .22s ease}
 html.lite #home,html.lite #menu,html.lite #admin{-webkit-animation:none!important;animation:none!important}
+
+/* v32: ①ウィンドウの下も丸く ⑧地図は画面の一番下まで ⑪テーマ(data-ui) */
+#map,#editFrame{bottom:0}
+#home,#menu{bottom:calc(var(--nav) + var(--safe-b) + 10px);border-radius:var(--radius-l)}
+#admin{bottom:calc(var(--nav) + var(--safe-b) + 10px)}
+@media (min-width:900px){#home,#menu,#admin{bottom:calc(var(--nav) + 28px)}body.detail-open #nav{-webkit-transform:translate(-50%,160%);transform:translate(-50%,160%)}}
+html[data-ui="2"] #nav{left:50%;right:auto;bottom:14px;-webkit-transform:translateX(-50%);transform:translateX(-50%);width:min(560px,calc(100% - 32px));border-radius:999px;border:1px solid var(--border);height:var(--nav);padding-bottom:0;box-shadow:var(--shadow-2);overflow:hidden}
+html[data-ui="2"] #nav button.on::before{display:none}
+html[data-ui="2"] #nav button.on{background:rgba(26,115,232,.12);border-radius:999px;margin:6px 2px}
+html[data-ui="2"] #home,html[data-ui="2"] #menu,html[data-ui="2"] #admin{bottom:calc(var(--nav) + 28px)}
+html[data-ui="2"] body.detail-open #nav{-webkit-transform:translate(-50%,160%);transform:translate(-50%,160%)}
+html[data-ui="2"] #legend{bottom:calc(var(--nav) + 30px)}
+
+/* v32: 地図の下の部品は、下のバーの上に。マップ切り替えは旧GASと同じ形(ウィンドウで選ぶ) */
+.leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + var(--safe-b) + 10px)}
+.leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + var(--safe-b))}
+html[data-ui="2"] .leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + 30px)}
+html[data-ui="2"] .leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + 26px)}
+@media (min-width:900px){.leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + 30px)}.leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + 26px)}#layerBtn{bottom:calc(var(--nav) + 128px)!important}}
+#layerBtn{left:10px;right:auto;top:auto;width:44px;height:44px;border-radius:var(--radius-s);bottom:calc(var(--nav) + var(--safe-b) + 108px);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;padding:0}
+html[data-ui="2"] #layerBtn{bottom:calc(var(--nav) + 128px)}
+.maplayer-row{display:-webkit-flex;display:flex;-webkit-justify-content:space-around;justify-content:space-around;-webkit-align-items:flex-start;align-items:flex-start;padding:8px 0}
+.maplayer-opt{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;-webkit-flex:1 1 0;flex:1 1 0;min-width:0;padding:0 2px;margin:0;border:0;background:none;color:var(--text-2);font-size:.85em;font-weight:700;line-height:1.3;text-align:center;cursor:pointer}
+.maplayer-opt>span+span{margin-top:8px}
+.maplayer-sw{display:block;width:64px;height:64px;border-radius:16px;overflow:hidden;border:3px solid transparent;background:var(--surface-3)}
+.maplayer-sw svg{display:block;width:100%;height:100%}
+.maplayer-opt.active{color:var(--primary)}.maplayer-opt.active .maplayer-sw{border-color:var(--primary)}
+/* v32: 文字の大きさ・字体・ボタンの触り心地を旧GAS(テーマ1)に合わせる */
+html[data-font="1"]{--fs:13px}html[data-font="2"]{--fs:15px}html[data-font="3"]{--fs:16px}html[data-font="4"]{--fs:18px}html[data-font="5"]{--fs:20px}html[data-font="6"]{--fs:22px}
+html,body{font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Meiryo",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="search"],input[type="email"],input:not([type]),textarea,select{font-size:max(16px,var(--fs))}
+.btn{-webkit-transition:-webkit-transform .08s ease,background .15s ease;transition:transform .08s ease,background .15s ease}
+.btn:active{-webkit-transform:scale(.97);transform:scale(.97)}
+.btn:disabled{cursor:not-allowed;-webkit-transform:none;transform:none}
+.btn.secondary{background:var(--surface-3);color:var(--text)}

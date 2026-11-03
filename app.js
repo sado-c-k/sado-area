@@ -50,7 +50,7 @@
   // ---------- 通信 ----------
   // 読み込み中の表示(旧GASと同じ): 通信が0.25秒以上かかるときだけ、画面全体にくるくるを出す。裏で動く通信(送信・進み具合・自動更新)では出さない
   var loadN = 0, loadT = null, QUIET = { sync: 1, getProgress: 1, getBootstrap: 1 };
-  function loadingOn() { loadN++; if (loadN === 1) { clearTimeout(loadT); loadT = setTimeout(function () { var e = $('#loading'); if (e && loadN > 0) { applyLogo($('#loadLogo')); e.classList.remove('hidden'); } }, 250); } }
+  function loadingOn() { loadN++; if (loadN === 1) { clearTimeout(loadT); loadT = setTimeout(function () { var e = $('#loading'); if (e && loadN > 0 && !document.getElementById('adMask')) { applyLogo($('#loadLogo')); e.classList.remove('hidden'); } }, 250); } }
   function loadingOff() { loadN = Math.max(0, loadN - 1); if (!loadN) { clearTimeout(loadT); var e = $('#loading'); if (e) e.classList.add('hidden'); } }
   function applyLogo(el) {
     if (!el) return; var lg = S.settings || {}, m = lg.logoMode, im = lg.logoImage;
@@ -73,7 +73,13 @@
       }, function (err) { setOnline(false); throw err; });
   }
   SADO.api = api;
-  function setOnline(v) { if (S.online !== v) { S.online = v; updateBadge(); if (v) flush(); } }
+  function setOnline(v) {
+    if (S.online !== v) {
+      S.online = v; updateBadge(); if (v) flush();
+      // 圏外のときは、端末に保存できる地図(地理院タイル)に自動で切り替える。電波が戻ったら元の地図へ
+      try { if (typeof tileLayer !== 'undefined' && tileLayer && tileLayer.setUrl && S.settings) tileLayer.setUrl(tileDef(v ? effSrc() : 'gsi').url); } catch (e) {}
+    }
+  }
   var toastTimer;
   function toast(msg, ms) { var t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('hidden'); }, ms || 3500); }
   SADO.progBar = progBar; SADO.progLegend = progLegend; SADO.fmtJa = fmtJa; SADO.stColor = stColor; SADO.statusList = statusList;
@@ -85,6 +91,7 @@
   function applyPrefs(p) {
     p = p || {};
     document.documentElement.setAttribute('data-font', p.font || '3');
+    document.documentElement.setAttribute('data-ui', p.ui === '2' ? '2' : '1');
     var th = p.theme || 'auto', dark = th === 'dark' || (th === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   }
@@ -178,9 +185,17 @@
   function statusOf(id) { var l = statusList(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return l[0]; }
 
   // ---------- 地図 ----------
-  function effSrc() { return getPrefs().tile || (S.settings && S.settings.mapTileSource) || 'gsi'; }
-  var TILE_LIST = [['gsi', '地理院(標準)'], ['gsipale', '地理院(淡色)'], ['gsiphoto', '地理院(航空写真)'], ['osm', 'OpenStreetMap']];
-  function layerMenuHtml() { var cur = effSrc(), l = TILE_LIST.slice(); if (S.settings && S.settings.mapTileUrl) l.push(['custom', '指定した地図']); return '<div class="note" style="padding:4px 10px">マップの種類(この端末だけ)</div>' + l.map(function (x) { return '<button class="' + (cur === x[0] ? 'on' : '') + '" data-act="layerPick" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '<div class="note" style="padding:4px 10px">航空写真は通信量が少し増えます。</div>'; }
+  function effSrc() { return S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsi'; }
+  var TILE_LIST = [['osm', 'OpenStreetMap'], ['gsiphoto', '航空写真'], ['gsi', '国土地理院'], ['gsipale', '国土地理院（淡色）']];
+  var TILE_SW = {"osm": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f4f1ea\"/><path d=\"M0 0h26c-4 12 6 18 2 30S10 44 0 46Z\" fill=\"#a9dcf5\"/><path d=\"M40 0h24v26c-8 2-16-4-18-12S42 6 40 0Z\" fill=\"#b8e0c0\"/><path d=\"M0 64 64 20\" stroke=\"#fff\" stroke-width=\"9\"/><path d=\"M0 64 64 20\" stroke=\"#e5b858\" stroke-width=\"3\"/><path d=\"M30 0 38 64\" stroke=\"#fff\" stroke-width=\"5\"/></svg>", "gsiphoto": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#58694a\"/><path d=\"M0 0h30L0 34Z\" fill=\"#6f7f5c\"/><path d=\"M64 64H28l36-34Z\" fill=\"#43523a\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#9c9a92\" stroke-width=\"9\" fill=\"none\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#d8d6cf\" stroke-width=\"1.5\" stroke-dasharray=\"5 4\" fill=\"none\"/></svg>", "gsi": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f6f2e4\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e9f0d4\"/><path d=\"M0 46 64 22\" stroke=\"#f4b04a\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d9d2bd\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#d9a89a\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#d9a89a\"/></svg>", "gsipale": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#eceff2\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e2e8ec\"/><path d=\"M0 46 64 22\" stroke=\"#cfd6dc\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d5dbe0\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#cdd3d8\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#cdd3d8\"/></svg>", "custom": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#e8e0f0\"/><path d=\"M0 46 64 22\" stroke=\"#fff\" stroke-width=\"6\"/><circle cx=\"32\" cy=\"30\" r=\"7\" fill=\"#a58bc8\"/></svg>"};
+  function openLayerPicker() {
+    var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
+    var cur = effSrc(), l = TILE_LIST.slice(); if (S.settings && S.settings.mapTileUrl) l.push(['custom', '自分で指定']);
+    m = document.createElement('div'); m.id = 'modal';
+    m.innerHTML = '<div class="mb"><h3>地図の種類</h3><div class="maplayer-row">' + l.map(function (o) { return '<button type="button" class="maplayer-opt' + (o[0] === cur ? ' active' : '') + '" data-act="layerPick" data-v="' + o[0] + '"><span class="maplayer-sw">' + (TILE_SW[o[0]] || '') + '</span><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div><div class="note" style="text-align:center">選んだ地図は、開き直すと元に戻ります。</div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function (e) { if (e.target === m) m.parentNode.removeChild(m); });
+  }
   function tileDef(src) {
     var st = S.settings || {};
     if (src === 'custom' && st.mapTileUrl) return { url: st.mapTileUrl, opt: { maxZoom: 19, attribution: st.mapTileAttribution || '' } };
@@ -677,13 +692,15 @@
   function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
   function areaCard(a, plain) {
     if (!plain) return '<div class="card"><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
-      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + saveBtn('saveTiles', a.areaId) + '</div>' + (a.inUse ? periodHtml(a) : '') + progHtml(a) + bldListHtml(a) + '</div>';
+      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '</div>' + (a.inUse ? periodHtml(a) : '') + progHtml(a) + bldListHtml(a) + '</div>';
     return '<div class="card"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
       (a.inUse ? esc(a.assigneeName) + '　' + esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
-      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + saveBtn('saveTiles', a.areaId) + '</div>' + (a.inUse ? periodHtml(a) + progHtml(a) : '') + bldListHtml(a) + '</div>';
+      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '</div>' + (a.inUse ? periodHtml(a) + progHtml(a) : '') + bldListHtml(a) + '</div>';
   }
   function onlyUseBox() { return '<div class="onlyuse" data-act="toggleOnly" style="margin:4px 2px 10px;padding:8px 6px;cursor:pointer"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;vertical-align:middle"' + (S.onlyUse ? ' checked' : '') + '> <span style="vertical-align:middle">使用中の区域のみ表示</span></div>'; }
   var CLOUD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H17"/><path d="M12 11v9"/><path d="m9 17 3 3 3-3"/></svg>';
+  var DOCI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>';
+  function dlBtn(id) { return S.settings && S.settings.hasDownloads ? '<button class="btn small" data-act="dlPick" data-v="' + esc(id) + '" title="印刷用の地図(PDF・PNG)" aria-label="印刷用の地図(PDF・PNG)" style="padding:6px 9px">' + DOCI + '</button>' : ''; }
   function saveBtn(act, id) { return '<button class="btn small" data-act="' + act + '" data-v="' + esc(id) + '" title="地図を端末に保存" aria-label="地図を端末に保存" style="padding:6px 9px">' + CLOUD + '</button>'; }
   // 親区域の下の小さな区域: 許可された数/全体の数
   function kidCounts(pid) {
@@ -701,9 +718,9 @@
     var el = $('#home'), cat = S.homeCat, tab = S.homeTab || '', title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
     var gname = (S.user && S.user.groupName) || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人'], ['list', '区域一覧']];
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
-    var h = '<div class="mhead"><div class="t">' + esc(title) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v31</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
+    var h = '<div class="mhead"><div class="t">' + esc(title) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v32</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
       '<div style="padding:0 16px 4px"><div style="font-weight:700">' + esc(S.user ? S.user.displayName : '') + 'さん、ようこそ' + (gname ? '<span class="note">　' + esc(gname) + (/グループ$/.test(gname) ? '' : 'グループ') + '</span>' : '') + '</div><div class="note" style="margin:2px 0 4px">使用する区域を選択してください</div></div>' +
-      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + (t[0] === 'list' ? '' : '(' + mineOf(t[0]).length + ')') + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() : '');
+      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() : '');
     if (!tab) {
       h += '<div class="note" style="padding:14px 4px">上の「会衆」「グループ」「個人」「区域一覧」から選んでください。</div>';
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
@@ -743,7 +760,7 @@
   function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'help' ? 'help' : 'settings'); renderMenu(); }
   function closeMenu() { $('#menu').classList.add('hidden'); if ($('#home').classList.contains('hidden')) activeNav('map'); }
   function renderMenu() {
-    var tabs = SADO.menuTab === 'help' ? [] : [['prefs', '設定'], ['dl', '印刷用']];
+    var tabs = SADO.menuTab === 'help' ? [] : [];
     $('#menu').innerHTML = '<div class="mhead"><div class="t">' + (SADO.menuTab === 'help' ? 'ヘルプ' : '設定') + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
       (tabs.length ? '<div class="tabs">' + tabs.map(function (t) { return '<button class="tab' + (SADO.menuTab === t[0] ? ' on' : '') + '" data-act="menuTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '') + '<div class="mbody" id="menuBody"></div>';
     renderMenuBody();
@@ -788,6 +805,7 @@
       el.innerHTML = '<div class="card"><h3>表示設定</h3>' +
         '<div class="setrow"><div class="tt">名前</div><div>' + esc(S.user ? S.user.displayName : '') + '<span class="note">　' + esc(roleLabel()) + (S.user && S.user.groupName ? '・' + esc(S.user.groupName) : '') + '</span></div><div class="ds">記録に残る名前です。変更は区域係にお願いします。</div></div>' +
         '<div class="setrow"><div class="tt">文字サイズ　<span class="note">' + FS[Number(fv) - 1] + '（' + fv + ' / 6）</span></div><div class="fsr">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="' + (fv === String(n) ? 'on' : '') + '" data-act="prefFont" data-v="' + n + '"><span style="font-size:' + (10 + n * 2) + 'px">あ</span></button>'; }).join('') + '</div></div>' +
+        '<div class="setrow"><div class="tt">デザイン(テーマ)　<span class="note">この端末だけ</span></div>' + seg('prefUi', p.ui || '1', [['1', 'テーマ1　下にタブ'], ['2', 'テーマ2　浮かぶバー']]) + '<div class="ds">下のメニューバーの形を選べます。</div></div>' +
         '<div class="setrow"><div class="tt">画面モード</div>' + seg('prefTheme', p.theme || 'auto', [['light', 'ライト'], ['dark', 'ダーク'], ['auto', '端末に合わせる']]) + '</div>' +
         '<div class="setrow"><div class="tt">入力スタイル　<span class="note">この端末だけ</span></div>' + seg('prefInput', p.input || '', [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン'], ['', '全体の設定']]) + '<div class="ds">建物の詳細で、訪問状況を選ぶ形です。「全体の設定」は、区域係が決めた形になります。</div></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有する</button>' : '') + '</div><div class="note" style="margin-top:6px">QRコードの画像は長押しで保存できます。</div></div>' +
@@ -824,7 +842,6 @@
   function saveTiles(areaIds, big) {
     if (!window.caches) { toast('この端末では地図の保存ができません。'); return; }
     if (!S.online) { toast('電波のあるところで実行してください。'); return; }
-    if (S.settings && S.settings.mapTileSource === 'osm') { toast('OpenStreetMapの公式サーバーは、事前保存が禁止されています。動作設定で地図を「地理院タイル」にしてください。', 6000); return; }
     if (!areaIds.length) { toast('保存できる区域がありません。'); return; }
     var cap = big ? 2500 : 700;
     toast('地図の範囲を調べています…', 2000);
@@ -890,10 +907,11 @@
         var text = window.prompt('区域係への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: (bn && bn.areaId) || S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
         break;
       case 'prefFont': setPref('font', v); renderMenuBody(); break;
+      case 'prefUi': setPref('ui', v); renderMenuBody(); break;
       case 'prefTheme': setPref('theme', v); renderMenuBody(); break;
       case 'hdrPick': $('#hdrQ').value = ''; hdrSearch(); var pk = areaById(v); if (pk && pk.isParent) selectParent(v); else selectArea(v); break;
-      case 'layerToggle': var lm = $('#layerMenu'); if (lm.classList.contains('hidden')) { lm.innerHTML = layerMenuHtml(); lm.classList.remove('hidden'); } else lm.classList.add('hidden'); break;
-      case 'layerPick': setPref('tile', v); $('#layerMenu').classList.add('hidden'); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
+      case 'layerToggle': openLayerPicker(); break;
+      case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
       case 'areaExp': S.areaOpen = S.areaOpen || {}; S.areaOpen[v] = !S.areaOpen[v]; if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; }); } else renderHome(); break;
       case 'pickBuilding': selectArea(t.getAttribute('data-a'), v); break;
       case 'helpTab': SADO.helpTab = v; renderMenuBody(); break;
@@ -904,6 +922,15 @@
       case 'syncNow': flush().then(function () { return countPending(); }).then(function () { toast(S.pending ? '送信できなかった分が残っています。' : '送信しました。'); renderMenuBody(); }); break;
       case 'saveTiles': saveTiles([v]); break;
       case 'saveTilesParent': saveTiles(visibleAreas().filter(function (a) { return a.parentId === v; }).map(function (a) { return a.areaId; }), true); break;
+      case 'dlPick': (function () {
+        var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
+        var nm = (S.areas.filter(function (x) { return x.areaId === v; })[0] || {}).areaName || '';
+        m = document.createElement('div'); m.id = 'modal';
+        m.innerHTML = '<div class="mb"><h3>印刷用の地図</h3><div class="note">「' + esc(nm) + '」をダウンロードします。形式を選んでください(電波が必要です)。</div><div class="fxact"><button class="btn" id="dlNo">キャンセル</button><button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDF</button><button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">PNG</button></div></div>';
+        document.body.appendChild(m);
+        var cl = function () { if (m.parentNode) m.parentNode.removeChild(m); };
+        m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { if (e.target === m || e.target.getAttribute('data-act') === 'dlFile') setTimeout(cl, 0); });
+      })(); break;
       case 'dlFile':
         toast('ダウンロード中…', 2000);
         api('downloadAreaFile', { areaId: v, fileType: t.getAttribute('data-t') }).then(function (r) { SADO.saveBlob(b64Blob(r.base64, r.mime), r.name); }, function (e) { toast(e.message, 5000); });
