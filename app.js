@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
-  var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {};
+  var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
   // ---------- 端末内の保存(IndexedDB) ----------
@@ -149,6 +149,7 @@
     S.mapReady = true;
     var st = S.settings || {};
     map = L.map('map', { zoomControl: false, attributionControl: true, tap: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
+    var lblZoom = function () { document.getElementById('map').classList.toggle('nolbl', map.getZoom() < 16); }; map.on('zoomend', lblZoom); lblZoom();
     var td = tileDef(st.mapTileSource); tileLayer = L.tileLayer(td.url, td.opt).addTo(map);
     frameLayer = L.layerGroup().addTo(map); bLayer = L.layerGroup().addTo(map);
     SADO.map = map;
@@ -253,24 +254,45 @@
     var editable = a.canEdit !== false, fill = !editable ? '#9aa0a6' : (n && done === n ? '#188038' : (visited > 0 ? '#ef6c00' : '#1a73e8'));
     return { color: rej ? '#b91c1c' : (cau ? '#ca8a04' : fill), weight: rej || cau ? 3 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
+  // アパート扱い: 部屋が2つ以上ある・アパート区域・名前がある建物。これ以外(一軒家など)は、地図を直接タップして記録する。
+  function isApt(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1 || !!String(b.buildingName || '').trim(); }
+  function pinIcon(b, color) { return L.divIcon({ className: 'bpinw', html: '<div class="bpin" style="background:' + color + '"></div><span class="bpl">' + esc(b.buildingName || '') + '</span>', iconSize: [22, 22], iconAnchor: [11, 22] }); }
+  function quickRecord(bid) {
+    var d = S.data[S.cur]; if (!d) return;
+    if (!d.area.canEdit) { openBuilding(bid); return; }
+    var rs = roomsOf(S.cur, bid); if (!rs.length) { openBuilding(bid); toast('この建物には部屋の記録枠がありません。'); return; }
+    var l = statusList(), r = rs[0], i = 0; l.forEach(function (x, k) { if (x.id === r.status) i = k; });
+    var nx = l[(i + 1) % l.length]; patchRoom(r.roomId, { status: nx.id }); toast('記録: ' + nx.label + '(もう一度タップで次の状況。長押しで詳細)', 1800);
+  }
   function drawBuildings(fit) {
-    if (!bLayer) return; bLayer.clearLayers(); bShapes = {};
+    if (!bLayer) return; bLayer.clearLayers(); bShapes = {}; bPins = {};
     var d = S.data[S.cur]; if (!d) return;
     var geo = S.geo[S.cur], feat = {}, bounds = null;
     if (geo && geo.features) geo.features.forEach(function (f) { feat[f.properties.uuid2] = f; });
     d.buildings.forEach(function (b) {
-      var f = feat[b.buildingId], shape = null, st = buildingStyle(S.cur, b);
+      var f = feat[b.buildingId], shape = null, st = buildingStyle(S.cur, b), apt = isApt(S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
+      var hasPt = b.lat != null && b.lng != null;
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
-      else if (b.lat != null && b.lng != null) { if (S.edit && SADO.editMarker) shape = SADO.editMarker(b); else { st.radius = 9; shape = L.circleMarker([b.lat, b.lng], st); } }
+      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (apt) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); } else { st.radius = 5; st.weight = 1; shape = L.circleMarker([b.lat, b.lng], st); } }
       if (!shape) return;
-      shape.on('click', function () { openBuilding(b.buildingId); });
+      var simple = !apt && !ed;
+      var act = function () { if (simple) quickRecord(b.buildingId); else openBuilding(b.buildingId); };
+      shape.on('click', act); if (simple) shape.on('contextmenu', function () { openBuilding(b.buildingId); });
       bLayer.addLayer(shape); bShapes[b.buildingId] = shape;
+      if (apt && !pin && !ed) {
+        var c = shape.getBounds ? shape.getBounds().getCenter() : null;
+        if (c) { pin = L.marker(c, { icon: pinIcon(b, st.fillColor) }); pin.on('click', act); bLayer.addLayer(pin); }
+      }
+      if (pin) bPins[b.buildingId] = pin;
       var bb = shape.getBounds ? shape.getBounds() : L.latLngBounds([shape.getLatLng()]);
       if (!bounds) bounds = L.latLngBounds(bb.getSouthWest(), bb.getNorthEast()); else bounds.extend(bb);
     });
     if (fit && bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
   }
-  function restyle(bid) { var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (b && shape.setStyle) shape.setStyle(buildingStyle(S.cur, b)); }
+  function restyle(bid) {
+    var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (!b) return;
+    var st = buildingStyle(S.cur, b); if (shape.setStyle) shape.setStyle(st); if (bPins[bid]) bPins[bid].setIcon(pinIcon(b, st.fillColor));
+  }
 
   // ---------- 建物のシート(部屋ごとの記録) ----------
   function openBuilding(bid) { S.sheetBid = bid; renderSheet(); }
