@@ -807,6 +807,7 @@
     } else if (t === 'prefs') {
       var p = getPrefs(), FS = ['小', 'やや小', '標準', '大', '特大', '最大'], fv = String(p.font || '3'), seg = function (act, cur, list) { return '<div class="segrow">' + list.map(function (x) { return '<button class="' + (String(cur) === x[0] ? 'on' : '') + '" data-act="' + act + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
       el.innerHTML = '<div class="card"><h3>表示設定</h3>' +
+        '<div class="setrow"><div class="tt">バージョン</div><div class="note">画面 v34　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認(Code.gsを更新してください)') + '</div></div>' +
         '<div class="setrow"><div class="tt">名前</div><div>' + esc(S.user ? S.user.displayName : '') + '<span class="note">　' + esc(roleLabel()) + (S.user && S.user.groupName ? '・' + esc(S.user.groupName) : '') + '</span></div><div class="ds">記録に残る名前です。変更は区域係にお願いします。</div></div>' +
         '<div class="setrow"><div class="tt">文字サイズ　<span class="note">' + FS[Number(fv) - 1] + '（' + fv + ' / 6）</span></div><div class="fsr">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="' + (fv === String(n) ? 'on' : '') + '" data-act="prefFont" data-v="' + n + '"><span style="font-size:' + (10 + n * 2) + 'px">あ</span></button>'; }).join('') + '</div></div>' +
         '<div class="setrow"><div class="tt">デザイン(テーマ)　<span class="note">この端末だけ</span></div>' + seg('prefUi', p.ui || '1', [['1', 'テーマ1　下にタブ'], ['2', 'テーマ2　上のバーなし・ボタンは右下'], ['3', 'テーマ3　上にバーとタイル型メニュー']]) + '<div class="ds">画面の並べ方を選べます。色や形は同じです。</div></div>' +
