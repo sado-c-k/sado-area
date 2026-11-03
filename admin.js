@@ -20,12 +20,12 @@
   }
   function body(h) { var b = $('#adBody'); if (b) b.innerHTML = h; busy(false); }
   // 項目名と配置だけ先に出す(中身は読み込めたら入る)
-  var SKEL = { areas: ['区域管理', '1件ずつ追加する', '自動終了と記録ドキュメント'], bulk: ['一括クリア', '元に戻す'], reports: ['届いた報告'], edit: ['エリアを選ぶ'], accounts: ['ユーザーを追加', 'ユーザー', 'グループ'], settings: ['動作設定'], logs: ['エリアの使用記録', '更新履歴'], analysis: ['分析'], io: ['取り込み', '書き出し'], guide: ['利用ガイド'] };
+  var SKEL = { areas: ['区域管理', '1件ずつ追加する', '自動終了と記録ドキュメント'], bulk: ['一括クリア', '元に戻す'], reports: ['届いた報告'], edit: ['区域を選ぶ'], accounts: ['ユーザーを追加', 'ユーザー', 'グループ'], settings: ['動作設定'], logs: ['区域の使用記録', '更新履歴'], analysis: ['分析'], io: ['取り込み', '書き出し'], guide: ['利用ガイド'] };
   function skeleton(t) { return (SKEL[t] || ['']).map(function (n) { return '<div class="card"><h3>' + esc(n) + '</h3><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div>'; }).join(''); }
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
   function fail(e) { busy(false); toast(e.message || String(e), 6000); }
   function opts(list, valKey, labKey, sel, blank) { return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(function (x) { return '<option value="' + esc(x[valKey]) + '"' + (String(x[valKey]) === String(sel) ? ' selected' : '') + '>' + esc(x[labKey]) + '</option>'; }).join(''); }
-  // 小さなエリアの選択肢を、大きなエリアごとにまとめて出す(親区域そのものは含めない)
+  // 小さな区域の選択肢を、大きな区域ごとにまとめて出す(親区域そのものは含めない)
   function areaOpts(list, sel, blank) {
     var kids = list.filter(function (a) { return !a.isParent; }), pn = {}; list.forEach(function (a) { if (a.isParent) pn[a.areaId] = a.areaName; });
     var by = {}, order = [], loose = [];
@@ -49,17 +49,17 @@
     return api('getAdminAreas').then(function (d) { C.ad = d; C.adT = Date.now(); return d; });
   }
 
-  // ---------- 管理(エリアの使用・担当) ----------
+  // ---------- 管理(区域の使用・担当) ----------
   function loadAreas(openId) {
     C.openArea = '';
     loadAd().then(function (d) {
       var only = false; try { only = localStorage.getItem('adOnlyInUse') === '1'; } catch (e) {}
       C.only = only;
       var h = '<div class="card"><h3>区域管理</h3><div id="apSum" class="note">進み具合を計算中…</div>' +
-        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="エリア名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中のエリアだけ表示</label><div id="apList" class="ptree"></div></div>' +
+        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域だけ表示</label><div id="apList" class="ptree"></div></div>' +
         '<div class="card"><h3>1件ずつ追加する</h3><div class="note">CSVを使わずに、1件ずつ追加できます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">建物・部屋を追加(区域編集)</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウント・グループ・担当者を追加</button></div>' +
         '<div class="row" style="margin-top:8px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><select id="newAreaCat"><option value="国仲">国仲</option><option value="遠方">遠方</option><option value="アパート">アパート</option></select><button class="btn primary small" data-act="ad:addArea">区域を追加</button></div></div>' +
-        '<div class="card"><h3>自動終了と記録ドキュメント</h3><div class="note">期限(終了日、または開始日から○か月)が来たエリアは、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
+        '<div class="card"><h3>自動終了と記録ドキュメント</h3><div class="note">期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
         '<button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div>';
       body('<div id="arIndex">' + h + '</div><div id="arDetail" class="hidden"></div>');
       drawAreaList(); if (typeof openId === 'string' && openId) renderAreaDetail(openId);
@@ -67,11 +67,11 @@
     }, fail);
   }
   function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
-  // 区域管理の一覧: 区分 → 大きなエリア(親) → 小さなエリア(子)。大きなエリアの右の▸で、中の小さなエリアを開く
+  // 区域管理の一覧: 区分 → 大きな区域(親) → 小さな区域(子)。大きな区域の右の▸で、中の小さな区域を開く
   function kidsOf(pid) { return C.ad.areas.filter(function (x) { return x.active && x.parentId === pid && !x.isParent; }); }
   function sumProg(list) { var P = C.prog || {}, t = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }; list.forEach(function (k) { var p = P[k.areaId]; if (p) { t.total += p.total; t.visited += p.visited; t.buildings += p.buildings; t.doneBuildings += p.doneBuildings; } }); return t; }
   function progRow(a, p, extra, cls, kids, open) {
-    return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '未使用')) + '</span>' + (kids ? '<span class="badge mine">小さなエリア ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '% ▸</div></div>' +
+    return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '未使用')) + '</span>' + (kids ? '<span class="badge mine">小さな区域 ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '% ▸</div></div>' +
       '<div class="pbar"><i style="width:' + pct(p.visited, p.total) + '%"></i></div><div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '部屋 ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟</span><span>' + (a.inUse ? esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
       (a.inUse ? '<div class="pm"><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + (extra || '') + '</button>' + (kids ? '<button type="button" class="btn small pexp" data-act="ad:parExp" data-v="' + esc(a.areaId) + '" aria-label="開閉">' + (open ? '▾' : '▸') + '</button>' : '') + '</div>';
   }
@@ -95,9 +95,9 @@
       if (open) shown.forEach(function (k) { h += progRow(k, P[k.areaId] || empty, '', ' child', 0); });
     });
     loose.filter(function (a) { return hit(a) && (!C.only || a.inUse); }).forEach(function (a) { n++; h += progRow(a, P[a.areaId] || empty, '', '', 0); });
-    el.innerHTML = h || '<div class="note">表示するエリアがありません。</div>';
+    el.innerHTML = h || '<div class="note">表示する区域がありません。</div>';
     var tp = sumProg(all.filter(function (a) { return !a.isParent; })), s = document.getElementById('apSum');
-    if (s) s.textContent = C.prog ? '全体: 訪問済み ' + tp.visited + ' / ' + tp.total + '部屋(' + pct(tp.visited, tp.total) + '%)。大きなエリアを押すと、グループ担当などの設定を開きます。右の ▸ で、中の小さなエリアを開きます。' : '進み具合を計算中…';
+    if (s) s.textContent = C.prog ? '全体: 訪問済み ' + tp.visited + ' / ' + tp.total + '部屋(' + pct(tp.visited, tp.total) + '%)。大きな区域を押すと、グループ担当などの設定を開きます。右の ▸ で、中の小さな区域を開きます。' : '進み具合を計算中…';
   }
   function renderAreaDetail(id) {
     var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0], ix = document.getElementById('arIndex'), dv = document.getElementById('arDetail'); if (!a || !dv) return;
@@ -108,7 +108,7 @@
     var par = a.isParent ? null : (a.parentId ? C.ad.areas.filter(function (x) { return x.areaId === a.parentId; })[0] : null), nKids = a.isParent ? kidsOf(a.areaId).length : 0;
     C.arOn0 = on;
     dv.innerHTML = '<div class="card"><div class="row dh"><button class="btn small" data-act="ad:areaBack">← 一覧へ</button><b class="grow" style="font-size:1.1em">' + esc(a.areaName) + '</b><span class="badge mine">' + esc(a.category) + '</span></div>' +
-      (a.isParent ? '<div class="note">大きなエリアです。使用を開始すると、中の小さなエリア ' + nKids + '件がすべて対象になります(グループ・会衆・個人のどれでも担当を決められます)。小さなエリアごとに別の人が担当する場合は、小さなエリアを個別に設定してください。</div>' : (par ? '<div class="note">大きなエリア「' + esc(par.areaName) + '」' + (par.inUse ? 'が使用中のため、この区域も使用中です(担当: ' + esc(par.assigneeName) + ')。個別の設定は、大きなエリアの使用が終わったあと、または個人担当にしたいときに使います。' : 'に所属しています。') + '</div>' : '')) +
+      (a.isParent ? '<div class="note">大きな区域です。使用を開始すると、中の小さな区域 ' + nKids + '件がすべて対象になります(グループ・会衆・個人のどれでも担当を決められます)。小さな区域ごとに別の人が担当する場合は、小さな区域を個別に設定してください。</div>' : (par ? '<div class="note">大きな区域「' + esc(par.areaName) + '」' + (par.inUse ? 'が使用中のため、この区域も使用中です(担当: ' + esc(par.assigneeName) + ')。個別の設定は、大きな区域の使用が終わったあと、または個人担当にしたいときに使います。' : 'に所属しています。') + '</div>' : '')) +
       '<div class="fxg"><label class="fxsw"><span><b>使用中</b><small>オンにすると、この区域に訪問状況を入力できます</small></span><input type="checkbox" class="sw" id="arIn"' + (on ? ' checked' : '') + '></label>' +
       (a.expired ? '<div class="note" style="color:var(--danger)">使用期間が終わっています。「保存」を押すか、日付を変えてください。</div>' : '') + '</div>' +
       '<div id="arOn"' + (on ? '' : ' class="hidden"') + '>' +
@@ -151,7 +151,7 @@
   // ---------- 区域編集 ----------
   function loadEdit() {
     (C.ad ? Promise.resolve(C.ad) : loadAd()).then(function (d) {
-      var h = '<div class="card"><div class="row"><select id="edArea" class="grow">' + areaOpts(d.areas, C.editArea, 'エリアを選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div></div><div id="edBody"></div>';
+      var h = '<div class="card"><div class="row"><select id="edArea" class="grow">' + areaOpts(d.areas, C.editArea, '区域を選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div></div><div id="edBody"></div>';
       body(h); if (C.editArea) loadEditBody();
     }, fail);
   }
@@ -161,10 +161,10 @@
   function renderEdit() {
     var d = C.edit, el = document.getElementById('edBody'); if (!el) return;
     var ar = C.ad && C.ad.areas.filter(function (x) { return x.areaId === C.editArea; })[0], h = '';
-    if (ar) h += '<div class="card"><h3>エリアの設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
+    if (ar) h += '<div class="card"><h3>区域の設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
     h += '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><div class="row"><button class="btn small" data-act="ad:posMap">地図の中心を入れる</button><button class="btn small" data-act="ad:posGps">いまの位置を入れる</button></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
-    h += '<div class="card"><details id="mvBox"' + (C.mvOpen ? ' open' : '') + '><summary><b>建物をまとめて別のエリアへ移す</b></summary><div class="note">アパートの区域づくりなどに使います。移したい建物にチェックを入れ、移す先のエリアを選びます。(絞り込みも使えます)</div>' +
-      '<div id="mvList"></div><div class="row"><select id="mvTo" class="grow">' + areaOpts(C.ad.areas.filter(function (x) { return x.areaId !== C.editArea; }), '', '移す先のエリアを選んでください') + '</select><button class="btn small primary" data-act="ad:mvGo">チェックした建物を移す</button></div></details></div>' +
+    h += '<div class="card"><details id="mvBox"' + (C.mvOpen ? ' open' : '') + '><summary><b>建物をまとめて別の区域へ移す</b></summary><div class="note">アパートの区域づくりなどに使います。移したい建物にチェックを入れ、移す先の区域を選びます。(絞り込みも使えます)</div>' +
+      '<div id="mvList"></div><div class="row"><select id="mvTo" class="grow">' + areaOpts(C.ad.areas.filter(function (x) { return x.areaId !== C.editArea; }), '', '移す先の区域を選んでください') + '</select><button class="btn small primary" data-act="ad:mvGo">チェックした建物を移す</button></div></details></div>' +
       '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
     var bs = d.buildings.filter(function (b) { return (C.showHidden || !isOff(b.active)) && (!C.filter || String(b.buildingName).indexOf(C.filter) >= 0); });
     bs.sort(function (a, b) { return String(a.buildingName) > String(b.buildingName) ? 1 : -1; });
@@ -197,7 +197,7 @@
   }
   function loadLogs() {
     api('getLogs').then(function (d) {
-      var h = '<div class="card"><h3>エリアの使用記録</h3><table class="t"><tr><th>エリア</th><th>担当</th><th>開始</th><th>終了</th><th>理由</th></tr>' + d.useLogs.map(function (l) { return '<tr><td>' + esc(l.areaName) + '</td><td>' + esc(l.assigneeName) + '</td><td>' + esc(l.startDate) + '</td><td>' + esc(l.endDate) + '</td><td>' + esc(l.endReason) + '</td></tr>'; }).join('') + '</table></div>';
+      var h = '<div class="card"><h3>区域の使用記録</h3><table class="t"><tr><th>区域</th><th>担当</th><th>開始</th><th>終了</th><th>理由</th></tr>' + d.useLogs.map(function (l) { return '<tr><td>' + esc(l.areaName) + '</td><td>' + esc(l.assigneeName) + '</td><td>' + esc(l.startDate) + '</td><td>' + esc(l.endDate) + '</td><td>' + esc(l.endReason) + '</td></tr>'; }).join('') + '</table></div>';
       h += '<div class="card"><h3>更新履歴(新しい順・最大300件)</h3><table class="t"><tr><th>日時</th><th>誰が</th><th>対象</th><th>項目</th><th>変更</th></tr>' + d.history.map(function (l) { return '<tr><td>' + esc(String(l.updatedAt).slice(5, 16).replace('T', ' ')) + '</td><td>' + esc(l.updatedBy) + '</td><td>' + esc(l.targetType) + '</td><td>' + esc(l.fieldName) + '</td><td>' + esc(l.oldValue) + ' → ' + esc(l.newValue) + '</td></tr>'; }).join('') + '</table></div>';
       body(h);
     }, fail);
@@ -210,8 +210,8 @@
   }
   function bulkTarget() {
     var d = C.ad, h = '';
-    if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象エリア</label><select id="bkId">' + areaOpts(d.areas, B.id, 'エリアを選んでください') + '</select></div></div>';
-    h = '<div class="fxgrid"><div><label>エリア</label><select id="bkArea">' + areaOpts(d.areas, B.area, 'エリアを選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先にエリアを選ぶ)</option>') + '</select></div></div>';
+    if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象区域</label><select id="bkId">' + areaOpts(d.areas, B.id, '区域を選んでください') + '</select></div></div>';
+    h = '<div class="fxgrid"><div><label>区域</label><select id="bkArea">' + areaOpts(d.areas, B.area, '区域を選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先に区域を選ぶ)</option>') + '</select></div></div>';
     return h;
   }
   function choice(name, v, cur, t, sub, type) { return '<label class="' + (cur ? 'on' : '') + '"><input type="' + type + '" name="' + name + '" value="' + v + '"' + (cur ? ' checked' : '') + '><b style="display:inline">' + t + '</b><br><small>' + sub + '</small></label>'; }
@@ -220,17 +220,17 @@
     if (el && el.value) nm = el.options[el.selectedIndex].text;
     if (!B.id || !nm) return '<div class="bsum muted">対象を選んでください。</div>';
     if (!B.st && !B.memo) return '<div class="bsum muted">クリアする項目を選んでください。</div>';
-    return '<div class="bsum"><b>' + (B.scope === 'area' ? 'エリア' : '建物') + '「' + esc(nm) + '」</b> の <b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b> を消します。<br><small>' + (B.st ? (B.vac === 'keep' ? '空室の部屋はそのまま残します。' : '空室の部屋も含めて消します。') : '') + (B.memo ? (B.flag === 'keep' ? '「注意」「拒否」の部屋のメモは残します。' : '「注意」「拒否」の部屋のメモも消します。') : '') + '</small></div>';
+    return '<div class="bsum"><b>' + (B.scope === 'area' ? '区域' : '建物') + '「' + esc(nm) + '」</b> の <b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b> を消します。<br><small>' + (B.st ? (B.vac === 'keep' ? '空室の部屋はそのまま残します。' : '空室の部屋も含めて消します。') : '') + (B.memo ? (B.flag === 'keep' ? '「注意」「拒否」の部屋のメモは残します。' : '「注意」「拒否」の部屋のメモも消します。') : '') + '</small></div>';
   }
   function drawBulk() {
     var l = C.last, d = C.ad;
     body('<div class="card"><h3>一括クリア</h3><div class="note">新しく回り始めるときなどに、訪問やメモの記録をまとめて消せます。直前の1回分は下の「元に戻す」で復元できます。</div>' +
-      '<div class="bstep">対象範囲</div><div class="bseg"><button data-act="ad:bkScope" data-v="area" class="' + (B.scope === 'area' ? 'on' : '') + '">エリアごと</button><button data-act="ad:bkScope" data-v="building" class="' + (B.scope === 'building' ? 'on' : '') + '">建物ごと</button></div>' + bulkTarget() +
+      '<div class="bstep">対象範囲</div><div class="bseg"><button data-act="ad:bkScope" data-v="area" class="' + (B.scope === 'area' ? 'on' : '') + '">区域ごと</button><button data-act="ad:bkScope" data-v="building" class="' + (B.scope === 'building' ? 'on' : '') + '">建物ごと</button></div>' + bulkTarget() +
       '<div class="bstep">クリアする項目<em>必須</em></div><div class="bchoice">' + choice('bkWhat', 'st', B.st, '訪問', '訪問済み・留守などの記録', 'checkbox') + choice('bkWhat', 'memo', B.memo, 'メモ', '部屋ごとのメモ', 'checkbox') + '</div>' +
       '<div class="bstep">空室の部屋</div><div class="bchoice">' + choice('bkVac', 'keep', B.vac === 'keep', '残す', '空室の記録はそのまま', 'radio') + choice('bkVac', 'clear', B.vac === 'clear', '消す', '空室の部屋もクリア', 'radio') + '</div>' +
       '<div class="bstep">「注意」「拒否」の部屋のメモ</div><div class="bchoice">' + choice('bkFlag', 'keep', B.flag === 'keep', '残す', '次の期にも引き継ぐ', 'radio') + choice('bkFlag', 'clear', B.flag === 'clear', '消す', 'メモもクリア', 'radio') + '</div>' +
       '<div id="bkSum">' + bulkSummary() + '</div><button class="btn danger block" data-act="ad:bulk">一括クリアを実行</button></div>' +
-      '<div class="card"><h3>元に戻す</h3>' + (l ? '<div class="bcr"><span>実行日時</span><b>' + esc(String(l.executedAt).slice(5, 16).replace('T', ' ')) + '</b></div><div class="bcr"><span>対象</span><b>' + (l.scopeType === 'building' ? '建物' : 'エリア') + ' ' + esc(l.scopeType === 'building' ? (l.scopeId) : (areaName(l.scopeId) || l.scopeId)) + '</b></div><div class="bcr"><span>消した項目</span><b>' + (l.clearStatus && l.clearMemo ? '訪問とメモ' : (l.clearStatus ? '訪問' : 'メモ')) + '</b></div><div class="bcr"><span>件数</span><b>' + l.count + '件</b></div><div class="bcr"><span>実行した人</span><b>' + esc(l.executedBy) + '</b></div><button class="btn block" data-act="ad:undoBulk">直前の一括クリアを元に戻す</button>' : '<div class="note">元に戻せる一括クリアはありません。</div>') + '</div>');
+      '<div class="card"><h3>元に戻す</h3>' + (l ? '<div class="bcr"><span>実行日時</span><b>' + esc(String(l.executedAt).slice(5, 16).replace('T', ' ')) + '</b></div><div class="bcr"><span>対象</span><b>' + (l.scopeType === 'building' ? '建物' : '区域') + ' ' + esc(l.scopeType === 'building' ? (l.scopeId) : (areaName(l.scopeId) || l.scopeId)) + '</b></div><div class="bcr"><span>消した項目</span><b>' + (l.clearStatus && l.clearMemo ? '訪問とメモ' : (l.clearStatus ? '訪問' : 'メモ')) + '</b></div><div class="bcr"><span>件数</span><b>' + l.count + '件</b></div><div class="bcr"><span>実行した人</span><b>' + esc(l.executedBy) + '</b></div><button class="btn block" data-act="ad:undoBulk">直前の一括クリアを元に戻す</button>' : '<div class="note">元に戻せる一括クリアはありません。</div>') + '</div>');
     var ar = document.getElementById('bkArea');
     if (ar) ar.onchange = function () { B.area = ar.value; B.id = ''; C.bkB = null; if (!B.area) return drawBulk(); api('getDataEdit', { areaId: B.area }).then(function (r) { C.bkB = r.buildings.filter(function (x) { return !isOff(x.active); }); drawBulk(); }, fail); };
     var id = document.getElementById('bkId'); if (id) id.onchange = function () { B.id = id.value; drawBulk(); };
@@ -247,7 +247,7 @@
     if (!B.id) { toast('対象を選んでください。'); return; }
     if (!B.st && !B.memo) { toast('訪問またはメモを選んでください。'); return; }
     var el = document.getElementById('bkId'), nm = el.options[el.selectedIndex].text;
-    modal('一括クリアの確認', '<div class="bcr"><span>対象</span><b>' + (B.scope === 'area' ? 'エリア' : '建物') + '「' + esc(nm) + '」</b></div><div class="bcr"><span>消す項目</span><b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b></div>' + (B.st ? '<div class="bcr"><span>空室の部屋</span><b>' + (B.vac === 'keep' ? '残す' : '消す') + '</b></div>' : '') + (B.memo ? '<div class="bcr"><span>注意・拒否のメモ</span><b>' + (B.flag === 'keep' ? '残す' : '消す') + '</b></div>' : '') + '<div class="note">直前の1回分は「元に戻す」で復元できます。</div>', 'クリアする', function () {
+    modal('一括クリアの確認', '<div class="bcr"><span>対象</span><b>' + (B.scope === 'area' ? '区域' : '建物') + '「' + esc(nm) + '」</b></div><div class="bcr"><span>消す項目</span><b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b></div>' + (B.st ? '<div class="bcr"><span>空室の部屋</span><b>' + (B.vac === 'keep' ? '残す' : '消す') + '</b></div>' : '') + (B.memo ? '<div class="bcr"><span>注意・拒否のメモ</span><b>' + (B.flag === 'keep' ? '残す' : '消す') + '</b></div>' : '') + '<div class="note">直前の1回分は「元に戻す」で復元できます。</div>', 'クリアする', function () {
       after(api('bulkClear', { scopeType: B.scope, scopeId: B.id, clearStatus: B.st, clearMemo: B.memo, keepVacantStatus: B.vac === 'keep', keepFlaggedMemo: B.flag === 'keep' }), function (r) { return r.count + '件をクリアしました(元に戻せます)。'; }, function () { C.prog = null; loadBulk(); });
     });
   }
@@ -351,19 +351,69 @@
   }
 
   // ---------- 動作設定 ----------
-  var SET_FIELDS = [['appTitle', 'アプリのタイトル', 'text'], ['mapTileSource', '背景の地図', [['gsi', '地理院タイル'], ['osm', 'OpenStreetMap(事前保存は不可)']]], ['mapLat', '地図の最初の位置(緯度)', 'text'], ['mapLng', '地図の最初の位置(経度)', 'text'], ['mapZoom', '地図の最初の拡大率', 'text'], ['apartmentUrl', '「アパート」ボタンの行き先(佐渡アパートGASのURL。空にするとボタンを隠す)', 'text'], ['autoEndMonths', '開始日から自動で終了するまでの月数', 'text'], ['fiscalStartMonth', '年度のはじまりの月', 'text'], ['logDocId', '記録用GoogleドキュメントのID', 'text'], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', 'text']];
+  var ST = {}, VS = [];
+  var DEF_VS = [{ id: 'unvisited', label: '未訪問', visited: false, done: false, color: '#9aa0a6' }, { id: 'met', label: '会えた', visited: true, done: true, color: '#188038' }, { id: 'absent1', label: '留守(1回目)', visited: true, done: false, color: '#ef6c00' }, { id: 'absent2', label: '留守(2回目)', visited: true, done: false, color: '#c2410c' }, { id: 'vacant', label: '空室', visited: true, done: true, color: '#6b7280' }];
+  var COL_BY = { unvisited: '#9aa0a6', met: '#188038', absent1: '#ef6c00', absent2: '#c2410c', vacant: '#6b7280' };
+  var TXT = [['appTitle', 'アプリのタイトル', 'ログイン画面・上のバー・ブラウザのタブ名に表示されます。'], ['mapLat', '地図の最初の位置(緯度)', '例: 38.08'], ['mapLng', '地図の最初の位置(経度)', '例: 138.44'], ['mapZoom', '地図の最初の拡大率', '例: 13'], ['apartmentUrl', '「アパート」ボタンの行き先', '佐渡アパートGASのURL。空にするとボタンを隠します。'], ['autoEndMonths', '開始日から自動で終了するまでの月数', ''], ['fiscalStartMonth', '年度のはじまりの月', ''], ['logDocId', '記録用GoogleドキュメントのID', ''], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', '']];
+  function isOn(v) { return v === true || String(v) === 'true'; }
+  function stSeg(k, list) { return '<div class="segrow">' + list.map(function (x) { return '<button type="button" class="' + (String(ST[k]) === x[0] ? 'on' : '') + '" data-act="ad:seg" data-k="' + k + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; }
+  function stSw(k, title, desc) { return '<div class="swrow"><div class="tx"><div class="tt" style="font-weight:800">' + title + '</div><div class="ds" style="font-size:.82em;color:var(--text-3)">' + desc + '</div></div><label class="switch"><input type="checkbox" id="sw-' + k + '"' + (isOn(ST[k]) ? ' checked' : '') + '><i></i></label></div>'; }
+  function stRow(title, desc, inner) { return '<div class="setrow"><div class="tt">' + title + '</div>' + (desc ? '<div class="ds">' + desc + '</div>' : '') + inner + '</div>'; }
+  function vsSync() {
+    var rows = document.querySelectorAll('.vsrow'); if (!rows.length) return;
+    VS = [].slice.call(rows).map(function (r) { var i = +r.getAttribute('data-i'), o = VS[i] || {}; return { id: o.id, label: r.querySelector('.vl').value, color: r.querySelector('.vc').value, visited: r.querySelector('.vv').checked, done: r.querySelector('.vd').checked }; });
+  }
+  function vsDraw() {
+    var box = document.getElementById('vsBox'); if (!box) return;
+    box.innerHTML = VS.map(function (x, i) {
+      return '<div class="vsrow" data-i="' + i + '"><input class="vl" type="text" maxlength="12" value="' + esc(x.label) + '"><input class="vc" type="color" value="' + esc(x.color || COL_BY[x.id] || '#6b7280') + '"><label><input class="vv" type="checkbox"' + (x.visited ? ' checked' : '') + '> 訪問した扱い</label><label><input class="vd" type="checkbox"' + (x.done ? ' checked' : '') + '> 完了扱い</label>' +
+        '<button type="button" class="btn small" data-act="ad:vsUp" data-v="' + i + '"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="btn small" data-act="ad:vsDn" data-v="' + i + '"' + (i < VS.length - 1 ? '' : ' disabled') + '>↓</button>' +
+        (x.id === 'unvisited' ? '' : '<button type="button" class="btn small danger" data-act="ad:vsDel" data-v="' + i + '">削除</button>') + '</div>';
+    }).join('');
+  }
   function loadSettings() {
     api('getSettings').then(function (s) {
-      body('<div class="card">' + SET_FIELDS.map(function (f) {
-        return '<div style="margin:8px 0"><div class="note">' + f[1] + '</div>' + (typeof f[2] === 'string' ? '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">' : '<select id="st-' + f[0] + '">' + f[2].map(function (o) { return '<option value="' + o[0] + '"' + (String(s[f[0]]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>') + '</div>';
-      }).join('') + '<button class="btn primary" data-act="ad:saveSettings">保存</button></div>');
+      ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
+      VS = VS.map(function (x) { x.color = x.color || COL_BY[x.id] || '#6b7280'; return x; });
+      var sel = function (k, list) { return '<select id="st-' + k + '">' + list.map(function (o) { return '<option value="' + o[0] + '"' + (String(s[k]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
+      var h = '<div class="card"><h3>動作設定</h3><div class="note">ここでの設定は、全員の画面に反映されます。</div>' +
+        TXT.slice(0, 1).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
+        stRow('デフォルトのマップ取得先', '地図を開いたときに最初に使う背景です。「設定を保存」でその場で切り替わります。(OpenStreetMapと航空写真は、「地図を端末に保存」の対象外です)', sel('mapTileSource', [['gsi', '国土地理院(標準)'], ['gsipale', '国土地理院(淡色)'], ['gsiphoto', '国土地理院(航空写真)'], ['osm', 'OpenStreetMap'], ['custom', '自分で指定']]) +
+          '<div style="margin-top:6px"><div class="note">「自分で指定」のときだけ使います。画像のアドレス(https:// で始まり、{z}・{x}・{y} を含む)</div><input style="width:100%" id="st-mapTileUrl" value="' + esc(s.mapTileUrl) + '" placeholder="https://example.com/{z}/{x}/{y}.png"><div class="note" style="margin-top:4px">出典の表記(利用する地図サービスの規約に合わせて)</div><input style="width:100%" id="st-mapTileAttribution" maxlength="200" value="' + esc(s.mapTileAttribution) + '"></div>') +
+        TXT.slice(1, 4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
+        stRow('デフォルトの入力スタイル', '建物の詳細で、訪問状況を選ぶ形です。各端末の「表示設定」で、端末ごとに変えることもできます。', stSeg('inputTheme', [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']])) +
+        stRow('一軒家などの記録のしかた', '部屋情報のない建物(一軒家など)を、地図でタップしたときの動きです。アパートなど部屋情報のある建物は、いつも詳細ウィンドウが開きます。', stSeg('houseTapMode', [['direct', 'タップで記録(長押しで詳細)'], ['sheet', '詳細ウィンドウを開く']])) +
+        stRow('区域メニューの進捗表示', '', stSeg('areaProgressView', [['graph', 'グラフ'], ['chips', '文字']])) +
+        stRow('マップ上で進捗を表示', 'ピン(シンプル): 未訪問・途中・完了でピンを色分けします。<br>サークル: 輪の色が部屋の状況の割合、中央の数字が残りの部屋の数です。<br>オフ: 色分けしません。', stSeg('mapProgressMode', [['simple', 'ピン(シンプル)'], ['circle', 'サークル'], ['off', 'オフ']])) +
+        stRow('訪問状況の選択肢', '建物の詳細で選ぶ「訪問状況」を変えられます。上から順に表示されます。「訪問した扱い」と「完了扱い」で、進み具合の数え方が変わります。「未訪問」は消せません。', '<div id="vsBox"></div><div class="row"><button type="button" class="btn small" data-act="ad:vsAdd">選択肢を追加</button><button type="button" class="btn small" data-act="ad:vsReset">標準に戻す</button></div>') +
+        stRow('ピンの色の決まり', '建物ごとに、各部屋の訪問状況から色(未訪問・途中・完了)を決めます。完了: 完了扱いの部屋が下の割合以上／途中: 訪問した部屋がある／未訪問: それ以外。', '<div class="row"><label for="st-pinDoneThreshold">完了にする割合　</label>' + sel('pinDoneThreshold', [['100', '全部屋(100%)'], ['90', '90%以上'], ['80', '80%以上'], ['70', '70%以上'], ['60', '60%以上'], ['50', '50%以上']]) + '</div>' +
+          stSw('pinRejectCautionDone', '「注意」「拒否」の部屋を完了扱いにする', 'オンなら、注意・拒否の部屋は訪問していなくても完了扱いです。')) +
+        stRow('訪問状況の保存方法', 'すぐに保存: 訪問状況を変えた瞬間に保存します。(おすすめ)<br>まとめて保存: 詳細ウィンドウの「保存」ボタンを押すまで保存しません。', stSeg('statusSaveMode', [['inline', 'すぐに保存'], ['manual', 'まとめて保存']])) +
+        stSw('autoRefreshEnabled', '部屋情報の自動更新', '建物の詳細を開いている間、ほかの人の入力を自動で反映します。') +
+        stRow('更新の間隔', '間隔を短くするほど、アクセスが増えて重くなります。人数が多いときは15秒以上をおすすめします。', sel('autoRefreshIntervalSec', [['5', '5秒'], ['10', '10秒'], ['15', '15秒'], ['30', '30秒'], ['60', '60秒']])) +
+        stSw('onboardingHelpEnabled', 'サイトを開いたときにヘルプを表示', 'はじめて開いた端末に、ヘルプ(使い方)を表示します。') +
+        stSw('mapRotationEnabled', 'マップの回転', '2本指で地図を回したり、現在地の向きに合わせて地図を回したりする機能です。') +
+        stSw('pinShadowEnabled', 'ピンの影', '地図のピンに影をつけます。オフにすると、地図の拡大・縮小が軽くなります。') +
+        '</div><div class="card"><h3>運用の設定</h3>' + TXT.slice(4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') + '</div>' +
+        '<button class="btn primary block" data-act="ad:saveSettings">設定を保存</button><div class="note" style="margin-top:8px">ログインを必須にする設定は、このアプリでは常にオンです。電波が弱いときの一時保存と自動送信も、常にオンです。</div>';
+      body(h); vsDraw();
     }, fail);
   }
+  function saveSettingsNow() {
+    vsSync();
+    var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'apartmentUrl', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
+    ids.forEach(function (k) { vals[k] = val('st-' + k); });
+    ['inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
+    ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
+    vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
+    after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} });
+  }
+
 
   // ---------- 分析 ----------
   function loadAnalysis() {
     api('getAnalysis').then(function (r) {
-      body('<div class="card"><h3>次に訪問するエリアの目安</h3><div class="note">「おすすめ度」は、まだ終わっていない部屋の割合と、前回完了からの日数をもとにした点数です(高いほど優先)。「再訪候補」は、留守などで再訪すると会えそうな部屋の数です(拒否の部屋は除く)。</div><table class="t"><tr><th>エリア</th><th>おすすめ度</th><th>進み具合</th><th>残り</th><th>再訪候補</th><th>拒否/注意</th><th>前回完了</th></tr>' +
+      body('<div class="card"><h3>次に訪問する区域の目安</h3><div class="note">「おすすめ度」は、まだ終わっていない部屋の割合と、前回完了からの日数をもとにした点数です(高いほど優先)。「再訪候補」は、留守などで再訪すると会えそうな部屋の数です(拒否の部屋は除く)。</div><table class="t"><tr><th>区域</th><th>おすすめ度</th><th>進み具合</th><th>残り</th><th>再訪候補</th><th>拒否/注意</th><th>前回完了</th></tr>' +
         r.map(function (a) { return '<tr><td>' + esc(a.areaName) + (a.inUse ? '<span class="badge use">使用中</span>' : '') + '</td><td><b>' + a.score + '</b></td><td><div class="bar"><i style="width:' + Math.round(a.rate * 100) + '%"></i></div>' + Math.round(a.rate * 100) + '% (' + a.done + '/' + a.total + ')</td><td>' + a.remaining + '</td><td>' + a.revisit + '</td><td>' + a.reject + '/' + a.caution + '</td><td>' + esc(a.lastDoneDate || '—') + (a.daysSince != null ? '<div class="note">' + a.daysSince + '日前</div>' : '') + '</td></tr>'; }).join('') + '</table></div>');
     }, fail);
   }
@@ -390,15 +440,33 @@
     var h = rows.shift() || [];
     return rows.filter(function (r) { return r.length > 1 || (r[0] || '') !== ''; }).map(function (r) { var o = {}; h.forEach(function (k, j) { o[k.trim()] = r[j] === undefined ? '' : r[j]; }); return o; });
   }
-  var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, category(国仲/遠方), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark, tenant(テナント名)']];
+  var IMPORTS = [['area', '区域', 'areaId, areaName, sortOrder, category(国仲/遠方), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark, tenant(テナント名)']];
   function loadIO() {
-    body('<div class="card"><h3>区域の表を取り込む(QGIS・大きなエリアと小さなエリア)</h3><div class="note">QGISで書き出した区域のCSVを選びます。列名は、QGISの名前(name・boundary_detail_uuid・parent_name・parent_boundary_uuid・category)でも、アプリの名前(areaName・areaId・parentName・parentId・category)でも読めます。大きなエリアは、この表から自動で作られます。すでにあるエリアは、名前・所属・区分だけが更新され、使用中などの記録は消えません。1行でも問題があれば、どれも取り込みません。</div>' +
+    body('<div class="card"><h3>区域の表を取り込む(QGIS・大きな区域と小さな区域)</h3><div class="note">QGISで書き出した区域のCSVを選びます。列名は、QGISの名前(name・boundary_detail_uuid・parent_name・parent_boundary_uuid・category)でも、アプリの名前(areaName・areaId・parentName・parentId・category)でも読めます。大きな区域は、この表から自動で作られます。すでにある区域は、名前・所属・区分だけが更新され、使用中などの記録は消えません。1行でも問題があれば、どれも取り込みません。</div>' +
       '<div class="row"><input type="file" accept=".csv,text/csv" id="imp-tree"><button class="btn small primary" data-act="ad:importTree">取り込む</button></div><div class="note" id="impTreeMsg"></div></div>' +
-      '<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、エリア → グループ → 担当者 → 建物 → 部屋 です。</div>' +
+      '<div class="card"><h3>建物の区域を、CSVでまとめて決める</h3><div class="note">列は「buildingId, areaId」。先に、区域の表の取り込みで、移す先の区域を作っておいてください。建物と部屋、入力データの区域が、まとめて移ります。</div><div class="row"><input type="file" accept=".csv,text/csv" id="imp-asg"><button class="btn small primary" data-act="ad:importAsg">取り込む</button></div><div class="note" id="impAsgMsg"></div></div>' +
+      '<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、区域 → グループ → 担当者 → 建物 → 部屋 です。</div>' +
       IMPORTS.map(function (x) { return '<div class="row"><b style="min-width:5em">' + x[1] + '</b><input type="file" accept=".csv,text/csv" id="imp-' + x[0] + '"><button class="btn small primary" data-act="ad:import" data-v="' + x[0] + '">取り込む</button></div><div class="note">列: ' + x[2] + '</div>'; }).join('') + '<div class="note" id="impMsg"></div></div>' +
       '<div class="card"><h3>CSVに書き出す(QGISに戻す用)</h3><div class="note">建物は「uuid2・建物名・メモ」、部屋は「部屋ID・uuid2・部屋名・階・テナント・印・訪問状況・メモ」です。QGISでuuid2を目印に結合してください。</div><button class="btn small" data-act="ad:export" data-v="buildings">建物のCSV</button><button class="btn small" data-act="ad:export" data-v="rooms">部屋のCSV</button></div>');
   }
   var TREE_COLS = { areaId: ['areaId', 'boundary_detail_uuid'], areaName: ['areaName', 'name'], parentId: ['parentId', 'parent_boundary_uuid'], parentName: ['parentName', 'parent_name'], category: ['category'] };
+  function doImportAsg() {
+    var f = document.getElementById('imp-asg').files[0], msg = document.getElementById('impAsgMsg'); if (!f) { toast('CSVファイルを選んでください。'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var raw = parseCsv(String(rd.result)), by = {}, order = [], total = 0;
+      raw.forEach(function (r) { var b = String(r.buildingId || '').trim(), a = String(r.areaId || '').trim(); if (!b || !a) return; if (!by[a]) { by[a] = []; order.push(a); } by[a].push(b); total++; });
+      if (!total) { msg.textContent = '必要な列(buildingId, areaId)と、データの行がありません。'; return; }
+      var jobs = []; order.forEach(function (a) { for (var i = 0; i < by[a].length; i += 500) jobs.push({ areaId: a, ids: by[a].slice(i, i + 500) }); });
+      var done = 0, moved = 0, k = 0; busy(true);
+      (function next() {
+        if (k >= jobs.length) { busy(false); C.ad = null; C.prog = null; msg.textContent = '完了: ' + order.length + '区域、' + total + '件を指定し、' + moved + '件を移しました(すでにその区域にあるものは数えません)。'; toast('建物の区域を取り込みました。'); return; }
+        var j = jobs[k++]; msg.textContent = (done) + ' / ' + total + ' 件…';
+        api('moveBuildings', { buildingIds: j.ids, areaId: j.areaId }).then(function (r) { done += j.ids.length; moved += r.moved; next(); }, function (e) { busy(false); msg.textContent = done + '件まで移して、区域「' + j.areaId + '」で止まりました: ' + e.message; msg.style.whiteSpace = 'pre-line'; });
+      })();
+    };
+    rd.readAsText(f, 'utf-8');
+  }
   function doImportTree() {
     var f = document.getElementById('imp-tree').files[0], msg = document.getElementById('impTreeMsg'); if (!f) { toast('CSVファイルを選んでください。'); return; }
     var rd = new FileReader();
@@ -408,7 +476,7 @@
       var miss = Object.keys(TREE_COLS).filter(function (k) { return rows[0][k] === undefined; });
       if (miss.length) { msg.textContent = '必要な列がありません: ' + miss.map(function (k) { return TREE_COLS[k].join(' または '); }).join(' / '); return; }
       msg.textContent = rows.length + '件を取り込み中…'; busy(true);
-      api('importAreaTree', { rows: rows }).then(function (r) { busy(false); C.ad = null; C.prog = null; msg.textContent = '完了: 大きなエリア ' + r.parents + '件、小さなエリア ' + r.children + '件(新しく作成 ' + r.added + '件、更新 ' + r.updated + '件)'; toast('区域の表を取り込みました。'); }, function (e) { busy(false); msg.textContent = '取り込めませんでした:\n' + e.message; msg.style.whiteSpace = 'pre-line'; });
+      api('importAreaTree', { rows: rows }).then(function (r) { busy(false); C.ad = null; C.prog = null; msg.textContent = '完了: 大きな区域 ' + r.parents + '件、小さな区域 ' + r.children + '件(新しく作成 ' + r.added + '件、更新 ' + r.updated + '件)'; toast('区域の表を取り込みました。'); }, function (e) { busy(false); msg.textContent = '取り込めませんでした:\n' + e.message; msg.style.whiteSpace = 'pre-line'; });
     };
     rd.readAsText(f, 'utf-8');
   }
@@ -436,11 +504,12 @@
     switch (a) {
       case 'close': close(); break;
       case 'tab': go(v); break;
-      case 'addArea': C.cat = val('newAreaCat'); after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), 'エリアを追加しました。', refreshAreas); break;
+      case 'addArea': C.cat = val('newAreaCat'); after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), '区域を追加しました。', refreshAreas); break;
       case 'importTree': doImportTree(); break;
+      case 'importAsg': doImportAsg(); break;
       case 'mvGo':
         var mids = [].slice.call(document.querySelectorAll('[data-mv]')).filter(function (x) { return x.checked; }).map(function (x) { return x.getAttribute('data-mv'); }), to = val('mvTo');
-        if (!mids.length) { toast('移す建物にチェックを入れてください。'); break; } if (!to) { toast('移す先のエリアを選んでください。'); break; }
+        if (!mids.length) { toast('移す建物にチェックを入れてください。'); break; } if (!to) { toast('移す先の区域を選んでください。'); break; }
         C.mvOpen = true; after(api('moveBuildings', { buildingIds: mids, areaId: to }), function (r) { return r.moved + '件を「' + areaName(to) + '」へ移しました。'; }, loadEditBody); break;
       case 'areaOpen': renderAreaDetail(v); break;
       case 'parExp': C.exp[v] = !C.exp[v]; drawAreaList(); break;
@@ -448,11 +517,11 @@
       case 'areaBack': C.openArea = ''; loadAreas(); break;
       case 'clearEnd': if ($('#arEnd')) $('#arEnd').value = ''; break;
       case 'areaSave': areaSave(v); break;
-      case 'rename': var nm = window.prompt('新しいエリア名', areaName(v)); if (nm) after(api('renameArea', { areaId: v, areaName: nm }), '変更しました。', function () { bump(); go('edit'); }); break;
+      case 'rename': var nm = window.prompt('新しい区域名', areaName(v)); if (nm) after(api('renameArea', { areaId: v, areaName: nm }), '変更しました。', function () { bump(); go('edit'); }); break;
       case 'toggleArea': after(api('setActive', { kind: 'area', id: v, active: on === '1' }), '変更しました。', function () { bump(); go('edit'); }); break;
       case 'asgMode': ['group', 'user', 'all'].forEach(function (m) { $('#asg' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('hidden', m !== v); $('#asg-' + m).classList.toggle('on', m === v); }); break;
-      case 'autoEnd': after(api('runAutoEnd'), function (r) { return r.ended.length ? '自動で終了: ' + r.ended.join('、') + (r.warnings.length ? '\n(注意) ' + r.warnings[0] : '') : '期限が来たエリアはありません。'; }, refreshAreas); break;
-      case 'newYear': if (window.confirm('今の記録ドキュメントをコピーして、新しい年度のファイルを作ります。各エリアの「前回完了した日付」が転記されます。よろしいですか？')) after(api('createNewYearDoc'), function (r) { return r.label + '年度のファイルを作りました(' + r.areasCarried + '区域を転記)。\n' + r.url; }, null); break;
+      case 'autoEnd': after(api('runAutoEnd'), function (r) { return r.ended.length ? '自動で終了: ' + r.ended.join('、') + (r.warnings.length ? '\n(注意) ' + r.warnings[0] : '') : '期限が来た区域はありません。'; }, refreshAreas); break;
+      case 'newYear': if (window.confirm('今の記録ドキュメントをコピーして、新しい年度のファイルを作ります。各区域の「前回完了した日付」が転記されます。よろしいですか？')) after(api('createNewYearDoc'), function (r) { return r.label + '年度のファイルを作りました(' + r.areasCarried + '区域を転記)。\n' + r.url; }, null); break;
       // データ編集
       case 'posMap': { var m = SADO.map; if (!m) { toast('地図が開かれていません。'); break; } var c = m.getCenter(); $('#nbLat').value = c.lat.toFixed(6); $('#nbLng').value = c.lng.toFixed(6); toast('地図の中心の位置を入れました。(管理画面を閉じて地図を動かし、もう一度開いて入れ直せます)'); break; }
       case 'posGps': { if (!navigator.geolocation) { toast('位置情報が使えません。'); break; } navigator.geolocation.getCurrentPosition(function (p) { $('#nbLat').value = p.coords.latitude.toFixed(6); $('#nbLng').value = p.coords.longitude.toFixed(6); }, function () { toast('位置を取得できませんでした。'); }, { enableHighAccuracy: true, timeout: 15000 }); break; }
@@ -481,7 +550,13 @@
       case 'userDel': if (window.confirm('ユーザー「' + v + '」を削除します。よろしいですか？')) after(api('deleteUser', { loginId: v }), '削除しました。', function () { loadAccounts(true); }); break;
       case 'groupAdd': after(api('saveGroup', { groupName: val('ngName') }), '追加しました。', function () { bump(); loadAccounts(true); }); break;
       case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(true); }); break;
-      case 'saveSettings': var vals = {}; SET_FIELDS.forEach(function (x) { vals[x[0]] = val('st-' + x[0]); }); after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} }); break;
+      case 'saveSettings': saveSettingsNow(); break;
+      case 'seg': ST[t.getAttribute('data-k')] = v; [].slice.call(t.parentNode.children).forEach(function (x) { x.classList.toggle('on', x === t); }); break;
+      case 'vsUp': vsSync(); f = +v; if (f > 0) { var tmp = VS[f - 1]; VS[f - 1] = VS[f]; VS[f] = tmp; } vsDraw(); break;
+      case 'vsDn': vsSync(); f = +v; if (f < VS.length - 1) { var tm2 = VS[f + 1]; VS[f + 1] = VS[f]; VS[f] = tm2; } vsDraw(); break;
+      case 'vsDel': vsSync(); VS.splice(+v, 1); vsDraw(); break;
+      case 'vsAdd': vsSync(); if (VS.length >= 12) { toast('選択肢は12個までです。'); break; } VS.push({ id: 's' + Date.now().toString(36), label: '新しい状況', visited: true, done: false, color: '#0284c7' }); vsDraw(); break;
+      case 'vsReset': if (window.confirm('訪問状況の選択肢を標準に戻します。(保存するまで反映されません)')) { VS = JSON.parse(JSON.stringify(DEF_VS)); vsDraw(); } break;
       case 'import': doImport(v); break;
       case 'export': api('exportCsv', { kind: v }).then(function (r) { SADO.saveBlob(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }), r.filename); }, fail); break;
     }

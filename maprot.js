@@ -54,6 +54,12 @@
 
       function isRotated() { return Math.abs(norm(bearingNow() + 180) - 180) > 1; }
 
+      let enabled = true;
+      function setEnabled(v) {
+        enabled = v !== false;
+        if (!enabled) { try { if (following) stopFollow(); if (map && typeof map.setBearing === 'function' && Math.abs(bearingNow()) > 0.01) map.setBearing(0); } catch (e) {} }
+        try { updateUi(); } catch (e) {}
+      }
       function updateUi() {
         if (!btn) return;
         if (needle) needle.style.transform = 'rotate(' + (-sign * bearingNow()).toFixed(1) + 'deg)';
@@ -62,8 +68,7 @@
         let centered = false;
         try { centered = !!followOn(); } catch (e) {}
         /* 【地図の回転】管理者がオフにしているときは、いつも「現在地へ移動」のマークのまま（コンパスにはならない） */
-        let rotOff = false;
-        rotOff = false;
+        const rotOff = !enabled;
         const locateMode = rotOff || (!centered && !following);
         btn.classList.toggle('is-locate', locateMode);
         btn.disabled = !!editOn() && !locateMode;
@@ -217,7 +222,7 @@
       }
 
       function onTouchStart(e) {
-        if (supported && !editOn() && !following && e.touches && e.touches.length === 2) {
+        if (supported && enabled && !editOn() && !following && e.touches && e.touches.length === 2) {
           const a = touchAngle(e.touches);
           gesture = { prev: a, total: 0, started: false, offset: 0, startBearing: bearingNow() };
         } else {
@@ -263,7 +268,7 @@
           updateUi();
           return;
         }
-        if (editOn()) return;
+        if (editOn() || !enabled) return;
         if (!supported) { showHint('この端末では地図を回転できません。', 'error', 3500); return; }
         if (following || isRotated()) {
           stopFollow();
@@ -331,6 +336,6 @@
         updateUi();
       }
 
-      return { init: init, syncEditLock: syncEditLock, onGpsFollowChanged: onGpsFollowChanged, isSupported: function() { return supported; } };
+      return { init: init, setEnabled: setEnabled, syncEditLock: syncEditLock, onGpsFollowChanged: onGpsFollowChanged, isSupported: function() { return supported; } };
     })();
 })();
