@@ -239,13 +239,31 @@
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
     loadAreaData(areaId).then(function () {
       if (SADO.onAreaChange) SADO.onAreaChange();
-      S.cur = areaId; closeSheet(); drawFrames(); drawBuildings(true); updateTitle(); closePanels();
+      S.cur = areaId; S.merged = false; closeSheet(); drawFrames(); drawBuildings(true); updateTitle(); closePanels();
       var d = S.data[areaId]; if (d && d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(areaId); if (i >= 0) S.areas[i] = d.area; }
       if (a && !a.canEdit) toast(a.inUse ? '「' + a.areaName + '」は担当外のため、見るだけです。' : '「' + a.areaName + '」は使用中ではないため、見るだけです。', 3500);
     })['catch'](function (e) { toast(e.message, 5000); });
   }
-  function clearArea() { S.cur = null; closeSheet(); if (bLayer) bLayer.clearLayers(); drawFrames(); updateTitle(); }
-  function updateTitle() { var a = S.cur && areaById(S.cur); $('#hdrTitle').textContent = a ? a.areaName + (a.canEdit ? '' : '（見るだけ）') : ((S.settings && S.settings.appTitle) || '佐渡住宅GAS'); }
+  // 大きなエリア(親区域)を開く: 中の小さなエリアを、すべていっしょに地図に出す
+  function selectParent(pid, quiet) {
+    var pa = areaById(pid), kids = visibleAreas().filter(function (a) { return a.parentId === pid; });
+    if (!kids.length) { toast('開ける小さなエリアがありません。'); return Promise.resolve(); }
+    if (!quiet) toast((pa ? pa.areaName : '') + ' を読み込み中…', 1500);
+    return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet); })).then(function () {
+      var m = { area: pa || { areaId: pid, areaName: '', canEdit: false }, buildings: [], rooms: [], merged: true };
+      kids.forEach(function (k) {
+        var d = S.data[k.areaId]; if (!d) return;
+        if (d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(k.areaId); if (i >= 0) S.areas[i] = d.area; }
+        d.buildings.forEach(function (b) { b.areaId = k.areaId; m.buildings.push(b); });
+        d.rooms.forEach(function (r) { r.areaId = k.areaId; m.rooms.push(r); });
+      });
+      S.data[pid] = m; S.geo[pid] = S.geo[kids[0].areaId]; S.kids = kids.map(function (k) { return k.areaId; });
+      if (SADO.onAreaChange) SADO.onAreaChange();
+      S.cur = pid; S.merged = true; closeSheet(); drawFrames(); drawBuildings(!quiet); updateTitle(); closePanels();
+    })['catch'](function (e) { toast(e.message, 5000); });
+  }
+  function clearArea() { S.merged = false; S.cur = null; closeSheet(); if (bLayer) bLayer.clearLayers(); drawFrames(); updateTitle(); }
+  function updateTitle() { var a = S.cur && areaById(S.cur); $('#hdrTitle').textContent = a ? a.areaName + ((a.canEdit || S.merged) ? '' : '（見るだけ）') : ((S.settings && S.settings.appTitle) || '佐渡住宅GAS'); }
 
   function roomsOf(areaId, bid) { var d = S.data[areaId]; return d ? d.rooms.filter(function (r) { return r.buildingId === bid; }).sort(function (a, b) { return a.sortOrder - b.sortOrder; }) : []; }
   function buildingStyle(areaId, b) {
@@ -276,8 +294,9 @@
   }
   function quickRecord(bid) {
     var d = S.data[S.cur]; if (!d) return;
-    if (!d.area.canEdit) { openBuilding(bid); return; }
-    var rs = roomsOf(S.cur, bid); if (!rs.length) { openBuilding(bid); toast('この建物には部屋の記録枠がありません。'); return; }
+    var bb0 = d.buildings.filter(function (x) { return x.buildingId === bid; })[0], ar0 = (bb0 && areaById(bb0.areaId)) || d.area;
+    if (!ar0.canEdit) { openBuilding(bid); return; }
+    var rs = roomsOf((bb0 && bb0.areaId) || S.cur, bid); if (!rs.length) { openBuilding(bid); toast('この建物には部屋の記録枠がありません。'); return; }
     var l = statusList(), r = rs[0], i = 0; l.forEach(function (x, k) { if (x.id === r.status) i = k; });
     var nx = l[(i + 1) % l.length]; patchRoom(r.roomId, { status: nx.id }); toast('記録: ' + nx.label + '(もう一度タップで次の状況。長押しで詳細)', 1800);
   }
@@ -287,7 +306,7 @@
     var geo = S.geo[S.cur], feat = {}, bounds = null;
     if (geo && geo.features) geo.features.forEach(function (f) { feat[f.properties.uuid2] = f; });
     d.buildings.forEach(function (b) {
-      var f = feat[b.buildingId], shape = null, st = buildingStyle(S.cur, b), apt = isApt(S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
+      var f = feat[b.buildingId], shape = null, st = buildingStyle(b.areaId || S.cur, b), apt = isApt(b.areaId || S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
       var hasPt = b.lat != null && b.lng != null;
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
       else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (apt) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = 7; st.weight = 1; /* 半径7m: 地図の拡大・縮小に合わせて大きさが変わる */ shape = L.circle([b.lat, b.lng], st); } }
@@ -309,7 +328,7 @@
   }
   function restyle(bid) {
     var d = S.data[S.cur], shape = bShapes[bid]; if (!d || !shape) return; var b = d.buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (!b) return;
-    var st = buildingStyle(S.cur, b); if (shape.setStyle) shape.setStyle(st); if (bPins[bid]) { bPins[bid]._color = st.fillColor; bPins[bid].setIcon(pinIcon(b, st.fillColor)); }
+    var st = buildingStyle(b.areaId || S.cur, b); if (shape.setStyle) shape.setStyle(st); if (bPins[bid]) { bPins[bid]._color = st.fillColor; bPins[bid].setIcon(pinIcon(b, st.fillColor)); }
   }
 
   // ---------- 建物のシート(部屋ごとの記録) ----------
@@ -319,7 +338,7 @@
     var sh = $('#sheet'), d = S.data[S.cur];
     if (!S.sheetBid || !d) { sh.classList.add('hidden'); return; }
     var b = d.buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; if (!b) { sh.classList.add('hidden'); return; }
-    var a = d.area, can = a.canEdit, rs = roomsOf(S.cur, b.buildingId), keep = sh.querySelector('.body') ? sh.querySelector('.body').scrollTop : 0;
+    var a = (b.areaId && areaById(b.areaId)) || d.area, can = a.canEdit, rs = roomsOf(b.areaId || S.cur, b.buildingId), keep = sh.querySelector('.body') ? sh.querySelector('.body').scrollTop : 0;
     var h = '<div class="head"><div class="row"><div class="name grow">' + esc(b.buildingName) + '</div><button class="btn small" data-act="report">報告</button><button class="btn small" data-act="closeSheet">閉じる</button></div>';
     h += '<div class="note">' + esc(a.areaName) + (can ? '' : '　※見るだけ（' + (a.inUse ? '担当外' : '使用中ではありません') + '）') + '</div></div><div class="body">';
     var ed = !!(S.edit && S.user && S.user.role === 'admin');
@@ -337,12 +356,11 @@
     if (ed && SADO.sheetTools) h += SADO.sheetTools(b);
     sh.innerHTML = h + '</div>'; sh.classList.remove('hidden'); if (keep) sh.querySelector('.body').scrollTop = keep;
   }
-  function persistArea() { return idb.set('area', S.cur, S.data[S.cur]); }
+  function persistArea() { if (S.merged) return Promise.all((S.kids || []).map(function (k) { return idb.set('area', k, S.data[k]); })); return idb.set('area', S.cur, S.data[S.cur]); }
   function roomById(id) { var d = S.data[S.cur]; for (var i = 0; i < d.rooms.length; i++) if (d.rooms[i].roomId === id) return d.rooms[i]; return null; }
   function patchRoom(roomId, patch) {
-    var d = S.data[S.cur]; if (!d || !d.area.canEdit) { toast('この建物は編集できません。'); return; }
-    var r = roomById(roomId); if (!r) return;
-    var op = { type: 'status', areaId: S.cur, roomId: roomId, t: new Date().toISOString(), label: d.area.areaName + ' ' + r.roomName };
+    var d = S.data[S.cur], r = d && roomById(roomId), ar = r && ((r.areaId && areaById(r.areaId)) || d.area); if (!d || !r || !ar.canEdit) { toast('この建物は編集できません。'); return; }
+    var op = { type: 'status', areaId: r.areaId || S.cur, roomId: roomId, t: new Date().toISOString(), label: ar.areaName + ' ' + r.roomName };
     for (var k in patch) op[k] = patch[k];
     if (op.status === undefined && op.memo === undefined && op.mark === undefined) return;
     if (op.status !== undefined && op.memo === undefined) op.memo = r.memo; // 状況だけ変えるときも、今のメモを一緒に送る
@@ -350,7 +368,7 @@
   }
   function patchBuilding(bid, patch) {
     var d = S.data[S.cur]; if (!d || !S.user || S.user.role !== 'admin') return; // 建物の名前・メモは区域係のみ
-    var op = { type: 'building', areaId: S.cur, buildingId: bid, label: d.area.areaName + ' 建物' };
+    var bq = d.buildings.filter(function (x) { return x.buildingId === bid; })[0], op = { type: 'building', areaId: (bq && bq.areaId) || S.cur, buildingId: bid, label: d.area.areaName + ' 建物' };
     for (var k in patch) op[k] = patch[k];
     applyOp(d, op); persistArea(); enqueue(op);
   }
@@ -380,7 +398,7 @@
         res.results.forEach(function (r, i) { if (!r.ok) errs.push((ops[i].label || '') + ': ' + r.error); });
         return Promise.all(batch.map(function (i) { return idb.del('queue', i.key); })).then(function () {
           flushing = false; countPending();
-          if (errs.length) { toast('送信できなかった記録があります:\n' + errs.slice(0, 3).join('\n'), 7000); if (S.cur) loadAreaData(S.cur, true).then(function () { drawBuildings(); renderSheet(); }); }
+          if (errs.length) { toast('送信できなかった記録があります:\n' + errs.slice(0, 3).join('\n'), 7000); if (S.cur) (S.merged ? selectParent(S.cur, true) : loadAreaData(S.cur, true)).then(function () { drawBuildings(); renderSheet(); }); }
           return flush();
         });
       });
@@ -428,7 +446,7 @@
     q = (q || '').replace(/[\s　]/g, '').toLowerCase();
     return parentsOf(cat).filter(function (p) { return !q || p.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).map(function (p) {
       var use = p._kids.filter(function (k) { return k.inUse; }).length;
-      return '<div class="card pcard" data-act="homeParent" data-v="' + esc(p.areaId) + '"><div class="row"><div class="grow"><b>' + esc(p.areaName) + '</b>' + (p.inUse ? '<span class="badge use">使用中</span>' : '') + '<div class="note">小さなエリア ' + p._kids.length + '件' + (use ? '(使用中 ' + use + '件)' : '') + (p.inUse ? '　' + esc(p.assigneeName) : '') + '</div></div><span class="chev">›</span></div></div>';
+      return '<div class="card pcard" data-act="homeParent" data-v="' + esc(p.areaId) + '"><div class="row"><div class="grow"><b>' + esc(p.areaName) + '</b>' + (p.inUse ? '<span class="badge use">使用中</span>' : '') + '<div class="note">小さなエリア ' + p._kids.length + '件' + (use ? '(使用中 ' + use + '件)' : '') + (p.inUse ? '　' + esc(p.assigneeName) : '') + '</div></div><button class="btn primary small" data-act="openParent" data-v="' + esc(p.areaId) + '">開く</button><span class="chev">›</span></div></div>';
     }).join('') || '<div class="note" style="padding:12px 4px">該当するエリアがありません。</div>';
   }
   function parentListHtml(cat) {
@@ -443,17 +461,24 @@
   function onlyUseBox() { return '<div class="onlyuse" data-act="toggleOnly" style="margin:4px 2px 10px;padding:8px 6px;cursor:pointer"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;vertical-align:middle"' + (S.onlyUse ? ' checked' : '') + '> <span style="vertical-align:middle">使用中のエリアのみ表示</span></div>'; }
   function renderHome() {
     var el = $('#home'), cat = S.homeCat, title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    var h = '<div class="mhead">' + ((cat || S.homeStage === 'list') ? '<button data-act="homeBack" aria-label="戻る" style="margin-left:0;margin-right:6px">‹</button>' : '') + '<div class="t">' + esc(cat || (S.homeStage === 'list' ? 'エリア一覧' : title)) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v26</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div><div class="mbody">';
+    var h = '<div class="mhead">' + ((cat || S.homeStage === 'list') ? '<button data-act="homeBack" aria-label="戻る" style="margin-left:0;margin-right:6px">‹</button>' : '') + '<div class="t">' + esc(cat || (S.homeStage === 'list' ? 'エリア一覧' : title)) + '　<span class="note" style="color:inherit">' + esc(S.user ? S.user.displayName + '(' + roleLabel() + ')' : '') + '　画面 v27</span></div><button data-act="navClose" aria-label="閉じる">✕</button></div><!--FIX--><div class="mbody">';
     if (!cat && S.homeStage !== 'list') {
-      var gname = (S.user && S.user.groupName) || '';
-      h += '<div class="card"><b>' + esc(S.user ? S.user.displayName : '') + 'さん、ようこそ</b>' + (gname ? '<div class="note">' + esc(gname) + 'グループ</div>' : '') + '</div>';
-      h += '<div style="font-weight:700;margin:14px 4px 8px">使用する区域を選択してください</div>';
-      [['all', '会衆'], ['group', 'グループ'], ['user', '個人']].forEach(function (k) {
-        var l = visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k[0]) >= 0; });
-        h += '<div class="note" style="margin:12px 4px 6px"><b>' + k[1] + '</b>(' + l.length + '件)</div>';
-        l.forEach(function (a) { h += areaCard(a); });
-        if (!l.length) h += '<div class="note" style="padding:2px 8px 6px">使用できる区域はありません。</div>';
-      });
+      var gname = (S.user && S.user.groupName) || '', tab = S.homeTab || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人']];
+      var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
+      h = h.replace('<!--FIX-->', '<div style="padding:0 16px 4px"><div style="font-weight:700">' + esc(S.user ? S.user.displayName : '') + 'さん、ようこそ' + (gname ? '<span class="note">　' + esc(gname) + 'グループ</span>' : '') + '</div><div class="note" style="margin:2px 0 4px">使用する区域を選択してください</div></div><div class="tabs">' +
+        TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '(' + mineOf(t[0]).length + ')</button>'; }).join('') + '</div>');
+      if (!tab) h += '<div class="note" style="padding:14px 4px">上の「会衆」「グループ」「個人」から選んでください。</div>';
+      else {
+        var kids = mineOf(tab), by = {}, loose = [];
+        kids.forEach(function (k) { var p = k.parentId && areaById(k.parentId); if (p) (by[p.areaId] = by[p.areaId] || []).push(k); else loose.push(k); });
+        S.areas.filter(function (p) { return p.isParent && by[p.areaId]; }).forEach(function (p) {
+          var open = !!(S.homeOpen && S.homeOpen[tab + p.areaId]);
+          h += '<div class="card pcard" data-act="homeToggle" data-v="' + esc(p.areaId) + '"><div class="row"><div class="grow"><b>' + esc(p.areaName) + '</b><div class="note">小さなエリア ' + by[p.areaId].length + '件</div></div><button class="btn primary small" data-act="openParent" data-v="' + esc(p.areaId) + '">開く</button><span class="chev">' + (open ? '▾' : '›') + '</span></div></div>';
+          if (open) h += '<div style="margin-left:14px">' + by[p.areaId].map(areaCard).join('') + '</div>';
+        });
+        loose.forEach(function (a) { h += areaCard(a); });
+        if (!kids.length) h += '<div class="note" style="padding:14px 4px">使用できる区域はありません。</div>';
+      }
       h += '<button class="catbtn" data-act="homeList" style="margin-top:16px">エリア一覧を見る</button>';
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else if (!cat) {
@@ -556,6 +581,9 @@
       case 'homeCat': S.homeCat = v; S.homeParent = null; S.homeQ = ''; renderHome(); break;
       case 'homeBack': if (S.homeCat) { S.homeCat = null; S.homeParent = null; } else S.homeStage = null; renderHome(); break;
       case 'homeList': S.homeStage = 'list'; renderHome(); break;
+      case 'homeTab': S.homeTab = v; renderHome(); break;
+      case 'homeToggle': S.homeOpen = S.homeOpen || {}; S.homeOpen[(S.homeTab || '') + v] = !S.homeOpen[(S.homeTab || '') + v]; renderHome(); break;
+      case 'openParent': selectParent(v); break;
       case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
       case 'homeParent': S.homeParent = v; renderHome(); break;
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
@@ -565,7 +593,7 @@
       case 'setStatus': patchRoom(t.getAttribute('data-room'), { status: v }); break;
       case 'setMark': var r = roomById(t.getAttribute('data-room')); patchRoom(t.getAttribute('data-room'), { mark: r && r.mark === v ? '' : v }); break;
       case 'report':
-        var text = window.prompt('区域係への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
+        var text = window.prompt('区域係への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: (bn && bn.areaId) || S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
         break;
       case 'prefFont': setPref('font', v); renderMenuBody(); break;
       case 'prefTheme': setPref('theme', v); renderMenuBody(); break;
@@ -591,6 +619,6 @@
   SADO.goHome = goHome; SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
   SADO.toast = toast; SADO.openMenu = openMenu;
   SADO.S = S; SADO.api = api; SADO.drawFrames = drawFrames; SADO.refreshBootstrap = refreshBootstrap; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = closeSheet; SADO.areaById = areaById;
-  SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return loadAreaData(S.cur, true).then(function () { drawBuildings(false); renderSheet(); }); };
+  SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return (S.merged ? selectParent(S.cur, true) : loadAreaData(S.cur, true)).then(function () { drawBuildings(false); renderSheet(); }); };
   boot();
 })();

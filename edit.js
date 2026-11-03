@@ -66,6 +66,7 @@
   function toggle(force) {
     if (!E.on) {
       if (!isAdmin()) return;
+      if (S.merged) { toast('小さなエリアを1つ開いてから、編集モードにしてください。'); return; }
       if (!S.online) { toast('編集モードは、電波のあるところで使います。'); return; }
       E.on = true; S.edit = true; map().on('click', onMap); paint(); redraw(); toast('編集モードにしました。', 1500); return;
     }
