@@ -43,7 +43,11 @@
     var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, analysis: loadAnalysis, io: loadIO, guide: loadGuide }[t];
     f();
   }
-  function loadAd() { return api('getAdminAreas').then(function (d) { C.ad = d; return d; }); }
+  // 区域の一覧は、直前に読んだものがあれば、そのまま使う(1分以内。変更したときは作り直す)
+  function loadAd() {
+    if (C.ad && C.adT && Date.now() - C.adT < 60000) return Promise.resolve(C.ad);
+    return api('getAdminAreas').then(function (d) { C.ad = d; C.adT = Date.now(); return d; });
+  }
 
   // ---------- 管理(エリアの使用・担当) ----------
   function loadAreas(openId) {
@@ -100,12 +104,11 @@
     C.openArea = id; ix.classList.add('hidden'); dv.classList.remove('hidden');
     var cur = {}; C.ad.assigns.forEach(function (x) { if (x.areaId === id) cur[x.targetType + ':' + x.targetId] = true; });
     var hasUser = C.ad.users.some(function (u) { return cur['user:' + u.loginId]; }), hasAll = !!cur['group:all'], hasGrp = C.ad.groups.some(function (g) { return !g.builtin && cur['group:' + g.groupId]; });
-    var mode = hasUser ? 'user' : (hasAll && !hasGrp ? 'all' : (a.isParent || hasGrp ? 'group' : 'user')), on = !!a.storedInUse, modes = a.isParent ? [['group', 'グループ'], ['all', '会衆']] : [['user', '個人'], ['group', 'グループ'], ['all', '会衆']];
-    if (a.isParent && mode === 'user') mode = 'group';
+    var mode = hasUser ? 'user' : (hasAll && !hasGrp ? 'all' : (a.isParent || hasGrp ? 'group' : 'user')), on = !!a.storedInUse, modes = [['user', '個人'], ['group', 'グループ'], ['all', '会衆']];
     var par = a.isParent ? null : (a.parentId ? C.ad.areas.filter(function (x) { return x.areaId === a.parentId; })[0] : null), nKids = a.isParent ? kidsOf(a.areaId).length : 0;
     C.arOn0 = on;
     dv.innerHTML = '<div class="card"><div class="row dh"><button class="btn small" data-act="ad:areaBack">← 一覧へ</button><b class="grow" style="font-size:1.1em">' + esc(a.areaName) + '</b><span class="badge mine">' + esc(a.category) + '</span></div>' +
-      (a.isParent ? '<div class="note">大きなエリアです。使用を開始すると、中の小さなエリア ' + nKids + '件がすべて対象になります(グループ・会衆で担当を決めます)。個人で担当する場合は、小さなエリアを個別に設定してください。</div>' : (par ? '<div class="note">大きなエリア「' + esc(par.areaName) + '」' + (par.inUse ? 'が使用中のため、この区域も使用中です(担当: ' + esc(par.assigneeName) + ')。個別の設定は、大きなエリアの使用が終わったあと、または個人担当にしたいときに使います。' : 'に所属しています。') + '</div>' : '')) +
+      (a.isParent ? '<div class="note">大きなエリアです。使用を開始すると、中の小さなエリア ' + nKids + '件がすべて対象になります(グループ・会衆・個人のどれでも担当を決められます)。小さなエリアごとに別の人が担当する場合は、小さなエリアを個別に設定してください。</div>' : (par ? '<div class="note">大きなエリア「' + esc(par.areaName) + '」' + (par.inUse ? 'が使用中のため、この区域も使用中です(担当: ' + esc(par.assigneeName) + ')。個別の設定は、大きなエリアの使用が終わったあと、または個人担当にしたいときに使います。' : 'に所属しています。') + '</div>' : '')) +
       '<div class="fxg"><label class="fxsw"><span><b>使用中</b><small>オンにすると、この区域に訪問状況を入力できます</small></span><input type="checkbox" class="sw" id="arIn"' + (on ? ' checked' : '') + '></label>' +
       (a.expired ? '<div class="note" style="color:var(--danger)">使用期間が終わっています。「保存」を押すか、日付を変えてください。</div>' : '') + '</div>' +
       '<div id="arOn"' + (on ? '' : ' class="hidden"') + '>' +
@@ -113,7 +116,7 @@
           '<div class="bseg">' + modes.map(function (m) { return '<button data-act="ad:asgMode" data-v="' + m[0] + '" id="asg-' + m[0] + '" class="' + (mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div>' +
           '<div id="asgGroup"' + (mode === 'group' ? '' : ' class="hidden"') + '>' + C.ad.groups.filter(function (g) { return !g.builtin; }).map(function (g) { return '<label class="asg"><input type="checkbox" data-asg="group:' + esc(g.groupId) + '"' + (cur['group:' + g.groupId] ? ' checked' : '') + '> ' + esc(g.groupName) + '</label>'; }).join('') + '</div>' +
           '<div id="asgUser"' + (mode === 'user' ? '' : ' class="hidden"') + '><input type="search" id="asgQ" placeholder="名前で探す" style="width:100%;margin-bottom:4px">' + C.ad.users.filter(function (u) { return u.active; }).map(function (u) { return '<label class="asg" data-name="' + esc((u.displayName + ' ' + u.loginId).toLowerCase()) + '"><input type="checkbox" data-asg="user:' + esc(u.loginId) + '"' + (cur['user:' + u.loginId] ? ' checked' : '') + '> ' + esc(u.displayName) + '</label>'; }).join('') + '</div>' +
-          '<div id="asgAll"' + (mode === 'all' ? '' : ' class="hidden"') + '><label class="asg"><input type="checkbox" data-asg="group:all"' + (hasAll ? ' checked' : '') + '> 会衆(ログインした全員)</label></div>' +
+          '<div id="asgAll"' + (mode === 'all' ? '' : ' class="hidden"') + '><div class="note">会衆: ログインした全員が編集できます。</div></div>' +
           '<small>' + (a.category === 'アパート' ? 'アパートは、誰も選ばなくても全員が編集できます。' : '選ばないと、使用を開始できません。') + '</small></div>' +
         '<div class="fxg"><div class="gt">使用期間</div><div class="fxgrid"><div><label>開始日</label><input type="date" id="arStart" value="' + esc(a.useStartDate || (on ? '' : SADO.today())) + '"></div><div><label>終了日</label><input type="date" id="arEnd" value="' + esc(a.useEndDate) + '"></div></div><button class="btn small" data-act="ad:clearEnd">終了日をクリア</button>' +
           '<label class="fxsw" style="margin-top:12px"><span><b>終了日で自動的に使用を終える</b><small>オンにすると、終了日の翌日(終了日が空なら、開始日から「動作設定」の月数が過ぎたとき)に、自動で使用が終わります</small></span><input type="checkbox" class="sw" id="arAuto"' + (a.autoEnd ? ' checked' : '') + '></label></div>' +
@@ -123,20 +126,25 @@
       '<div class="fxact"><button class="btn" data-act="ad:areaBack">キャンセル</button><button class="btn primary" data-act="ad:areaSave" data-v="' + esc(id) + '">保存</button></div></div>';
   }
   function areaSave(id) {
-    var inUse = $('#arIn').checked, targets = [], cbs = document.querySelectorAll('#arOn [data-asg]');
-    for (var i = 0; i < cbs.length; i++) if (cbs[i].checked) { var p = cbs[i].getAttribute('data-asg').split(':'); targets.push({ type: p[0], id: p.slice(1).join(':') }); }
+    var inUse = $('#arIn').checked, targets = [], md = document.querySelector('#arOn .bseg button.on'), mode = md ? md.getAttribute('data-v') : 'group';
+    // 今開いている担当の方法(個人・グループ・会衆)の分だけを送る(隠れているほうのチェックは無視する)
+    if (mode === 'all') targets.push({ type: 'group', id: 'all' });
+    else {
+      var cbs = document.querySelectorAll('#' + (mode === 'user' ? 'asgUser' : 'asgGroup') + ' [data-asg]');
+      for (var i = 0; i < cbs.length; i++) if (cbs[i].checked) { var p = cbs[i].getAttribute('data-asg').split(':'); targets.push({ type: p[0], id: p.slice(1).join(':') }); }
+    }
     var payload = { areaId: id, inUse: inUse, note: val('arNote') };
     if (inUse) { payload.targets = targets; payload.useStartDate = val('arStart'); payload.useEndDate = val('arEnd'); payload.autoEnd = $('#arAuto').checked; }
     var go1 = function (extra) {
       for (var k in extra) payload[k] = extra[k];
-      after(api('saveAreaOps', payload), function (r) { return r && r.warning ? '保存しました。\n(注意) ' + r.warning : '保存しました。'; }, refreshAreas);
+      after(api('saveAreaOps', payload), function (r) { return r && r.warning ? '保存しました。\n(注意) ' + r.warning : '保存しました。'; }, function () { C.openArea = ''; refreshAreas(); });
     };
     if (!inUse && C.arOn0) {
       var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0];
       modal('使用を終了する', '<div class="note">「' + esc(a.areaName) + '」の使用を終了し、記録ドキュメントに完了日を書き込みます。</div><label style="display:block;margin-top:8px">完了した日 <input type="date" id="arDone" value="' + SADO.today() + '"></label>', '終了する', function () { go1({ endDate: val('arDone') }); }, 'primary');
     } else go1({});
   }
-  function refreshAreas() { C.ad = null; C.prog = null; var o = C.openArea; if (o) loadAreas(o); else go('areas'); }
+  function refreshAreas() { C.ad = null; var o = C.openArea; if (o) loadAreas(o); else go('areas'); }
   function areaName(id) { var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0]; return a ? a.areaName : ''; }
   function slot(id) { return document.getElementById('af-' + id); }
 
@@ -172,7 +180,7 @@
         (off ? '<button class="btn small danger" data-act="ad:purgeB" data-v="' + esc(b.buildingId) + '">完全に削除</button>' : '') + '</div><div class="note">ID: ' + esc(b.buildingId) + '</div>';
       rs.forEach(function (r) {
         var roff = isOff(r.active);
-        h += '<div class="row"><input class="grow" data-r="' + esc(r.roomId) + '" data-f="roomName" value="' + esc(r.roomName) + '"><select data-r="' + esc(r.roomId) + '" data-f="mark"><option value="">印なし</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option></select>' +
+        h += '<div class="row"><input class="grow" data-r="' + esc(r.roomId) + '" data-f="roomName" value="' + esc(r.roomName) + '"><input data-r="' + esc(r.roomId) + '" data-f="floor" size="3" placeholder="階" title="階" value="' + esc(r.floor) + '"><select data-r="' + esc(r.roomId) + '" data-f="mark"><option value="">印なし</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option></select>' +
           '<button class="btn small" data-act="ad:saveR" data-v="' + esc(r.roomId) + '">保存</button><button class="btn small" data-act="ad:activeR" data-v="' + esc(r.roomId) + '" data-on="' + (roff ? '1' : '0') + '">' + (roff ? '戻す' : '非表示') + '</button>' + (roff ? '<button class="btn small danger" data-act="ad:purgeR" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
       });
       h += '<div class="row"><textarea rows="1" class="grow" id="ar-' + esc(b.buildingId) + '" placeholder="部屋を追加(1行に1つ)"></textarea><button class="btn small" data-act="ad:addRooms" data-v="' + esc(b.buildingId) + '">追加</button></div></div></details>';
@@ -382,13 +390,13 @@
     var h = rows.shift() || [];
     return rows.filter(function (r) { return r.length > 1 || (r[0] || '') !== ''; }).map(function (r) { var o = {}; h.forEach(function (k, j) { o[k.trim()] = r[j] === undefined ? '' : r[j]; }); return o; });
   }
-  var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, category(国仲/遠方), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark']];
+  var IMPORTS = [['area', 'エリア', 'areaId, areaName, sortOrder, category(国仲/遠方), …'], ['group', 'グループ', 'groupId, groupName, leaderLoginId(責任者のアカウントID), …'], ['building', '建物', 'buildingId(=uuid2), buildingName, areaId, lat, lng, buildingMemo'], ['room', '部屋', 'roomId, buildingId, areaId, roomName, floor, sortOrder, mark, tenant(テナント名)']];
   function loadIO() {
     body('<div class="card"><h3>区域の表を取り込む(QGIS・大きなエリアと小さなエリア)</h3><div class="note">QGISで書き出した区域のCSVを選びます。列名は、QGISの名前(name・boundary_detail_uuid・parent_name・parent_boundary_uuid・category)でも、アプリの名前(areaName・areaId・parentName・parentId・category)でも読めます。大きなエリアは、この表から自動で作られます。すでにあるエリアは、名前・所属・区分だけが更新され、使用中などの記録は消えません。1行でも問題があれば、どれも取り込みません。</div>' +
       '<div class="row"><input type="file" accept=".csv,text/csv" id="imp-tree"><button class="btn small primary" data-act="ad:importTree">取り込む</button></div><div class="note" id="impTreeMsg"></div></div>' +
       '<div class="card"><h3>CSVから取り込む(QGISなどで作ったデータ)</h3><div class="note">同じIDの行は上書き、新しいIDの行は追加されます。順番は、エリア → グループ → 担当者 → 建物 → 部屋 です。</div>' +
       IMPORTS.map(function (x) { return '<div class="row"><b style="min-width:5em">' + x[1] + '</b><input type="file" accept=".csv,text/csv" id="imp-' + x[0] + '"><button class="btn small primary" data-act="ad:import" data-v="' + x[0] + '">取り込む</button></div><div class="note">列: ' + x[2] + '</div>'; }).join('') + '<div class="note" id="impMsg"></div></div>' +
-      '<div class="card"><h3>CSVに書き出す(QGISに戻す用)</h3><div class="note">建物は「uuid2・建物名・メモ」、部屋は「部屋ID・uuid2・部屋名・印・訪問状況・メモ」です。QGISでuuid2を目印に結合してください。</div><button class="btn small" data-act="ad:export" data-v="buildings">建物のCSV</button><button class="btn small" data-act="ad:export" data-v="rooms">部屋のCSV</button></div>');
+      '<div class="card"><h3>CSVに書き出す(QGISに戻す用)</h3><div class="note">建物は「uuid2・建物名・メモ」、部屋は「部屋ID・uuid2・部屋名・階・テナント・印・訪問状況・メモ」です。QGISでuuid2を目印に結合してください。</div><button class="btn small" data-act="ad:export" data-v="buildings">建物のCSV</button><button class="btn small" data-act="ad:export" data-v="rooms">部屋のCSV</button></div>');
   }
   var TREE_COLS = { areaId: ['areaId', 'boundary_detail_uuid'], areaName: ['areaName', 'name'], parentId: ['parentId', 'parent_boundary_uuid'], parentName: ['parentName', 'parent_name'], category: ['category'] };
   function doImportTree() {
@@ -452,7 +460,7 @@
       case 'saveB': f = fields('b', v); after(api('updateBuilding', { buildingId: v, buildingName: f.buildingName, buildingMemo: f.buildingMemo, lat: f.lat, lng: f.lng }), '保存しました。', loadEditBody); break;
       case 'activeB': after(api('setActive', { kind: 'building', id: v, active: on === '1' }), '変更しました。', loadEditBody); break;
       case 'purgeB': if (window.prompt('建物と、その部屋・入力データをすべて完全に削除します。取り消せません。続けるには「削除」と入力してください。') === '削除') after(api('purgeItem', { kind: 'building', id: v }), '削除しました。', loadEditBody); break;
-      case 'saveR': f = fields('r', v); after(api('updateRoom', { roomId: v, roomName: f.roomName, mark: f.mark }), '保存しました。', loadEditBody); break;
+      case 'saveR': f = fields('r', v); after(api('updateRoom', { roomId: v, roomName: f.roomName, floor: f.floor, mark: f.mark }), '保存しました。', loadEditBody); break;
       case 'activeR': after(api('setActive', { kind: 'room', id: v, active: on === '1' }), '変更しました。', loadEditBody); break;
       case 'purgeR': if (window.prompt('部屋と入力データを完全に削除します。続けるには「削除」と入力してください。') === '削除') after(api('purgeItem', { kind: 'room', id: v }), '削除しました。', loadEditBody); break;
       case 'addRooms': after(api('addRooms', { buildingId: v, rooms: val('ar-' + v).split('\n') }), '部屋を追加しました。', loadEditBody); break;
@@ -473,7 +481,7 @@
       case 'userDel': if (window.confirm('ユーザー「' + v + '」を削除します。よろしいですか？')) after(api('deleteUser', { loginId: v }), '削除しました。', function () { loadAccounts(true); }); break;
       case 'groupAdd': after(api('saveGroup', { groupName: val('ngName') }), '追加しました。', function () { bump(); loadAccounts(true); }); break;
       case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(true); }); break;
-      case 'saveSettings': var vals = {}; SET_FIELDS.forEach(function (x) { vals[x[0]] = val('st-' + x[0]); }); after(api('saveSettings', { values: vals }), '保存しました。', function () { SADO.refreshBootstrap(); }); break;
+      case 'saveSettings': var vals = {}; SET_FIELDS.forEach(function (x) { vals[x[0]] = val('st-' + x[0]); }); after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} }); break;
       case 'import': doImport(v); break;
       case 'export': api('exportCsv', { kind: v }).then(function (r) { SADO.saveBlob(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }), r.filename); }, fail); break;
     }
