@@ -378,21 +378,12 @@ html.lite #home,html.lite #menu,html.lite #admin{-webkit-animation:none!importan
 #home,#menu{bottom:calc(var(--nav) + var(--safe-b) + 10px);border-radius:var(--radius-l)}
 #admin{bottom:calc(var(--nav) + var(--safe-b) + 10px)}
 @media (min-width:900px){#home,#menu,#admin{bottom:calc(var(--nav) + 28px)}body.detail-open #nav{-webkit-transform:translate(-50%,160%);transform:translate(-50%,160%)}}
-html[data-ui="2"] #nav{left:50%;right:auto;bottom:14px;-webkit-transform:translateX(-50%);transform:translateX(-50%);width:min(560px,calc(100% - 32px));border-radius:999px;border:1px solid var(--border);height:var(--nav);padding-bottom:0;box-shadow:var(--shadow-2);overflow:hidden}
-html[data-ui="2"] #nav button.on::before{display:none}
-html[data-ui="2"] #nav button.on{background:rgba(26,115,232,.12);border-radius:999px;margin:6px 2px}
-html[data-ui="2"] #home,html[data-ui="2"] #menu,html[data-ui="2"] #admin{bottom:calc(var(--nav) + 28px)}
-html[data-ui="2"] body.detail-open #nav{-webkit-transform:translate(-50%,160%);transform:translate(-50%,160%)}
-html[data-ui="2"] #legend{bottom:calc(var(--nav) + 30px)}
 
 /* v32: 地図の下の部品は、下のバーの上に。マップ切り替えは旧GASと同じ形(ウィンドウで選ぶ) */
 .leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + var(--safe-b) + 10px)}
 .leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + var(--safe-b))}
-html[data-ui="2"] .leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + 30px)}
-html[data-ui="2"] .leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + 26px)}
 @media (min-width:900px){.leaflet-bottom.leaflet-left{margin-bottom:calc(var(--nav) + 30px)}.leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + 26px)}#layerBtn{bottom:calc(var(--nav) + 128px)!important}}
 #layerBtn{left:10px;right:auto;top:auto;width:44px;height:44px;border-radius:var(--radius-s);bottom:calc(var(--nav) + var(--safe-b) + 108px);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;padding:0}
-html[data-ui="2"] #layerBtn{bottom:calc(var(--nav) + 128px)}
 .maplayer-row{display:-webkit-flex;display:flex;-webkit-justify-content:space-around;justify-content:space-around;-webkit-align-items:flex-start;align-items:flex-start;padding:8px 0}
 .maplayer-opt{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;-webkit-flex:1 1 0;flex:1 1 0;min-width:0;padding:0 2px;margin:0;border:0;background:none;color:var(--text-2);font-size:.85em;font-weight:700;line-height:1.3;text-align:center;cursor:pointer}
 .maplayer-opt>span+span{margin-top:8px}
@@ -407,3 +398,87 @@ input[type="text"],input[type="password"],input[type="number"],input[type="date"
 .btn:active{-webkit-transform:scale(.97);transform:scale(.97)}
 .btn:disabled{cursor:not-allowed;-webkit-transform:none;transform:none}
 .btn.secondary{background:var(--surface-3);color:var(--text)}
+
+/* v33: 旧GASのテーマ2・3の並べ方(色や形はテーマ1と同じ) */
+#hamBtn,#searchFab,.menu-back,.menu-home-grid{display:none}
+.menu-home-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.menu-tile{appearance:none;-webkit-appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius-l);min-height:92px;padding:14px;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:flex-start;align-items:flex-start;-webkit-justify-content:space-between;justify-content:space-between;text-align:left;cursor:pointer;font-family:inherit}
+.menu-tile:active{-webkit-transform:scale(.98);transform:scale(.98)}
+.menu-tile-icon{width:36px;height:36px;border-radius:10px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;background:#e8f0fe;color:#1a73e8}
+.menu-tile-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.menu-tile-title{font-weight:900}.menu-tile-sub{font-size:.8em;color:var(--text-3)}
+.menu-tile.tile-admin .menu-tile-icon{background:#fdecea;color:#d93025}.menu-tile.tile-help .menu-tile-icon{background:#fff3e0;color:#ef6c00}
+html[data-theme="dark"] .menu-tile-icon{background:#1d2f4a;color:#8ab4f8}
+/* テーマ2: 上のバーなし。ボタンは右下(下から ◎・編集・🔍)。ズームは横向きで、その上にピンの色の説明 */
+html[data-ui="2"] #hdr,html[data-ui="2"] #areaClearBtn{display:none}
+html[data-ui="2"] body.area-chosen #hdr,html[data-ui="2"] body.area-chosen #areaClearBtn:not(.hidden),html[data-ui="2"] body.search-open #hdr{display:-webkit-flex;display:flex}
+html[data-ui="2"] body.area-chosen #areaClearBtn:not(.hidden){display:-webkit-flex}
+html[data-ui="2"] #hdr{right:10px;z-index:1260}
+html[data-ui="2"] #searchFab{display:block;position:absolute;right:10px;bottom:calc(var(--nav) + var(--safe-b) + 124px);top:auto;z-index:900}
+html[data-ui="2"] body.area-chosen #searchFab,html[data-ui="2"] body.detail-open #searchFab{display:none}
+html[data-ui="2"] #editBtn{top:auto!important;right:10px!important;bottom:calc(var(--nav) + var(--safe-b) + 68px);width:46px;height:46px;border-radius:50%;padding:0;font-size:.8em}
+html[data-ui="2"] #locBtn{top:auto!important;bottom:calc(var(--nav) + var(--safe-b) + 12px)}
+html[data-ui="2"] body.detail-open #locBtn,html[data-ui="2"] body.detail-open #editBtn{display:none}
+html[data-ui="2"] .leaflet-control-zoom{display:-webkit-flex!important;display:flex!important;-webkit-flex-direction:row;flex-direction:row}
+html[data-ui="2"] .leaflet-control-zoom a{border-bottom:0!important}
+html[data-ui="2"] .leaflet-control-zoom a+a{border-left:1px solid var(--border)!important}
+html[data-ui="2"] #legend{left:10px;right:auto;bottom:calc(var(--nav) + var(--safe-b) + 66px)}
+html[data-ui="2"] #layerBtn{left:10px;bottom:calc(var(--nav) + var(--safe-b) + 66px + 0px);display:none}
+html[data-ui="2"] #hdrRes{right:10px}
+/* テーマ3: 上に幅いっぱいのバー。メニューは左から出るタイル型。下のバーなし */
+html[data-ui="3"]{--nav:0px}
+html[data-ui="3"] #nav{display:none!important}
+html[data-ui="3"] #hamBtn{display:block;position:absolute;left:6px;top:calc(7px + var(--safe-t));z-index:1002;width:42px;height:42px;border:0;border-radius:10px;background:transparent;color:var(--text);font-size:22px;cursor:pointer}
+html[data-ui="3"] #hdr{left:0!important;right:0;top:0;height:calc(56px + var(--safe-t));padding:var(--safe-t) 116px 0 52px;border-radius:0;box-shadow:0 1px 6px rgba(0,0,0,.06);border-bottom:1px solid var(--border);z-index:1001}
+html[data-ui="3"] body.area-chosen #hdr{padding-left:106px}
+html[data-ui="3"] #areaClearBtn{left:50px;top:calc(7px + var(--safe-t));width:44px;height:42px;border:0;box-shadow:none;background:transparent}
+html[data-ui="3"] #syncBadge{position:absolute;right:112px;top:calc(var(--safe-t) + 16px)}
+html[data-ui="3"] #locBtn{top:calc(5px + var(--safe-t))!important;right:8px;width:44px;height:44px;box-shadow:none;border:1.5px solid var(--border)}
+html[data-ui="3"] #editBtn{top:calc(5px + var(--safe-t))!important;right:58px!important;height:44px;border-radius:999px;box-shadow:none;border:1.5px solid var(--border)}
+html[data-ui="3"] #hdrRes{left:8px;right:8px;top:calc(60px + var(--safe-t))}
+html[data-ui="3"] .leaflet-top{top:calc(56px + var(--safe-t) + 8px)}
+html[data-ui="3"] #home,html[data-ui="3"] #menu,html[data-ui="3"] #admin{left:0;right:auto;margin:0;width:min(460px,100%);top:0;bottom:0;border-radius:0;z-index:2600}
+html[data-ui="3"] #menu .menu-back{display:inline-block;border:0;background:transparent;color:#1a73e8;font-weight:800;padding:6px 8px;cursor:pointer}
+html[data-ui="3"] #menu .mhead{padding-top:calc(10px + var(--safe-t))}
+html[data-ui="3"] .menu-home-grid{display:grid}
+html[data-ui="3"] #menu .mhead .t{-webkit-flex:1;flex:1}
+html[data-ui="3"] #sheet{bottom:0}
+@media (min-width:900px){html[data-ui="3"] #sheet{left:auto;right:0;top:calc(56px + var(--safe-t));width:460px;max-height:none;height:auto!important;border-radius:0;border-left:1px solid var(--border)}}
+/* v34: 旧GAS(テーマ1)の余白・大きさ・色づかいに、全体をそろえる */
+.mhead{padding:14px 16px 6px;min-height:0}
+.mhead .t{font-weight:900;font-size:1.06em;letter-spacing:.02em;padding:0}
+.mhead button{width:36px;height:36px;color:var(--text-2);font-size:1.25em;line-height:1}
+.menu-user-box{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:6px 16px 10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.menu-user-box .un{font-weight:800;overflow-wrap:anywhere}
+.menu-user-box .uh{font-size:.8em;color:var(--text-3);font-weight:400;margin-top:2px}
+.menu-user-box .un .uh{margin:0}
+.tabs{padding:2px 16px 8px}
+.mbody{padding:4px 16px calc(24px + var(--safe-b))}
+#home .mbody{margin:0 16px 14px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);-webkit-flex:1 1 auto;flex:1 1 auto}
+#home .tabs{padding-left:16px}
+.ptool{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;margin:2px 0 8px}
+.ptool .pnote{font-size:.78em;color:var(--text-3);line-height:1.5;-webkit-flex:1;flex:1;padding-right:8px}
+.btn.secondary.small{min-height:34px}
+/* 区域の行(旧GASの進み具合の行) */
+#home .mbody .card{padding:9px 11px;border-radius:10px;margin:0 0 8px}
+#home .mbody .card.inuse{border-left:4px solid var(--success)}
+#home .mbody .card .row{-webkit-align-items:baseline;align-items:baseline}
+#home .mbody .card .row>*{margin:0 8px 0 0}
+#home .mbody .card .row .btn{margin:0 6px 0 0;-webkit-align-self:center;align-self:center}
+#home .mbody .card .pname b{font-weight:800;font-size:.93em;overflow-wrap:anywhere}
+#home .mbody .card .pname .pct{font-size:1em;font-weight:900;margin-left:8px}
+#home .mbody .card .pbar{height:10px;margin:6px 0 3px}
+#home .mbody .card .badge{margin-left:8px;padding:1px 9px;border-radius:999px;font-size:.7em;font-weight:800}
+#home .mbody .card .note{font-size:.78em;font-weight:600;line-height:1.5}
+#home .plegend{padding:0 0 8px}
+.subhead{margin:12px 2px 8px;padding:0 0 0 10px;border:0;font-size:.85em;font-weight:900;color:var(--text-2);letter-spacing:.04em;position:relative}
+.subhead::before{content:"";position:absolute;left:0;top:50%;margin-top:-7px;width:4px;height:14px;border-radius:2px;background:var(--primary)}
+/* 見出し・カード・入力欄 */
+.card{padding:14px;margin:0 0 12px}
+.card h3{margin:0 0 10px;font-size:.85em;font-weight:900;color:var(--text-2);letter-spacing:.04em;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}
+.card h3::before{width:4px;height:14px;margin-right:8px;vertical-align:0}
+.card input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),.card select{border:1.5px solid var(--border);border-radius:var(--radius-s)}
+.card select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%237c8885' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;box-shadow:0 0 0 3px var(--primary-soft)!important;outline:0}
+.note{line-height:1.6}
+.badge{border-radius:999px;font-weight:800}
