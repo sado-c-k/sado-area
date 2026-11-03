@@ -35,7 +35,13 @@
   }
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
 
-  function open() { var a = $('#admin'); a.classList.remove('hidden'); a.innerHTML = '<div class="mhead"><div class="t">区域係モード</div><button data-act="ad:close">✕</button></div><div class="tabs scroll">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>'; go(tab); }
+  function open() {
+    var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
+    a.innerHTML = '<div class="mhead"><div class="t">' + esc((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS') + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
+      '<div class="adwelcome"><div class="grow">' + esc(u ? u.displayName : '') + 'さんようこそ</div><button class="btn small danger" data-act="ad:close">管理者モード終了</button></div>' +
+      '<div class="tabs grid">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>';
+    go(tab);
+  }
   function close() { $('#admin').classList.add('hidden'); if (SADO.activeNav) SADO.activeNav('map'); SADO.refreshBootstrap(); }
   function go(t) {
     tab = t; TABS.forEach(function (x) { var b = $('#adt-' + x[0]); if (b) b.classList.toggle('on', x[0] === t); });
@@ -55,7 +61,7 @@
     loadAd().then(function (d) {
       var only = false; try { only = localStorage.getItem('adOnlyInUse') === '1'; } catch (e) {}
       C.only = only;
-      var h = '<div class="card"><h3>区域管理</h3><div id="apSum" class="note">進み具合を計算中…</div>' +
+      var h = '<div class="card"><h3>区域管理</h3><div id="apSum" class="note">進み具合を計算中…</div>' + SADO.progLegend() +
         '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域だけ表示</label><div id="apList" class="ptree"></div></div>' +
         '<div class="card"><h3>1件ずつ追加する</h3><div class="note">CSVを使わずに、1件ずつ追加できます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">建物・部屋を追加(区域編集)</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウント・グループ・担当者を追加</button></div>' +
         '<div class="row" style="margin-top:8px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><select id="newAreaCat"><option value="国仲">国仲</option><option value="遠方">遠方</option><option value="アパート">アパート</option></select><button class="btn primary small" data-act="ad:addArea">区域を追加</button></div></div>' +
@@ -63,17 +69,17 @@
         '<button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div>';
       body('<div id="arIndex">' + h + '</div><div id="arDetail" class="hidden"></div>');
       drawAreaList(); if (typeof openId === 'string' && openId) renderAreaDetail(openId);
-      (C.prog ? Promise.resolve(C.prog) : api('getAreaProgress')).then(function (p) { C.prog = p; drawAreaList(); }, function () { var e = document.getElementById('apSum'); if (e) e.textContent = ''; });
+      SADO.api('getProgress', {}, true).then(function (p) { C.prog = p; drawAreaList(); }, function () { var e = document.getElementById('apSum'); if (e) e.textContent = ''; });
     }, fail);
   }
   function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
   // 区域管理の一覧: 区分 → 大きな区域(親) → 小さな区域(子)。大きな区域の右の▸で、中の小さな区域を開く
   function kidsOf(pid) { return C.ad.areas.filter(function (x) { return x.active && x.parentId === pid && !x.isParent; }); }
-  function sumProg(list) { var P = C.prog || {}, t = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }; list.forEach(function (k) { var p = P[k.areaId]; if (p) { t.total += p.total; t.visited += p.visited; t.buildings += p.buildings; t.doneBuildings += p.doneBuildings; } }); return t; }
+  function sumProg(list) { var P = C.prog || {}, t = { total: 0, visited: 0, buildings: 0, doneBuildings: 0, c: {} }; list.forEach(function (k) { var p = P[k.areaId]; if (p) { t.total += p.total; t.visited += p.visited; t.buildings += p.buildings; t.doneBuildings += p.doneBuildings; for (var q in (p.c || {})) t.c[q] = (t.c[q] || 0) + p.c[q]; } }); return t; }
   function progRow(a, p, extra, cls, kids, open) {
     return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '未使用')) + '</span>' + (kids ? '<span class="badge mine">小さな区域 ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '% ▸</div></div>' +
-      '<div class="pbar"><i style="width:' + pct(p.visited, p.total) + '%"></i></div><div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '部屋 ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟</span><span>' + (a.inUse ? esc(a.useStartDate) + ' 〜 ' + esc(a.expiry) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
-      (a.inUse ? '<div class="pm"><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + (extra || '') + '</button>' + (kids ? '<button type="button" class="btn small pexp" data-act="ad:parExp" data-v="' + esc(a.areaId) + '" aria-label="開閉">' + (open ? '▾' : '▸') + '</button>' : '') + '</div>';
+      SADO.progBar(p) + '<div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '件 ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟</span><span>' + (a.inUse ? esc(SADO.fmtJa(a.useStartDate)) + '〜' + esc(SADO.fmtJa(a.expiry)) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
+      (a.inUse ? '<div class="pm"><span>' + (a.expiry ? '自動終了：オン（終了日の翌日から編集不可）' : '') + '</span><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + (extra || '') + '</button>' + (kids ? '<button type="button" class="btn small pexp" data-act="ad:parExp" data-v="' + esc(a.areaId) + '" aria-label="開閉">' + (open ? '▾' : '▸') + '</button>' : '') + '</div>';
   }
   function drawAreaList() {
     var el = document.getElementById('apList'); if (!el || !C.ad) return;
@@ -81,7 +87,7 @@
     var cats = ['国仲', '遠方', 'アパート'], cc = document.getElementById('apCats');
     if (cc) cc.innerHTML = !hasPar ? '' : '<div class="seg">' + cats.map(function (c) { return '<button class="chip' + (C.cat === c ? ' on' : '') + '" data-act="ad:catTab" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>';
     var q = (C.q || '').replace(/[\s　]/g, '').toLowerCase(), hit = function (a) { return !q || a.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; };
-    var P = C.prog || {}, empty = { total: 0, visited: 0, buildings: 0, doneBuildings: 0 }, h = '', n = 0;
+    var P = C.prog || {}, empty = { total: 0, visited: 0, buildings: 0, doneBuildings: 0, c: {} }, h = '', n = 0;
     var inCatA = function (a) { return !hasPar || a.category === C.cat; };
     var parents = all.filter(function (a) { return a.isParent && inCatA(a); }), loose = all.filter(function (a) { return !a.isParent && !a.parentId && inCatA(a); });
     parents.forEach(function (pa) {
@@ -97,7 +103,7 @@
     loose.filter(function (a) { return hit(a) && (!C.only || a.inUse); }).forEach(function (a) { n++; h += progRow(a, P[a.areaId] || empty, '', '', 0); });
     el.innerHTML = h || '<div class="note">表示する区域がありません。</div>';
     var tp = sumProg(all.filter(function (a) { return !a.isParent; })), s = document.getElementById('apSum');
-    if (s) s.textContent = C.prog ? '全体: 訪問済み ' + tp.visited + ' / ' + tp.total + '部屋(' + pct(tp.visited, tp.total) + '%)。大きな区域を押すと、グループ担当などの設定を開きます。右の ▸ で、中の小さな区域を開きます。' : '進み具合を計算中…';
+    if (s) s.textContent = C.prog ? '全体: 訪問済み ' + tp.visited + ' / ' + tp.total + '件(' + pct(tp.visited, tp.total) + '%)。大きな区域を押すと、グループ担当などの設定を開きます。右の ▸ で、中の小さな区域を開きます。' : '進み具合を計算中…';
   }
   function renderAreaDetail(id) {
     var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0], ix = document.getElementById('arIndex'), dv = document.getElementById('arDetail'); if (!a || !dv) return;
@@ -204,12 +210,12 @@
   }
 
   // ---------- 一括クリア ----------
-  var B = { scope: 'area', area: '', id: '', st: false, memo: false, vac: 'keep', flag: 'keep' };
+  var B = { cat: '国仲', scope: 'area', area: '', id: '', st: false, memo: false, vac: 'keep', flag: 'keep' };
   function loadBulk() {
     Promise.all([C.ad ? C.ad : loadAd(), api('getLastBulk')]).then(function (r) { C.last = r[1]; drawBulk(); }, fail);
   }
   function bulkTarget() {
-    var d = C.ad, h = '';
+    var d = { areas: C.ad.areas.filter(function (a) { return (a.category || '国仲') === B.cat; }) }, h = '';
     if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象区域</label><select id="bkId">' + areaOpts(d.areas, B.id, '区域を選んでください') + '</select></div></div>';
     h = '<div class="fxgrid"><div><label>区域</label><select id="bkArea">' + areaOpts(d.areas, B.area, '区域を選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先に区域を選ぶ)</option>') + '</select></div></div>';
     return h;
@@ -225,7 +231,7 @@
   function drawBulk() {
     var l = C.last, d = C.ad;
     body('<div class="card"><h3>一括クリア</h3><div class="note">新しく回り始めるときなどに、訪問やメモの記録をまとめて消せます。直前の1回分は下の「元に戻す」で復元できます。</div>' +
-      '<div class="bstep">対象範囲</div><div class="bseg"><button data-act="ad:bkScope" data-v="area" class="' + (B.scope === 'area' ? 'on' : '') + '">区域ごと</button><button data-act="ad:bkScope" data-v="building" class="' + (B.scope === 'building' ? 'on' : '') + '">建物ごと</button></div>' + bulkTarget() +
+      '<div class="bstep">対象範囲</div><div class="bseg">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<button data-act="ad:bkCat" data-v="' + c + '" class="' + (B.cat === c ? 'on' : '') + '">' + c + '</button>'; }).join('') + '</div>' + (B.cat === 'アパート' ? '<div class="bseg" style="margin-top:6px"><button data-act="ad:bkScope" data-v="area" class="' + (B.scope === 'area' ? 'on' : '') + '">区域単位</button><button data-act="ad:bkScope" data-v="building" class="' + (B.scope === 'building' ? 'on' : '') + '">建物単位</button></div>' : '') + bulkTarget() +
       '<div class="bstep">クリアする項目<em>必須</em></div><div class="bchoice">' + choice('bkWhat', 'st', B.st, '訪問', '訪問済み・留守などの記録', 'checkbox') + choice('bkWhat', 'memo', B.memo, 'メモ', '部屋ごとのメモ', 'checkbox') + '</div>' +
       '<div class="bstep">空室の部屋</div><div class="bchoice">' + choice('bkVac', 'keep', B.vac === 'keep', '残す', '空室の記録はそのまま', 'radio') + choice('bkVac', 'clear', B.vac === 'clear', '消す', '空室の部屋もクリア', 'radio') + '</div>' +
       '<div class="bstep">「注意」「拒否」の部屋のメモ</div><div class="bchoice">' + choice('bkFlag', 'keep', B.flag === 'keep', '残す', '次の期にも引き継ぐ', 'radio') + choice('bkFlag', 'clear', B.flag === 'clear', '消す', 'メモもクリア', 'radio') + '</div>' +
@@ -373,11 +379,15 @@
   }
   function loadSettings() {
     api('getSettings').then(function (s) {
+      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsi', mapTileUrl: '', mapTileAttribution: '' };
+      for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
+      ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled'].forEach(function (k) { s[k] = String(s[k]); });
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
       VS = VS.map(function (x) { x.color = x.color || COL_BY[x.id] || '#6b7280'; return x; });
       var sel = function (k, list) { return '<select id="st-' + k + '">' + list.map(function (o) { return '<option value="' + o[0] + '"' + (String(s[k]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
       var h = '<div class="card"><h3>動作設定</h3><div class="note">ここでの設定は、全員の画面に反映されます。</div>' +
         TXT.slice(0, 1).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
+        stRow('読み込み中のロゴ', '読み込み中に出る、くるくる回る印です。「カスタム」では、好きな画像を使えます(自動で小さくします)。回転しても見た目のよい、正方形に近い画像がおすすめです。「設定を保存」で反映されます。', stSeg('logoMode', [['default', 'デフォルト(○)'], ['custom', 'カスタム']]) + '<div style="margin-top:8px"><img id="logoPrev" alt="" style="width:64px;height:64px;object-fit:contain;border:1px solid var(--border);border-radius:12px;background:#fff;' + (s.logoImage ? '' : 'display:none') + '"' + (s.logoImage ? ' src="' + esc(s.logoImage) + '"' : '') + '><input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:block;margin-top:6px"></div>') +
         stRow('デフォルトのマップ取得先', '地図を開いたときに最初に使う背景です。「設定を保存」でその場で切り替わります。(OpenStreetMapと航空写真は、「地図を端末に保存」の対象外です)', sel('mapTileSource', [['gsi', '国土地理院(標準)'], ['gsipale', '国土地理院(淡色)'], ['gsiphoto', '国土地理院(航空写真)'], ['osm', 'OpenStreetMap'], ['custom', '自分で指定']]) +
           '<div style="margin-top:6px"><div class="note">「自分で指定」のときだけ使います。画像のアドレス(https:// で始まり、{z}・{x}・{y} を含む)</div><input style="width:100%" id="st-mapTileUrl" value="' + esc(s.mapTileUrl) + '" placeholder="https://example.com/{z}/{x}/{y}.png"><div class="note" style="margin-top:4px">出典の表記(利用する地図サービスの規約に合わせて)</div><input style="width:100%" id="st-mapTileAttribution" maxlength="200" value="' + esc(s.mapTileAttribution) + '"></div>') +
         TXT.slice(1, 4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
@@ -403,7 +413,8 @@
     vsSync();
     var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'apartmentUrl', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
-    ['inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
+    vals.logoImage = ST.logoImage || '';
+    ['logoMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
     ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
     vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
     after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} });
@@ -503,6 +514,7 @@
     var a = act.slice(3), on = t.getAttribute('data-on'), f;
     switch (a) {
       case 'close': close(); break;
+      case 'bkCat': B.cat = v; if (v !== 'アパート') B.scope = 'area'; B.id = ''; B.area = ''; C.bkB = null; drawBulk(); break;
       case 'tab': go(v); break;
       case 'addArea': C.cat = val('newAreaCat'); after(api('addArea', { areaName: val('newAreaName'), category: val('newAreaCat') }), '区域を追加しました。', refreshAreas); break;
       case 'importTree': doImportTree(); break;
@@ -567,6 +579,18 @@
     if (t.getAttribute && t.getAttribute('data-cat')) { api('setAreaCategory', { areaId: t.getAttribute('data-cat'), category: t.value }).then(function () { toast('区分を「' + t.value + '」にしました。'); if (C.ad) C.ad.areas.forEach(function (a) { if (a.areaId === t.getAttribute('data-cat')) a.category = t.value; }); }, fail); return; }
     if (t.getAttribute && t.getAttribute('data-ue')) { var k = t.getAttribute('data-ue'), f = t.getAttribute('data-f'); (A.ud[k] = A.ud[k] || {})[f] = f === 'active' ? t.checked : t.value; t.closest('.urow').classList.add('chg'); return; }
     if (t.getAttribute && t.getAttribute('data-ge')) { var gk = t.getAttribute('data-ge'); (A.gd[gk] = A.gd[gk] || {})[t.getAttribute('data-f')] = t.value; t.closest('.urow').classList.add('chg'); return; }
+    if (t.id === 'logoFile') {
+      var fl = t.files && t.files[0]; if (!fl) return;
+      var rd = new FileReader(); rd.onload = function () {
+        var im = new Image(); im.onload = function () {
+          var n = 128, cv = document.createElement('canvas'), r = Math.min(n / im.width, n / im.height, 1); cv.width = Math.round(im.width * r); cv.height = Math.round(im.height * r); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+          var u = cv.toDataURL('image/webp', 0.85); if (u.indexOf('data:image/webp') !== 0) u = cv.toDataURL('image/png');
+          if (u.length > 44000) { toast('画像が大きすぎます。もっと単純な画像を選んでください。'); return; }
+          ST.logoImage = u; ST.logoMode = 'custom'; var pv = document.getElementById('logoPrev'); pv.src = u; pv.style.display = '';
+          var seg = document.querySelector('[data-k=logoMode]'); if (seg) [].slice.call(seg.parentNode.children).forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-v') === 'custom'); });
+        }; im.onerror = function () { toast('画像を読み込めませんでした。'); }; im.src = rd.result;
+      }; rd.readAsDataURL(fl); return;
+    }
     if (t.id === 'arIn') { $('#arOn').classList.toggle('hidden', !t.checked); return; }
     if (t.id === 'usFg') { A.fg = t.value; drawUsers(); return; }
     if (t.id === 'usFr') { A.fr = t.value; drawUsers(); return; }
@@ -577,5 +601,7 @@
     else if (t.id === 'edHidden') { C.showHidden = t.checked; if (C.edit) renderEdit(); }
     else if (t.id === 'edFilter') { C.filter = t.value; renderEdit(); var e = document.getElementById('edFilter'); if (e) e.focus(); }
   });
+  // 管理を開く前に、区域の一覧と進み具合を裏で読んでおく(開いたとき、すぐ表示できる)
+  SADO.prefetchAdmin = function () { SADO.api('getAdminAreas', {}, true).then(function (d) { C.ad = d; C.adT = Date.now(); }, function () {}); SADO.api('getProgress', {}, true).then(function (p) { C.prog = p; }, function () {}); };
   SADO.openAdmin = open;
 })();

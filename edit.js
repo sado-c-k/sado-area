@@ -34,7 +34,7 @@
   SADO.areaAt = areaAt;
 
   // ---------- 画面の出し分け ----------
-  SADO.onEnter = function (admin) { $('#editBtn').classList.toggle('hidden', !admin); if (!admin && E.on) toggle(true); };
+  SADO.onEnter = function (admin) { $('#editBtn').classList.toggle('hidden', !admin); $('#appScreen').classList.toggle('has-edit', !!admin); if (!admin && E.on) toggle(true); };
   var HINT = {
     none: '点で表示されている建物のピンは、ドラッグで動かせます(動かしたら「保存」)。\n建物を押すと、部屋の追加・削除や建物の削除ができます。',
     apt: '地図をタップして、集合住宅の位置を決めてください',

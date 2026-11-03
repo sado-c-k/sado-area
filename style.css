@@ -305,3 +305,70 @@ html.no-pin-shadow .pin-pie{box-shadow:none}
 .qrbox{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;margin:8px auto 10px;width:200px;height:200px;border-radius:14px;background:#fff;border:1px solid var(--border);overflow:hidden}
 .qrbox img{display:block;width:100%;height:100%;image-rendering:pixelated}
 #sheet .tool .btn:not(.primary){background:var(--surface-3);color:var(--text)}
+
+/* ===== v30: 管理ウィンドウ(旧GASと同じ: 下のメニューは出したまま、上に重ねる窓) ===== */
+#admin{position:fixed;left:0;right:0;margin:0 auto;width:min(640px,100%);top:calc(10px + var(--safe-t));bottom:calc(var(--nav) + var(--safe-b));z-index:1500;border-radius:var(--radius-l);box-shadow:var(--shadow-2);overflow:hidden}
+@media (min-width:900px){#admin{bottom:calc(var(--nav) + 28px)}}
+#admin .mhead{padding-top:12px}
+#admin .mbody{padding-bottom:24px}
+.adwelcome{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin:0 12px 10px;padding:10px 12px;font-weight:800}
+.tabs.grid{display:grid;grid-template-columns:repeat(4,1fr);grid-gap:4px;margin:0 12px 10px;padding:6px;background:var(--surface-3);border-radius:var(--radius);box-shadow:var(--shadow-1)}
+.tabs.grid .tab{margin:0;border:0;background:transparent;border-radius:99px;padding:9px 2px;text-align:center;font-size:.86em;white-space:nowrap}
+.tabs.grid .tab.on{background:var(--primary);color:#fff}
+.plegend{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;font-size:.78em;color:var(--text-2);padding:2px 4px 6px}
+.plegend span{margin-right:12px;white-space:nowrap}
+.plegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px}
+#sheet .memotxt{white-space:pre-wrap;word-break:break-word;font-size:.9em}
+
+#boot{-webkit-flex-direction:column;flex-direction:column}
+.bootbox{text-align:center}.bootbox .spin{margin:0 auto 10px;border-color:var(--border);border-top-color:var(--primary)}
+.bootimg{width:72px;height:72px;margin:0 auto 10px;background:center/contain no-repeat;-webkit-animation:spin 1.2s linear infinite;animation:spin 1.2s linear infinite}
+
+.htabs{display:-webkit-flex;display:flex;background:var(--surface-3);border-radius:99px;padding:3px;margin:0 0 10px}
+.htabs button{-webkit-flex:1;flex:1;border:0;background:transparent;border-radius:99px;min-height:38px;font-weight:800;color:var(--text-2);cursor:pointer}
+.htabs button.on{background:var(--primary);color:#fff}
+.hlist{list-style:none;margin:0 0 8px;padding:0}
+.hlist li{display:-webkit-flex;display:flex;padding:8px 0}
+.hnum{-webkit-flex:0 0 26px;flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;text-align:center;line-height:26px;font-weight:800;margin-right:10px}
+.hico{-webkit-flex:0 0 30px;flex:0 0 30px;font-size:1.3em;margin-right:8px;text-align:center}
+.htt{font-weight:800}.hds{font-size:.9em;color:var(--text-2);line-height:1.6}
+.hlegend{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin:4px 0}
+.hlegend span{margin-right:12px;white-space:nowrap}.hlegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px}
+
+#loading{position:fixed;left:0;top:0;right:0;bottom:0;z-index:7000;background:rgba(0,0,0,.22);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+#loading .spin{width:56px;height:56px;border:6px solid rgba(255,255,255,.75);border-top-color:var(--primary)}
+#loading .bootimg{margin:0}
+
+/* 編集ボタン: 旧GASと同じく、上のバーに並べた「編集」ボタン(コンパスと重ならない) */
+#editBtn{top:calc(10px + var(--safe-t));right:66px;width:auto;min-width:64px;height:46px;border-radius:23px;padding:0 16px;font-size:.95em;font-weight:700}
+#editBtn.on{background:var(--warning);color:#fff}
+#appScreen.has-edit #hdr{right:142px}
+
+/* ===== v30: 上の検索バー・左下の＋−・マップ切り替え ===== */
+#hdr input#hdrQ{-webkit-flex:1;flex:1;min-width:0;border:0;background:transparent;padding:0 4px;height:40px;font-weight:600;outline:0}
+#hdr input#hdrQ:focus{outline:0}
+#hdrRes{position:absolute;left:10px;right:66px;top:calc(60px + var(--safe-t));z-index:1001;max-height:50%;overflow:auto;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-2);-webkit-overflow-scrolling:touch}
+#appScreen.has-edit #hdrRes{right:142px}
+#hdrRes button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--border);background:transparent;padding:11px 14px;font-weight:700;cursor:pointer}
+#hdrRes button small{color:var(--text-3);font-weight:600;margin-left:6px}
+#hdrRes .none{padding:12px 14px;color:var(--text-3)}
+.leaflet-bottom.leaflet-left{margin-bottom:6px}
+.leaflet-control-zoom{border:0!important;border-radius:23px!important;overflow:hidden;box-shadow:0 1px 6px rgba(60,64,67,.35)!important}
+.leaflet-control-zoom a{width:44px!important;height:40px!important;line-height:40px!important;font-size:22px!important;background:var(--surface)!important;color:var(--text)!important}
+#layerBtn{left:10px;right:auto;bottom:112px;top:auto}
+#layerMenu{position:absolute;left:62px;bottom:112px;z-index:1002;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-2);padding:6px;min-width:190px}
+#layerMenu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;border-radius:10px;font-weight:700;cursor:pointer;color:var(--text)}
+#layerMenu button.on{background:var(--primary-soft);color:var(--primary)}
+.bld{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;border:1px solid var(--border);background:var(--surface-2);border-radius:12px;padding:9px 12px;margin:6px 0 0 14px;cursor:pointer}
+.bld b{color:var(--primary-strong)}
+.xchev{border:0;background:transparent;color:var(--text-3);font-size:1.1em;padding:4px 8px;cursor:pointer}
+
+/* v31: 旧GASと同じ — 建物詳細は最前面、開いている間は下のバーが下へ隠れる。メニューは下からスッと出る */
+#nav{-webkit-transition:-webkit-transform .2s ease;transition:transform .2s ease}
+body.detail-open #nav{-webkit-transform:translateY(110%);transform:translateY(110%)}
+#sheet{position:fixed;bottom:0;z-index:3500;max-height:calc(100% - 70px);padding-bottom:var(--safe-b)}
+body.editing #sheet{max-height:calc(100% - 150px)}
+@-webkit-keyframes sheetUp{from{opacity:.4;-webkit-transform:translateY(24px)}to{opacity:1;-webkit-transform:none}}
+@keyframes sheetUp{from{opacity:.4;transform:translateY(24px)}to{opacity:1;transform:none}}
+#home:not(.hidden),#menu:not(.hidden),#admin:not(.hidden){-webkit-animation:sheetUp .22s ease;animation:sheetUp .22s ease}
+html.lite #home,html.lite #menu,html.lite #admin{-webkit-animation:none!important;animation:none!important}
