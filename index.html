@@ -9,7 +9,7 @@
 <title>佐渡住宅GAS</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="lib/leaflet.css">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
 <div id="boot">読み込み中…</div>
@@ -31,10 +31,11 @@
   <div id="hdr"><div class="t" id="hdrTitle"></div><span id="syncBadge">同期済み</span></div>
   <div id="map"></div>
   <div id="legend"></div>
-  <button class="fab" id="locBtn" data-act="locate" aria-label="現在地">◎</button>
+  <button class="fab compass-btn is-locate" id="locBtn" data-act="locate" title="現在地へ移動" aria-label="現在地へ移動"><svg class="ico-locate" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/><path d="M16 3v5M16 24v5M3 16h5M24 16h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><svg class="ico-compass" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.8"/><g class="compass-needle"><path d="M16 4 L21 16 L11 16 Z" fill="#dc2626"/><path d="M16 28 L21 16 L11 16 Z" fill="currentColor" fill-opacity="0.55"/><circle cx="16" cy="16" r="1.6" fill="#ffffff"/></g></svg></button>
+  <button class="hidden" id="areaClearBtn" data-act="clearArea" title="区域の選択を解除" aria-label="区域の選択を解除"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="fab hidden" id="editBtn" data-act="ed:toggle" aria-label="編集モード">✐</button>
   <div id="editFrame" class="hidden"><span>管理者モード　編集モード</span></div>
-  <div id="editBar" class="hidden"><div id="editHint"></div><div class="row"><button class="btn small primary" data-act="ed:addB" id="edAddBtn">＋集合住宅</button><button class="btn small primary" data-act="ed:addH" id="edHouseBtn">＋一軒家</button><button class="btn small" data-act="ed:addA" id="edAreaBtn">＋エリア</button><button class="btn small" data-act="ed:bound" id="edBoundBtn">境界線</button></div><div class="row hidden" id="edToolRow"><span id="edToolInfo" class="note"></span><button class="btn small primary" data-act="ed:toolOk" id="edToolOk">確定</button></div><div class="row"><button class="btn small" data-act="ed:undo" id="edUndoBtn">↶ 戻す</button><button class="btn small" data-act="ed:save" id="edSaveBtn">保存</button><button class="btn small" data-act="ed:toggle">終了</button></div></div>
+  <div id="editBar" class="hidden"><div id="editHint"></div><div class="row"><button class="btn small primary" data-act="ed:addB" id="edAddBtn">＋集合住宅</button><button class="btn small primary" data-act="ed:addH" id="edHouseBtn">＋一軒家</button><button class="btn small" data-act="ed:addA" id="edAreaBtn">＋区域</button><button class="btn small" data-act="ed:bound" id="edBoundBtn">境界線</button></div><div class="row hidden" id="edToolRow"><span id="edToolInfo" class="note"></span><button class="btn small primary" data-act="ed:toolOk" id="edToolOk">確定</button></div><div class="row"><button class="btn small" data-act="ed:undo" id="edUndoBtn">↶ 戻す</button><button class="btn small" data-act="ed:save" id="edSaveBtn">保存</button><button class="btn small" data-act="ed:toggle">終了</button></div></div>
     <div id="sheet" class="hidden"></div>
 </div>
 
@@ -52,7 +53,9 @@
 
 <script src="config.js"></script>
 <script src="lib/leaflet.js"></script>
-<script src="app.js?v=27"></script>
+<script src="lib/leaflet-rotate.js"></script>
+<script src="app.js?v=28"></script>
+<script src="maprot.js?v=28"></script>
 <script src="admin.js"></script>
 <script src="edit.js"></script>
 </body>
