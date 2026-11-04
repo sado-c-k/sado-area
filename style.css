@@ -592,3 +592,18 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 #home .mbody .pgroup .pkids>.card.inuse{border:1px solid var(--border)}
 #home .mbody .pgroup.inuse{border-left:4px solid var(--success)}
 .ptool .onlyuse{margin-left:auto}
+
+/* v64: メニューの見出しを1行に(タイトル 左端 / ユーザー名 / グループ名 右端)。狭い画面では2行 */
+.mhead .mhuser{margin-left:auto;padding:0 6px 0 10px;font-size:.88em;color:var(--text-2);text-align:right;overflow-wrap:anywhere}
+.mhead .mhuser b{font-weight:800;color:var(--text)}
+.mhead .mhuser .mhsl{margin:0 .3em;color:var(--text-3)}
+.mhead .t{-webkit-flex:0 1 auto;flex:0 1 auto}
+@media (max-width:440px){.mhead{flex-wrap:wrap}.mhead .t{flex:1 1 auto}.mhead .mhuser{order:5;flex:1 0 100%;margin:2px 0 0;padding:0 4px;text-align:right}}
+/* 使用中の小さな区域: 左端に緑(旧GASと同じ) */
+#home .mbody .pgroup .pkids>.card.inuse{border-left:4px solid var(--success)}
+
+/* v65: 開いている(展開中の)カードに色を付ける(旧GASの「area-toggle.active」と同じ考え方) */
+#home .card.tap.open,#home .pgroup{background:var(--primary-soft,rgba(46,125,50,.10))}
+#home .card.tap.open .pname b,#home .card.tap.open>.row b,#home .pgroup>.pcard .pname b{color:var(--primary-strong)}
+#home .pgroup .pkids>.card,#home .card.tap.open .bld{background:var(--surface)}
+html[data-theme="dark"] #home .card.tap.open,html[data-theme="dark"] #home .pgroup{background:#233a5e}

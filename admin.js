@@ -64,8 +64,8 @@
   function open(mode) {
     MODE = mode === 'edit' ? 'edit' : 'admin'; tab = MODE === 'edit' ? 'edit' : (tab === 'edit' ? 'areas' : tab);
     var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
-    a.innerHTML = '<div class="mhead"><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc(MODE === 'edit' ? '編集' : ((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS'))) + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
-      SADO.userBox() +
+    a.innerHTML = '<div class="mhead"><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc(MODE === 'edit' ? '編集' : ((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS'))) + '</div>' + SADO.userInline() + '<button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
+      
       (MODE === 'edit' ? '' : '<div class="tabs grid">' + tabsNow().map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>') + '<div class="mbody" id="adBody"></div>';
     go(tab);
   }

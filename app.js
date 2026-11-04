@@ -127,7 +127,12 @@
     var u = S.user || {}, g = String(u.groupName || '').replace(/グループ$/, '');
     return '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u.displayName || '') + '</div></div>' + (g ? '<div class="uh gright">' + esc(g) + '</div>' : '') + '</div>';
   }
-  SADO.userBox = userBox;
+  // ヘッダーの右側に出す、ユーザー名 / グループ名(狭い画面では、次の行の右端に回る)
+  function userInline() {
+    var u = S.user || {}, g = String(u.groupName || '').replace(/グループ$/, '');
+    return '<div class="mhuser"><b>' + esc(u.displayName || '') + '</b>' + (g ? '<span class="mhsl"> / </span><span>' + esc(g) + '</span>' : '') + '</div>';
+  }
+  SADO.userBox = userInline; SADO.userInline = userInline;
   function houseMode() { var h = getPrefs().houseTap; return h === 'sheet' || h === 'direct' ? h : cfg('houseTapMode', 'direct'); }
 
   function boot() {
@@ -950,8 +955,7 @@
     var gname = (S.user && S.user.groupName) || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人'], ['list', '区域一覧']];
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
-    var h = '<div class="mhead"><div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(title) : '') + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
-      userBox() +
+    var h = '<div class="mhead"><div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(title) : '') + '</div>' + userInline() + '<button data-act="navClose" aria-label="閉じる">✕</button></div>' +
       '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote"></span>' + (tab === 'list' ? onlyUseBox() : '') + '<button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
     if (S.areasLoading && !S.areas.length) {
       el._h = null; el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
@@ -1001,8 +1005,8 @@
   function renderMenu() {
     var tabs = [];
     var ttl = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    $('#menu').innerHTML = '<div class="mhead">' + (SADO.menuTab === 'home' ? '' : '<button class="menu-back" data-act="menuHome">‹ メニュー</button>') + '<div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(ttl) : '') + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
-      userBox() +
+    $('#menu').innerHTML = '<div class="mhead">' + (SADO.menuTab === 'home' ? '' : '<button class="menu-back" data-act="menuHome">‹ メニュー</button>') + '<div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(ttl) : '') + '</div>' + userInline() + '<button data-act="navClose" aria-label="閉じる">✕</button></div>' +
+      
       '<div class="mbody" id="menuBody"></div>';
     renderMenuBody();
   }
@@ -1072,7 +1076,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v63　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v65　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1165,7 +1169,7 @@
       case 'homeCat': S.homeCat = v; S.homeParent = null; S.homeQ = ''; renderHome(); break;
       case 'homeBack': S.homeCat = null; S.homeParent = null; renderHome(); break;
       case 'homeTab': S.homeTab = v; S.homeCat = null; S.homeParent = null; renderHome(); break;
-      case 'homeToggle': S.homeOpen = S.homeOpen || {}; S.homeOpen[(S.homeTab || 'all') + v] = !S.homeOpen[(S.homeTab || 'all') + v]; renderHome(); break;
+      case 'homeToggle': { var hk = (S.homeTab || 'all') + v, hw = !(S.homeOpen && S.homeOpen[hk]); S.homeOpen = {}; S.areaOpen = {}; if (hw) S.homeOpen[hk] = true; renderHome(); break; } // 開けておくのは1つだけ
       case 'openParent': selectParent(v); break;
       case 'syncNow':
         if (!S.online) { toast('今はオフラインです。' + (S.pending ? '未送信の ' + S.pending + ' 件は端末に残っていて、電波がつながると自動で送信されます。' : '電波のあるところで、もう一度押してください。'), 4500); break; }
@@ -1176,7 +1180,7 @@
         break;
       case 'progReload': if (S.progBusy) break; S.progAt = 0; S.progBusy = true; renderHome(); var t0 = Date.now(), fin = function () { setTimeout(function () { S.progBusy = false; renderHome(); toast(S.online ? '最新にしました。' : '電波がないため、更新できません。'); }, Math.max(0, 600 - (Date.now() - t0))); }; Promise.all([refreshBootstrap(), loadProg(true)]).then(fin, fin); break; // 区域の一覧も、いっしょに最新にする
       case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
-      case 'homeParent': S.homeOpen = S.homeOpen || {}; S.homeOpen['list' + v] = !S.homeOpen['list' + v]; renderHome(); break;
+      case 'homeParent': { var pk = 'list' + v, pw = !(S.homeOpen && S.homeOpen[pk]); S.homeOpen = {}; S.areaOpen = {}; if (pw) S.homeOpen[pk] = true; renderHome(); break; }
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
       case 'locate': if (t.id !== 'locBtn') locate(); break; // 右上の◎はコンパス部品が処理する(二重に動かさない)
@@ -1201,7 +1205,7 @@
       case 'hdrPick': $('#hdrQ').value = ''; hdrSearch(); var pk = areaById(v); if (pk && pk.isParent) selectParent(v); else selectArea(v); break;
       case 'layerToggle': openLayerPicker(); break;
       case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
-      case 'areaExp': { var ea = areaById(v); if (!ea || !canExp(ea)) break; S.areaOpen = S.areaOpen || {}; S.areaOpen[v] = !S.areaOpen[v]; renderHome(); if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; renderHome(); }); } break; }
+      case 'areaExp': { var ea = areaById(v); if (!ea || !canExp(ea)) break; var aw = !(S.areaOpen && S.areaOpen[v]); S.areaOpen = {}; S.homeOpen = {}; if (aw) S.areaOpen[v] = true; renderHome(); if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; renderHome(); }); } break; }
       case 'pickBuilding': selectArea(t.getAttribute('data-a'), v); break;
       case 'helpTab': SADO.helpTab = v; drawHelp(); break;
       case 'helpOpen': SADO.helpTab = 'basic'; $('#helpWin').classList.remove('hidden'); drawHelp(); break;
