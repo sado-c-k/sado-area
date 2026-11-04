@@ -8,18 +8,40 @@
   function tabsNow() { return MODE === 'edit' ? TABS.filter(function (t) { return t[0] === 'edit'; }) : TABS.filter(function (t) { return t[0] !== 'edit'; }); }
   var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '', seq: 0, cat: '国仲', q: '', exp: {} };
   // データを読み込む呼び出し(get〜)は、読み込み中に別のタブへ切り替えたら結果を捨てる(古いタブの内容で画面が上書きされて、切り替わらなく見えるのを防ぐ)
+  var CACHE = {}, REV = 0, QUIET_ = true;
+  function ckey(a, p) { return a + '|' + JSON.stringify(p || {}); }
+  function clone(o) { return o === undefined ? o : JSON.parse(JSON.stringify(o)); }
+  // 書き込みのあとは、覚えていたデータをすべて捨てる(古いデータが出ないように)。区域メニューなど、ほかの画面も裏で最新にする
+  function invalidate() { CACHE = {}; REV++; }
+  SADO.adminInvalidate = invalidate;
+  function typing() { var e = document.activeElement, b = $('#adBody'); return !!(e && b && b.contains(e) && /INPUT|TEXTAREA|SELECT/.test(e.tagName)); }
   function api(a, p) {
-    var my = C.seq, q = SADO.api(a, p);
-    if (a.indexOf('get') !== 0) return q;
-    return new Promise(function (res, rej) { q.then(function (r) { if (my === C.seq) res(r); }, function (e) { if (my === C.seq) rej(e); }); });
+    var my = C.seq;
+    if (a.indexOf('get') !== 0) {
+      invalidate();
+      var w = SADO.api(a, p, QUIET_);
+      w.then(function () { invalidate(); if (SADO.refreshBootstrap) SADO.refreshBootstrap(); }, function () {});
+      return w;
+    }
+    var key = ckey(a, p), hit = CACHE[key], rev = REV;
+    var f = SADO.api(a, p, QUIET_).then(function (r) { if (rev === REV) CACHE[key] = r; return r; });
+    if (hit !== undefined) { // すでに持っているものは、すぐ出す。裏で取り直して、変わっていたら描き直す
+      f.then(function (r) { if (rev === REV && my === C.seq && JSON.stringify(r) !== JSON.stringify(hit) && !typing() && !document.getElementById('modal')) go(tab); }, function () {});
+      return new Promise(function (res) { res(clone(hit)); }).then(function (r) { if (my !== C.seq) return new Promise(function () {}); return r; });
+    }
+    return new Promise(function (res, rej) { f.then(function (r) { if (my === C.seq) res(clone(r)); }, function (e) { if (my === C.seq) rej(e); }); });
   }
+  var PRE_ = ['getAdminAreas', 'getProgress', 'getUsers', 'getReports', 'getSettings'];
+  SADO.prefetchAdmin = function () { // 管理メニューのデータを、先に取っておく(開いたときに、待たずに出る)
+    var rev = REV; PRE_.reduce(function (pr, a) { return pr.then(function () { return SADO.api(a, {}, true).then(function (r) { if (rev === REV) { CACHE[ckey(a, {})] = r; if (a === 'getAdminAreas') { C.ad = r; C.adT = Date.now(); } if (a === 'getProgress') C.prog = r; } }, function () {}); }); }, Promise.resolve());
+  };
   // 読み込み中・処理中は、画面をグレーにして、くるくるを出す
   function busy(on) {
     var m = document.getElementById('adMask'), a = $('#admin'), b = $('#adBody');
     if (!on) { if (m && m.parentNode) m.parentNode.removeChild(m); return; }
     if (m || !a || !b) return;
-    var gl = document.getElementById('loading'); if (gl) gl.classList.add('hidden'); // 全体の読み込み表示と二重にならないように
-    m = document.createElement('div'); m.id = 'adMask'; m.innerHTML = '<i class="spin"></i>';
+    var gl = document.getElementById('loading'); if (gl) gl.classList.add('hidden');
+    m = document.createElement('div'); m.id = 'adMask'; // くるくるは出さない(押し間違いを防ぐための、見えない覆いだけ)
     m.style.top = Math.max(0, b.getBoundingClientRect().top) + 'px'; a.appendChild(m);
   }
   function body(h) { var b = $('#adBody'); if (b) b.innerHTML = h; busy(false); }
@@ -50,13 +72,13 @@
   function close() { $('#admin').classList.add('hidden'); if (SADO.activeNav) SADO.activeNav('map'); SADO.refreshBootstrap(); }
   function go(t) {
     tab = t; TABS.forEach(function (x) { var b = $('#adt-' + x[0]); if (b) b.classList.toggle('on', x[0] === t); });
-    C.seq++; body(skeleton(t)); busy(true);
+    C.seq++; var warm = Object.keys(CACHE).some(function (k) { return /^(getAdminAreas|getReports|getUsers|getSettings)\|/.test(k) && ({ areas: 'getAdminAreas', edit: 'getAdminAreas', reports: 'getReports', accounts: 'getUsers', settings: 'getSettings' }[t] === k.split('|')[0]); });
+    if (!warm) { body(skeleton(t)); busy(true); }
     var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, analysis: loadAnalysis, io: loadIO, guide: loadGuide }[t];
     f();
   }
   // 区域の一覧は、直前に読んだものがあれば、そのまま使う(1分以内。変更したときは作り直す)
   function loadAd() {
-    if (C.ad && C.adT && Date.now() - C.adT < 60000) return Promise.resolve(C.ad);
     return api('getAdminAreas').then(function (d) { C.ad = d; C.adT = Date.now(); return d; });
   }
 
@@ -147,7 +169,16 @@
     if (inUse) { payload.targets = targets; payload.useStartDate = val('arStart'); payload.useEndDate = val('arEnd'); payload.autoEnd = $('#arAuto').checked; }
     var go1 = function (extra) {
       for (var k in extra) payload[k] = extra[k];
-      after(api('saveAreaOps', payload), function (r) { return r && r.warning ? '保存しました。\n(注意) ' + r.warning : '保存しました。'; }, function () { C.openArea = ''; refreshAreas(); });
+      opt(function () { return api('saveAreaOps', payload); }, function (r) { return r && r.warning ? '保存しました。\n(注意) ' + r.warning : '保存しました。'; }, function () {
+        patchById(C.ad.areas, 'areaId', id, function (a) {
+          a.note = payload.note; a.inUse = a.storedInUse = !!payload.inUse; a.expired = false;
+          if (payload.inUse) {
+            a.useStartDate = payload.useStartDate || a.useStartDate || SADO.today(); a.useEndDate = payload.useEndDate || ''; a.expiry = a.useEndDate || a.expiry; a.autoEnd = !!payload.autoEnd;
+            var names = (payload.targets || []).map(function (t) { var o = t.type === 'group' ? C.ad.groups.filter(function (g) { return g.groupId === t.id; })[0] : C.ad.users.filter(function (u) { return u.loginId === t.id; })[0]; return o ? (o.groupName || o.displayName) : ''; }).filter(Boolean);
+            if (payload.targets) { a.assigneeName = names.join('、'); C.ad.assigns = C.ad.assigns.filter(function (x) { return x.areaId !== id; }).concat(payload.targets.map(function (t) { return { areaId: id, targetType: t.type, targetId: t.id }; })); }
+          } else if (payload.endDate) a.lastDoneDate = payload.endDate;
+        });
+      }, showAreaList);
     };
     if (!inUse && C.arOn0) {
       var a = C.ad.areas.filter(function (x) { return x.areaId === id; })[0];
@@ -376,7 +407,11 @@
           if (norm.length) calls.push(api('saveGroups', { changes: norm.map(function (c) { return c.payload; }) }));
           if (kai && kai.payload.leaderLoginId !== undefined) calls.push(api('setKaishuLeader', { leaderLoginId: kai.payload.leaderLoginId }));
         }
-        after(Promise.all(calls), list.length + '件を保存しました。', function () { bump(); loadAccounts(); });
+        var done = function () {
+          if (kind === 'u') { list.forEach(function (c) { patchById(A.us, 'loginId', c.payload.loginId, function (u) { for (var k in c.payload) if (k !== 'loginId' && k !== 'password') u[k] = c.payload[k]; }); }); A.editU = false; A.ud = {}; }
+          else { list.forEach(function (c) { if (c.builtin) { if (c.payload.leaderLoginId !== undefined) patchById(C.ad.groups, 'groupId', c.payload.groupId, function (g) { g.leaderLoginId = c.payload.leaderLoginId; }); } else patchById(C.ad.groups, 'groupId', c.payload.groupId, function (g) { for (var k in c.payload) if (k !== 'groupId') g[k] = c.payload[k]; }); }); A.editG = false; A.gd = {}; }
+        };
+        opt(function () { return Promise.all(calls); }, list.length + '件を保存しました。', done, drawAccounts);
       }, 'primary');
   }
 
@@ -442,7 +477,7 @@
     ['logoMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
     ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
     vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
-    after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} });
+    toast('保存しました。'); api('saveSettings', { values: vals }).then(function () {}, function (e) { toast((e && e.message || String(e)) + '\n(保存できませんでした。もう一度押してください)', 6000); });
   }
 
 
@@ -533,6 +568,18 @@
 
   // ---------- クリックの処理 ----------
   function bump() { C.ad = null; }
+  // 画面を先に書き換え、保存は裏で行う。失敗したら、サーバーの内容を読み直して元に戻す
+  function opt(call, msg, patch, draw) {
+    try { patch(); draw(); } catch (e) { console.error(e); }
+    var tb = tab;
+    call().then(function (r) { if (msg) toast(typeof msg === 'function' ? msg(r) : msg); },
+      function (e) { toast((e && e.message || String(e)) + '\n(画面を元に戻します)', 6000); C.ad = null; C.edit = null; if (tab === tb) go(tb); });
+  }
+  function showAreaList() {
+    C.openArea = ''; var ix = document.getElementById('arIndex'), dv = document.getElementById('arDetail');
+    if (ix && dv) { ix.classList.remove('hidden'); dv.classList.add('hidden'); drawAreaList(); } else go('areas');
+  }
+  function patchById(list, key, id, f) { for (var i = 0; i < list.length; i++) if (String(list[i][key]) === String(id)) { f(list[i]); return list[i]; } }
   function after(p, msg, reload) { busy(true); p.then(function (r) { if (msg) toast(typeof msg === 'function' ? msg(r) : msg); if (reload) reload(); else busy(false); }, fail); }
   SADO.onAdminClick = function (act, t, v) {
     if (act.indexOf('ad:') !== 0) return;
@@ -565,14 +612,14 @@
       case 'posMap': { var m = SADO.map; if (!m) { toast('地図が開かれていません。'); break; } var c = m.getCenter(); $('#nbLat').value = c.lat.toFixed(6); $('#nbLng').value = c.lng.toFixed(6); toast('地図の中心の位置を入れました。(管理画面を閉じて地図を動かし、もう一度開いて入れ直せます)'); break; }
       case 'posGps': { if (!navigator.geolocation) { toast('位置情報が使えません。'); break; } navigator.geolocation.getCurrentPosition(function (p) { $('#nbLat').value = p.coords.latitude.toFixed(6); $('#nbLng').value = p.coords.longitude.toFixed(6); }, function () { toast('位置を取得できませんでした。'); }, { enableHighAccuracy: true, timeout: 15000 }); break; }
       case 'addB': after(api('createBuilding', { areaId: C.editArea, buildingName: val('nbName'), lat: val('nbLat'), lng: val('nbLng'), rooms: val('nbRooms').split('\n') }), '建物を追加しました。', loadEditBody); break;
-      case 'saveB': f = fields('b', v); after(api('updateBuilding', { buildingId: v, buildingName: f.buildingName, buildingMemo: f.buildingMemo, lat: f.lat, lng: f.lng }), '保存しました。', loadEditBody); break;
-      case 'activeB': after(api('setActive', { kind: 'building', id: v, active: on === '1' }), '変更しました。', loadEditBody); break;
+      case 'saveB': f = fields('b', v); opt(function () { return api('updateBuilding', { buildingId: v, buildingName: f.buildingName, buildingMemo: f.buildingMemo, lat: f.lat, lng: f.lng }); }, '保存しました。', function () { patchById(C.edit.buildings, 'buildingId', v, function (b) { b.buildingName = f.buildingName; b.buildingMemo = f.buildingMemo; b.lat = f.lat; b.lng = f.lng; }); }, renderEdit); break;
+      case 'activeB': opt(function () { return api('setActive', { kind: 'building', id: v, active: on === '1' }); }, '変更しました。', function () { patchById(C.edit.buildings, 'buildingId', v, function (b) { b.active = on === '1'; }); }, renderEdit); break;
       case 'purgeB': if (window.prompt('建物と、その部屋・入力データをすべて完全に削除します。取り消せません。続けるには「削除」と入力してください。') === '削除') after(api('purgeItem', { kind: 'building', id: v }), '削除しました。', loadEditBody); break;
-      case 'saveR': f = fields('r', v); after(api('updateRoom', { roomId: v, roomName: f.roomName, floor: f.floor, mark: f.mark }), '保存しました。', loadEditBody); break;
-      case 'activeR': after(api('setActive', { kind: 'room', id: v, active: on === '1' }), '変更しました。', loadEditBody); break;
+      case 'saveR': f = fields('r', v); opt(function () { return api('updateRoom', { roomId: v, roomName: f.roomName, floor: f.floor, mark: f.mark }); }, '保存しました。', function () { patchById(C.edit.rooms, 'roomId', v, function (r) { r.roomName = f.roomName; r.floor = f.floor; r.mark = f.mark; }); }, renderEdit); break;
+      case 'activeR': opt(function () { return api('setActive', { kind: 'room', id: v, active: on === '1' }); }, '変更しました。', function () { patchById(C.edit.rooms, 'roomId', v, function (r) { r.active = on === '1'; }); }, renderEdit); break;
       case 'purgeR': if (window.prompt('部屋と入力データを完全に削除します。続けるには「削除」と入力してください。') === '削除') after(api('purgeItem', { kind: 'room', id: v }), '削除しました。', loadEditBody); break;
       case 'addRooms': after(api('addRooms', { buildingId: v, rooms: val('ar-' + v).split('\n') }), '部屋を追加しました。', loadEditBody); break;
-      case 'delReport': after(api('deleteReport', { reportId: v }), null, loadReports); break;
+      case 'delReport': opt(function () { return api('deleteReport', { reportId: v }); }, null, function () {}, function () { var el = document.querySelector('[data-act="ad:delReport"][data-v="' + v + '"]'); var row = el && el.closest('.fxg'); if (row) { var cnt = document.querySelector('#adBody .cnt'); row.remove(); if (cnt) cnt.textContent = Math.max(0, (+cnt.textContent || 1) - 1); } }); break;
       case 'bulk': bulkRun(); break;
       case 'bkScope': B.scope = v; B.id = ''; B.area = ''; C.bkB = null; drawBulk(); break;
       case 'undoBulk': modal('元に戻す', '<div class="note">直前の一括クリアで消した記録を元に戻します。</div>', '元に戻す', function () { after(api('undoBulk'), function (r) { return r.count + '件を元に戻しました。'; }, function () { C.prog = null; loadBulk(); }); }); break;
@@ -630,6 +677,5 @@
     else if (t.id === 'edFilter') { C.filter = t.value; renderEdit(); var e = document.getElementById('edFilter'); if (e) e.focus(); }
   });
   // 管理を開く前に、区域の一覧と進み具合を裏で読んでおく(開いたとき、すぐ表示できる)
-  SADO.prefetchAdmin = function () { SADO.api('getAdminAreas', {}, true).then(function (d) { C.ad = d; C.adT = Date.now(); }, function () {}); SADO.api('getProgress', {}, true).then(function (p) { C.prog = p; }, function () {}); };
   SADO.openAdmin = open;
 })();

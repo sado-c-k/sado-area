@@ -69,7 +69,7 @@
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j.ok) { var e = new Error(j.error); e.server = true; if (j.error === 'SESSION_EXPIRED') { e.expired = true; } throw e; }
-        setOnline(true); return j.data;
+        setOnline(true); if (!/^get/.test(action) && !QUIET[action] && SADO.adminInvalidate) SADO.adminInvalidate(); return j.data; // 書き込みのあとは、管理画面が覚えていた古いデータを捨てる
       }, function (err) { setOnline(false); throw err; });
   }
   SADO.api = api;
@@ -187,7 +187,7 @@
       renderLegend(); drawFrames(); showNav();
       if (S.cur) { var a = areaById(S.cur); if (a && S.data[S.cur]) { S.data[S.cur].area = a; drawBuildings(); renderSheet(); } }
       if (!$('#home').classList.contains('hidden')) renderHome();
-      try { if (cfg('onboardingHelpEnabled', false) && !localStorage.getItem('sado-help-seen')) { localStorage.setItem('sado-help-seen', '1'); openMenu('help'); } } catch (e2) {}
+      try { if (cfg('onboardingHelpEnabled', false) && !localStorage.getItem('sado-help-seen')) { localStorage.setItem('sado-help-seen', '1'); openMenu('prefs'); } } catch (e2) {}
     }, function (e) { S.areasLoading = false; if (!$('#home').classList.contains('hidden')) renderHome(); if (e.expired) sessionExpired(); });
   }
   // 使う区域のデータを、先に端末へ取っておく(奉仕者は自分に許された区域、管理者は使用中の区域と管理画面のデータも)。電波が弱くても、すぐ開ける
@@ -909,9 +909,9 @@
   }
 
   // ---------- メニュー(設定・ダウンロード) ----------
-  function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'help' ? 'help' : tab === 'report' ? 'report' : 'settings'); renderMenu(); }
+  function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'report' ? 'report' : 'settings'); renderMenu(); }
   function closeMenu() { $('#menu').classList.add('hidden'); if ($('#home').classList.contains('hidden')) activeNav('map'); }
-  var TILES = [['areas', '区域一覧', '区域と建物を選ぶ', '<path d="M12 21s-7-7.2-7-12a7 7 0 0 1 14 0c0 4.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>', ''], ['report', '報告', '気づいたことを送る', '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/>', ''], ['settings', '表示設定', '文字の大きさ・画面モード', '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>', ''], ['help', 'ヘルプ', '使い方を見る', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2.2-2.4 3.7"/><path d="M12 17h.01"/>', 'tile-help'], ['editmenu', '編集', '建物や区域を編集', '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', ''], ['admin', '管理', '管理者向けの画面', '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/>', 'tile-admin']];
+  var TILES = [['areas', '区域一覧', '区域と建物を選ぶ', '<path d="M12 21s-7-7.2-7-12a7 7 0 0 1 14 0c0 4.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>', ''], ['report', '報告', '気づいたことを送る', '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/>', ''], ['settings', '表示設定', '文字の大きさ・画面モード', '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>', ''], ['editmenu', '編集', '建物や区域を編集', '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', ''], ['admin', '管理', '管理者向けの画面', '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/>', 'tile-admin']];
   function tilesHtml() {
     return '<div class="menu-home-grid">' + TILES.filter(function (x) { return (x[0] !== 'admin' || isAdmin()) && (x[0] !== 'editmenu' || canEditMode()); }).map(function (x) { return '<button type="button" class="menu-tile ' + x[4] + '" data-act="nav" data-v="' + x[0] + '"><span class="menu-tile-icon"><svg viewBox="0 0 24 24">' + x[3] + '</svg></span><span><span class="menu-tile-title">' + x[1] + '</span><br><span class="menu-tile-sub">' + x[2] + '</span></span></button>'; }).join('') + '</div>' +
       '<div class="card"><div class="row"><div class="grow"><b>' + esc(S.user ? S.user.displayName : '') + '</b><div class="note">' + esc(roleLabel()) + (S.user && S.user.groupName ? '・' + esc(S.user.groupName) : '') + '</div></div><button class="btn danger small" data-act="logout">ログアウト</button></div></div>';
@@ -987,11 +987,15 @@
         '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', inputTheme(), [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']]) + '</div>' +
         '<div class="setrow"><div class="tt">一軒家の入力スタイル</div>' + seg('prefHouse', hm, [['direct', 'タップで記録'], ['sheet', 'ウィンドウで選ぶ']]) + '</div>' +
         '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。最初は区域係が決めた設定になっています。</div></div>' +
+        '<div id="helpBox">' + helpHtml() + '</div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v45　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v47　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
-    } else if (t === 'help') {
+    }
+  }
+  // ヘルプ(設定メニューの中に出す)
+  function helpHtml() {
       var inl = cfg('statusSaveMode', 'inline') !== 'manual', mode = cfg('mapProgressMode', 'simple'), hv = SADO.helpTab || 'basic';
       var steps = [['区域を選ぶ', '画面下の「区域」から、「会衆」「グループ」「個人」のタブで、担当の区域を選んで「開く」を押します。大きな区域を開くと、中の小さな区域がまとめて地図に出ます。「区域一覧」では、すべての区域を見られます。'],
         ['建物を選ぶ', '地図の建物をタップします。アパートなど部屋情報のある建物はピン、一軒家などは丸で表示されます。' + (houseMode() === 'sheet' ? 'どの建物も、タップすると詳細ウィンドウが開きます。' : '一軒家などの丸は、タップするだけで記録でき(もう一度タップで次の状況)、長押しで詳細ウィンドウが開きます。')],
@@ -1002,10 +1006,9 @@
         ['🧭', '経路', '建物の詳細ウィンドウで「経路」を押すと、Googleマップでその建物までの道順を表示します。'], ['📝', '報告', '詳細ウィンドウの「報告」から、建物や部屋について気づいたことを区域係に送れます。'],
         ['☁️', '地図を端末に保存', '区域の横の雲のボタンで、地図の背景を端末に保存します。圏外でも地図が見られます。電波のあるところで押しておいてください。'],
         ['📶', '電波が弱いとき', '保存できなかった訪問状況は端末に一時保存され、つながると自動で送信されます。送信前は画面上に「未送信」と表示されます。']].filter(function (x) { return x; });
-      el.innerHTML = '<div class="htabs"><button class="' + (hv === 'basic' ? 'on' : '') + '" data-act="helpTab" data-v="basic">基本</button><button class="' + (hv === 'features' ? 'on' : '') + '" data-act="helpTab" data-v="features">機能</button></div>' +
+      return '<div class="htabs"><button class="' + (hv === 'basic' ? 'on' : '') + '" data-act="helpTab" data-v="basic">基本</button><button class="' + (hv === 'features' ? 'on' : '') + '" data-act="helpTab" data-v="features">機能</button></div>' +
         (hv === 'basic' ? '<div class="card"><h3>基本の使い方</h3><ol class="hlist">' + steps.map(function (x, i) { return '<li><span class="hnum">' + (i + 1) + '</span><div><div class="htt">' + x[0] + '</div><div class="hds">' + x[1] + '</div></div></li>'; }).join('') + '</ol><button class="btn small" data-act="helpTab" data-v="features">補助機能を見る ›</button></div>'
           : '<div class="card"><h3>補助機能</h3><ul class="hlist">' + tips.map(function (x) { return '<li><span class="hico">' + x[0] + '</span><div><div class="htt">' + x[1] + '</div><div class="hds">' + x[2] + '</div></div></li>'; }).join('') + '</ul><div class="note" style="margin-top:8px">この画面は、画面下の「ヘルプ」からいつでも見られます。</div></div>');
-    }
   }
   function b64Blob(b64, mime) { var bin = atob(b64), n = bin.length, u = new Uint8Array(n); for (var i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime }); }
   SADO.saveBlob = function (blob, name) {
@@ -1065,9 +1068,10 @@
       case 'logout': logout(); break;
       case 'nav':
         var wasAdmin = !$('#admin').classList.contains('hidden'), curOn = document.querySelector('#nav button.on');
+        if (wasAdmin) refreshBootstrap(); // 管理画面で変えたこと(使用開始など)を、区域メニューにすぐ反映する
         $('#admin').classList.add('hidden'); // 管理画面が開いていたら閉じてから、選んだ画面へ移る
         if (document.documentElement.getAttribute('data-ui') !== '3' && v !== 'map' && curOn && curOn.getAttribute('data-v') === v && !(v === 'admin' && !wasAdmin)) { closePanels(); break; } // 開いているタブをもう一度押すと閉じる(旧GASと同じ)
-        if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'help') openMenu('help'); else if (v === 'report') openMenu('report');
+        if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'report') openMenu('report');
         else if (v === 'admin' && SADO.openAdmin) { closePanels(); activeNav('admin'); SADO.openAdmin('admin'); }
         else if (v === 'editmenu' && SADO.openAdmin) { closePanels(); activeNav('editmenu'); SADO.openAdmin('edit'); }
         break;
@@ -1087,7 +1091,7 @@
         var sdone = function (m) { S.syncBusy = false; countPending(); toast(m, 3000); };
         flush().then(function () { return refreshBootstrap(); }).then(function () { return S.cur ? loadAreaData(S.cur, true).then(function () { if (SADO.drawBuildings) SADO.drawBuildings(); }, function () {}) : null; }).then(function () { sdone(S.pending ? 'まだ ' + S.pending + ' 件が送れていません。' : '同期しました。'); }, function (e) { sdone('同期できませんでした: ' + ((e && e.message) || '')); });
         break;
-      case 'progReload': if (S.progBusy) break; S.progAt = 0; S.progBusy = true; renderHome(); var t0 = Date.now(), fin = function () { setTimeout(function () { S.progBusy = false; renderHome(); toast(S.online ? '最新にしました。' : '電波がないため、更新できません。'); }, Math.max(0, 600 - (Date.now() - t0))); }; loadProg(true).then(fin, fin); break;
+      case 'progReload': if (S.progBusy) break; S.progAt = 0; S.progBusy = true; renderHome(); var t0 = Date.now(), fin = function () { setTimeout(function () { S.progBusy = false; renderHome(); toast(S.online ? '最新にしました。' : '電波がないため、更新できません。'); }, Math.max(0, 600 - (Date.now() - t0))); }; Promise.all([refreshBootstrap(), loadProg(true)]).then(fin, fin); break; // 区域の一覧も、いっしょに最新にする
       case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
       case 'homeParent': S.homeParent = v; renderHome(); break;
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
