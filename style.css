@@ -588,3 +588,5 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 #home .pgroup .pkids{margin-left:14px;margin-top:6px}
 #home .pgroup .pkids>.card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin:6px 0 0}
 #home .pgroup .pkids>.card b{color:var(--primary-strong)}
+#home .mbody .pgroup>.pcard.inuse,#home .mbody .pgroup>.pcard{border:0;padding:0}
+#home .mbody .pgroup .pkids>.card.inuse{border:1px solid var(--border)}
