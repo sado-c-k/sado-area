@@ -180,9 +180,9 @@ a.catbtn.link::after{content:"↗"}
 .bpl{position:absolute;left:25px;top:0;white-space:nowrap;font-size:12px;font-weight:700;color:#202124;background:rgba(255,255,255,.88);padding:0 4px;border-radius:4px;pointer-events:none}
 .nolbl .bpl{display:none}
 
-.leaflet-control-attribution{font-size:5.5px!important;line-height:1.2!important;padding:0 3px!important}
+.leaflet-control-attribution{font-size:8.5px!important;line-height:1.25!important;padding:0 4px!important}
 .leaflet-control-attribution a{font-size:inherit!important}
-.leaflet-control-attribution svg,.leaflet-control-attribution img{width:6px!important;height:4px!important}
+.leaflet-control-attribution svg,.leaflet-control-attribution img{width:9px!important;height:6px!important}
 
 .tabs.fill{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}.tabs.fill .tab{-webkit-flex:1;flex:1;min-width:0;text-align:center;padding:7px 2px;margin:3px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}
 .subhead{margin:14px 4px 6px;font-weight:700;color:var(--text-2);font-size:.95em;border-bottom:1px solid var(--border);padding-bottom:3px}

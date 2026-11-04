@@ -9,6 +9,7 @@
 
   function map() { return SADO.map; }
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
+  function canEdit() { return !!(S.user && (S.user.role === 'admin' || S.user.role === 'maintainer')); } // 編集者は、区域の追加・境界線の変更はできない
   function fail(e) { toast(e && e.message ? e.message : String(e), 6000); }
   function count() { return Object.keys(E.pend).length; }
   function rm(l) { if (l && map()) map().removeLayer(l); }
@@ -34,7 +35,8 @@
   SADO.areaAt = areaAt;
 
   // ---------- 画面の出し分け ----------
-  SADO.onEnter = function (admin) { $('#editBtn').classList.toggle('hidden', !admin); $('#appScreen').classList.toggle('has-edit', !!admin); if (!admin && E.on) toggle(true); };
+  SADO.onEnter = function (can) { if (!can && E.on) toggle(true); };
+  SADO.editOn = function () { return E.on; };
   var HINT = {
     none: '点で表示されている建物のピンは、ドラッグで動かせます(動かしたら「保存」)。\n建物を押すと、部屋の追加・削除や建物の削除ができます。',
     apt: '地図をタップして、集合住宅の位置を決めてください',
@@ -43,7 +45,7 @@
     bound: '角の点(白)はドラッグで動かせます。点を押すと削除、辺の中央の点(小さい点)を押すと角が増えます。\n直したら「境界線を保存」を押してください。'
   };
   function paint() {
-    $('#editBtn').classList.toggle('on', E.on);
+    var adm = isAdmin(); $('#edAreaBtn').classList.toggle('hidden', !adm); $('#edBoundBtn').classList.toggle('hidden', !adm);
     $('#editFrame').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('adding', !!E.mode); document.body.classList.toggle('editing', E.on);
@@ -65,8 +67,11 @@
   // ---------- 入る・終了する ----------
   function toggle(force) {
     if (!E.on) {
-      if (!isAdmin()) return;
-      if (S.merged) { toast('小さな区域を1つ開いてから、編集モードにしてください。'); return; }
+      if (!canEdit()) return;
+      if (S.merged) { // 大きな区域のままでは編集できない。小さな区域を選んでいるときだけ、その区域を開いて編集する
+        if (!S.sub) { toast('編集は、小さな区域を選んでからできます。地図の枠を押して、小さな区域を選んでください。', 4000); return; }
+        SADO.selectArea(S.sub).then(function () { toggle(); }); return;
+      }
       if (!S.online) { toast('編集モードは、電波のあるところで使います。'); return; }
       E.on = true; S.edit = true; try { if (SADO.MapRot) SADO.MapRot.syncEditLock(); } catch (x) {} map().on('click', onMap); paint(); redraw(); toast('編集モードにしました。', 1500); return;
     }
@@ -75,6 +80,7 @@
     paint(); redraw();
     if (had) SADO.reloadCur()['catch'](fail);
   }
+  SADO.editToggle = function () { toggle(); };
   SADO.onAreaChange = function () { if (E.on) { E.pend = {}; E.undo = []; endMode(); paint(); } };
 
   // ---------- ピン(点の建物)をドラッグで動かす ----------

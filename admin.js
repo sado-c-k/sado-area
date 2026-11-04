@@ -3,6 +3,9 @@
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, toast = SADO.toast;
   var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
+  var MODE = 'admin'; // 'admin'=管理メニュー(区域編集を除く) / 'edit'=編集メニュー(区域編集だけ)
+  function isMaint() { return !!(SADO.S && SADO.S.user && SADO.S.user.role === 'maintainer'); }
+  function tabsNow() { return MODE === 'edit' ? TABS.filter(function (t) { return t[0] === 'edit'; }) : TABS.filter(function (t) { return t[0] !== 'edit'; }); }
   var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '', seq: 0, cat: '国仲', q: '', exp: {} };
   // データを読み込む呼び出し(get〜)は、読み込み中に別のタブへ切り替えたら結果を捨てる(古いタブの内容で画面が上書きされて、切り替わらなく見えるのを防ぐ)
   function api(a, p) {
@@ -36,11 +39,12 @@
   }
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
 
-  function open() {
+  function open(mode) {
+    MODE = mode === 'edit' ? 'edit' : 'admin'; tab = MODE === 'edit' ? 'edit' : (tab === 'edit' ? 'areas' : tab);
     var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
-    a.innerHTML = '<div class="mhead"><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS')) + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
+    a.innerHTML = '<div class="mhead"><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc(MODE === 'edit' ? '編集' : ((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS'))) + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
       SADO.userBox() +
-      '<div class="tabs grid">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>';
+      (MODE === 'edit' ? '' : '<div class="tabs grid">' + tabsNow().map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>') + '<div class="mbody" id="adBody"></div>';
     go(tab);
   }
   function close() { $('#admin').classList.add('hidden'); if (SADO.activeNav) SADO.activeNav('map'); SADO.refreshBootstrap(); }
@@ -162,10 +166,11 @@
       if (!C.editCat) C.editCat = cur ? (catOf(d, cur) || '国仲') : '国仲';
       var list = d.areas.filter(function (a) { return (catOf(d, a) || '国仲') === C.editCat; });
       if (C.editArea && !list.filter(function (x) { return x.areaId === C.editArea; })[0]) C.editArea = '';
-      var h = '<div class="card"><h3>区域編集</h3><div class="note">区域・建物・部屋の追加や変更、非表示をここで行えます。上のタブで「国仲」「遠方」「アパート」を切り替え、区域を選んでください。建物の追加と位置の変更は、地図の編集モードでもできます。</div>' +
+      if (isMaint()) { var okIds = {}; (SADO.S.areas || []).forEach(function (x) { if (x.canEdit) okIds[x.areaId] = 1; }); d = C.ad = { areas: d.areas.filter(function (x) { return okIds[x.areaId] || x.isParent; }) }; }
+      var ed = SADO.editOn && SADO.editOn(), h = '<div class="card"><h3>地図で編集する</h3><div class="note">地図の上で、建物や集合住宅の追加・位置の変更ができます。' + (isMaint() ? '' : '区域の追加や境界線の変更もできます。') + '先に、地図で区域を選んでください(大きな区域は、小さな区域を選んでから)。</div><div class="row"><button class="btn primary" data-act="ad:editMode">' + (ed ? '編集モードを終了する' : '編集モードにする(地図へ)') + '</button></div></div><div class="card"><h3>区域編集</h3><div class="note">区域・建物・部屋の追加や変更、非表示をここで行えます。上のタブで「国仲」「遠方」「アパート」を切り替え、区域を選んでください。建物の追加と位置の変更は、地図の編集モードでもできます。</div>' +
         '<div class="seg" id="edCats">' + cats.map(function (c) { return '<button class="chip' + (C.editCat === c ? ' on' : '') + '" data-act="ad:edCat" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>' +
         '<div class="row"><select id="edArea" class="grow">' + areaOpts(list, C.editArea, '区域を選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div>' +
-        '<div class="row" style="margin-top:6px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><button class="btn primary small" data-act="ad:addArea">＋ 区域を追加</button></div></div><div id="edBody"></div>';
+        (isMaint() ? '' : '<div class="row" style="margin-top:6px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><button class="btn primary small" data-act="ad:addArea">＋ 区域を追加</button></div>') + '</div><div id="edBody"></div>';
       body(h); if (C.editArea) loadEditBody();
     }, fail);
   }
@@ -175,9 +180,9 @@
   function renderEdit() {
     var d = C.edit, el = document.getElementById('edBody'); if (!el) return;
     var ar = C.ad && C.ad.areas.filter(function (x) { return x.areaId === C.editArea; })[0], h = '';
-    if (ar) h += '<div class="card"><h3>区域の設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
+    if (ar && !isMaint()) h += '<div class="card"><h3>区域の設定</h3><div class="row"><span class="note">区分</span><select data-cat="' + esc(ar.areaId) + '">' + ['国仲', '遠方', 'アパート'].map(function (c) { return '<option value="' + c + '"' + (ar.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn small" data-act="ad:rename" data-v="' + esc(ar.areaId) + '">名前を変更</button><button class="btn small" data-act="ad:toggleArea" data-v="' + esc(ar.areaId) + '" data-on="0">非表示にする</button></div><div class="note">区分は基本的に変更しません(使用の開始・終了や担当は「区域管理」で行います)。</div></div>';
     h += '<div class="card"><h3>建物を追加</h3><div class="row"><input id="nbName" class="grow" placeholder="建物の名前"><input id="nbLat" placeholder="緯度" size="10"><input id="nbLng" placeholder="経度" size="10"></div><div class="row"><button class="btn small" data-act="ad:posMap">地図の中心を入れる</button><button class="btn small" data-act="ad:posGps">いまの位置を入れる</button></div><textarea id="nbRooms" rows="2" placeholder="部屋(1行に1つ。空なら「（建物）」の1件を作ります)"></textarea><button class="btn primary small" data-act="ad:addB">追加</button></div>';
-    h += '<div class="card"><details id="mvBox"' + (C.mvOpen ? ' open' : '') + '><summary><b>建物をまとめて別の区域へ移す</b></summary><div class="note">アパートの区域づくりなどに使います。移したい建物にチェックを入れ、移す先の区域を選びます。(絞り込みも使えます)</div>' +
+    if (!isMaint()) h += '<div class="card"><details id="mvBox"' + (C.mvOpen ? ' open' : '') + '><summary><b>建物をまとめて別の区域へ移す</b></summary><div class="note">アパートの区域づくりなどに使います。移したい建物にチェックを入れ、移す先の区域を選びます。(絞り込みも使えます)</div>' +
       '<div id="mvList"></div><div class="row"><select id="mvTo" class="grow">' + areaOpts(C.ad.areas.filter(function (x) { return x.areaId !== C.editArea; }), '', '移す先の区域を選んでください') + '</select><button class="btn small primary" data-act="ad:mvGo">チェックした建物を移す</button></div></details></div>' +
       '<div class="card"><div class="row"><input id="edFilter" class="grow" placeholder="建物名で絞り込み" value="' + esc(C.filter) + '"></div></div>';
     var bs = d.buildings.filter(function (b) { return (C.showHidden || !isOff(b.active)) && (!C.filter || String(b.buildingName).indexOf(C.filter) >= 0); });
@@ -191,11 +196,11 @@
         '<div class="row"><input class="grow" data-b="' + esc(b.buildingId) + '" data-f="buildingName" value="' + esc(b.buildingName) + '"><input class="grow" data-b="' + esc(b.buildingId) + '" data-f="buildingMemo" placeholder="メモ" value="' + esc(b.buildingMemo) + '"></div>' +
         '<div class="row"><input data-b="' + esc(b.buildingId) + '" data-f="lat" size="10" placeholder="緯度" value="' + esc(b.lat) + '"><input data-b="' + esc(b.buildingId) + '" data-f="lng" size="10" placeholder="経度" value="' + esc(b.lng) + '">' +
         '<button class="btn small primary" data-act="ad:saveB" data-v="' + esc(b.buildingId) + '">保存</button><button class="btn small" data-act="ad:activeB" data-v="' + esc(b.buildingId) + '" data-on="' + (off ? '1' : '0') + '">' + (off ? '元に戻す' : '非表示') + '</button>' +
-        (off ? '<button class="btn small danger" data-act="ad:purgeB" data-v="' + esc(b.buildingId) + '">完全に削除</button>' : '') + '</div><div class="note">ID: ' + esc(b.buildingId) + '</div>';
+        (off && !isMaint() ? '<button class="btn small danger" data-act="ad:purgeB" data-v="' + esc(b.buildingId) + '">完全に削除</button>' : '') + '</div><div class="note">ID: ' + esc(b.buildingId) + '</div>';
       rs.forEach(function (r) {
         var roff = isOff(r.active);
         h += '<div class="row"><input class="grow" data-r="' + esc(r.roomId) + '" data-f="roomName" value="' + esc(r.roomName) + '"><input data-r="' + esc(r.roomId) + '" data-f="floor" size="3" placeholder="階" title="階" value="' + esc(r.floor) + '"><select data-r="' + esc(r.roomId) + '" data-f="mark"><option value="">印なし</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option></select>' +
-          '<button class="btn small" data-act="ad:saveR" data-v="' + esc(r.roomId) + '">保存</button><button class="btn small" data-act="ad:activeR" data-v="' + esc(r.roomId) + '" data-on="' + (roff ? '1' : '0') + '">' + (roff ? '戻す' : '非表示') + '</button>' + (roff ? '<button class="btn small danger" data-act="ad:purgeR" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
+          '<button class="btn small" data-act="ad:saveR" data-v="' + esc(r.roomId) + '">保存</button><button class="btn small" data-act="ad:activeR" data-v="' + esc(r.roomId) + '" data-on="' + (roff ? '1' : '0') + '">' + (roff ? '戻す' : '非表示') + '</button>' + (roff && !isMaint() ? '<button class="btn small danger" data-act="ad:purgeR" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
       });
       h += '<div class="row"><textarea rows="1" class="grow" id="ar-' + esc(b.buildingId) + '" placeholder="部屋を追加(1行に1つ)"></textarea><button class="btn small" data-act="ad:addRooms" data-v="' + esc(b.buildingId) + '">追加</button></div></div></details>';
     });
@@ -308,7 +313,7 @@
       var chg = !!A.ud[u.loginId], id = esc(u.loginId);
       if (A.editU) {
         h += '<div class="urow' + (chg ? ' chg' : '') + '"><div class="un"><b>' + id + '</b>' + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '<input data-ue="' + id + '" data-f="displayName" value="' + esc(uval(u, 'displayName')) + '" placeholder="表示名"></div>' +
-          '<select data-ue="' + id + '" data-f="groupId">' + opts(realGroups(), 'groupId', 'groupName', grp, 'グループなし') + '</select><select data-ue="' + id + '" data-f="role"><option value="editor"' + (uval(u, 'role') === 'editor' ? ' selected' : '') + '>奉仕者</option><option value="admin"' + (uval(u, 'role') === 'admin' ? ' selected' : '') + '>区域係</option></select>' +
+          '<select data-ue="' + id + '" data-f="groupId">' + opts(realGroups(), 'groupId', 'groupName', grp, 'グループなし') + '</select><select data-ue="' + id + '" data-f="role"><option value="editor"' + (uval(u, 'role') === 'editor' ? ' selected' : '') + '>奉仕者</option><option value="maintainer"' + (uval(u, 'role') === 'maintainer' ? ' selected' : '') + '>編集者</option><option value="admin"' + (uval(u, 'role') === 'admin' ? ' selected' : '') + '>区域係</option></select>' +
           '<label><input type="checkbox" data-ue="' + id + '" data-f="active"' + (uval(u, 'active') ? ' checked' : '') + '> 有効</label><div class="row"><button class="btn small" data-act="ad:userPw" data-v="' + id + '">パスワード再設定</button>' + (u.locked ? '<button class="btn small" data-act="ad:userUnlock" data-v="' + id + '">ロック解除</button>' : '') + '<button class="btn small danger" data-act="ad:userDel" data-v="' + id + '">削除</button></div></div>';
       } else {
         h += '<div class="urow"><div class="un"><b>' + esc(u.displayName) + (u.active ? '' : '<span class="badge off">無効</span>') + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '</b><small>' + id + '</small></div><div class="ug">' + esc(groupName(u.groupId) || '―') + '</div><span class="badge ' + (u.role === 'admin' ? 'mine' : 'off') + '">' + (u.role === 'admin' ? '区域係' : '奉仕者') + '</span>' +
@@ -317,7 +322,7 @@
     });
     $('#usList').innerHTML = h || '<div class="note">該当するユーザーがいません。</div>';
     $('#usCnt').textContent = n + ' / ' + A.us.length; $('#usBtns').innerHTML = btns(A.editU, 'u');
-    $('#usAdd').innerHTML = A.editU ? '<div class="addbox"><b>ユーザーを追加</b><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="11"><input id="nuPw" placeholder="パスワード(6文字以上)" size="13"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup"' + (A.fg ? ' disabled' : '') + '>' + opts(realGroups(), 'groupId', 'groupName', A.fg, 'グループなし') + '</select><select id="nuRole"><option value="editor">奉仕者</option><option value="admin">区域係</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div><div class="note">追加・削除はすぐに反映されます。書き換え中の内容はそのまま残ります。</div></div>' : '';
+    $('#usAdd').innerHTML = A.editU ? '<div class="addbox"><b>ユーザーを追加</b><div class="row"><input id="nuId" placeholder="ID(半角英数字)" size="11"><input id="nuPw" placeholder="パスワード(6文字以上)" size="13"><input id="nuName" placeholder="表示名" size="10"><select id="nuGroup"' + (A.fg ? ' disabled' : '') + '>' + opts(realGroups(), 'groupId', 'groupName', A.fg, 'グループなし') + '</select><select id="nuRole"><option value="editor">奉仕者</option><option value="maintainer">編集者</option><option value="admin">区域係</option></select><button class="btn primary small" data-act="ad:userAdd">追加</button></div><div class="note">追加・削除はすぐに反映されます。書き換え中の内容はそのまま残ります。</div></div>' : '';
   }
   function gval(g, f) { var x = A.gd[g.groupId]; return x && x[f] !== undefined ? x[f] : g[f]; }
   function drawGroups() {
@@ -337,7 +342,7 @@
     $('#grAdd').innerHTML = A.editG ? '<div class="addbox"><b>グループを追加</b><div class="row"><input id="ngName" class="grow" placeholder="新しいグループ名"><button class="btn primary small" data-act="ad:groupAdd">追加</button></div></div>' : '';
   }
   var USER_LABEL = { displayName: '表示名', groupId: 'グループ', role: '権限', active: '有効' };
-  function showVal(f, v) { return f === 'groupId' ? (groupName(v) || 'グループなし') : (f === 'role' ? (v === 'admin' ? '区域係' : '奉仕者') : (f === 'active' ? (v ? '有効' : '無効') : String(v))); }
+  function showVal(f, v) { return f === 'groupId' ? (groupName(v) || 'グループなし') : (f === 'role' ? (v === 'admin' ? '区域係' : (v === 'maintainer' ? '編集者' : '奉仕者')) : (f === 'active' ? (v ? '有効' : '無効') : String(v))); }
   function userChanges() {
     var out = [];
     A.us.forEach(function (u) {
@@ -534,8 +539,9 @@
     var a = act.slice(3), on = t.getAttribute('data-on'), f;
     switch (a) {
       case 'close': close(); break;
+      case 'editMode': close(); if (SADO.editToggle) SADO.editToggle(); break;
       case 'bkCat': B.cat = v; if (v !== 'アパート') B.scope = 'area'; B.id = ''; B.area = ''; C.bkB = null; drawBulk(); break;
-      case 'tab': go(v); break;
+      case 'tab': if (v === 'edit' && MODE !== 'edit') open('edit'); else go(v); break;
       case 'addArea': (function () { var cat = tab === 'edit' ? (C.editCat || '国仲') : val('newAreaCat'); C.cat = cat; after(api('addArea', { areaName: val('newAreaName'), category: cat }), '区域を追加しました。', function () { if (tab === 'edit') { C.ad = null; loadEdit(); } else refreshAreas(); }); })(); break;
       case 'importTree': doImportTree(); break;
       case 'importAsg': doImportAsg(); break;
