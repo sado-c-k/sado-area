@@ -517,3 +517,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;bo
 .loadbox .spin,.loadbox .bootimg{width:44px;height:44px;margin-bottom:10px}
 .loadbox .spin{border-color:var(--border);border-top-color:var(--primary)}
 .cspin{-webkit-animation:spin .8s linear infinite;animation:spin .8s linear infinite}
+/* v36: 区域カードは全体を押すと建物一覧(グラフ付き)。開いたカードは枠で目立たせる。更新中は回るアイコン */
+.card.tap{cursor:pointer}
+.card.tap.open{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft,rgba(46,125,50,.18))}
+.card.tap .bld{cursor:pointer}
+.tabs.sub{padding-top:0}
+.ptool .btn{display:-webkit-inline-flex;display:inline-flex;-webkit-align-items:center;align-items:center;gap:6px}
+.ptool .btn .cspin{width:16px;height:16px}

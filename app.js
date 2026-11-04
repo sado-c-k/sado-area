@@ -736,11 +736,11 @@
   }
   function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
   function areaCard(a, plain) {
-    if (!plain) return '<div class="card' + (a.inUse ? ' inuse' : '') + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
-      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '</div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
-    return '<div class="card' + (a.inUse ? ' inuse' : '') + '"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
+    if (!plain) return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
+      dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
+    return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
       (a.inUse ? esc(a.assigneeName) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
-      expBtn(a) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button>' + dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '</div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
+      dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
   }
   function onlyUseBox() { return '<div class="onlyuse" data-act="toggleOnly" style="margin:4px 2px 10px;padding:8px 6px;cursor:pointer"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;vertical-align:middle"' + (S.onlyUse ? ' checked' : '') + '> <span style="vertical-align:middle">使用中の区域のみ表示</span></div>'; }
   var CLOUD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H17"/><path d="M12 11v9"/><path d="m9 17 3 3 3-3"/></svg>';
@@ -763,7 +763,7 @@
   function parentRowHtml(p, open, extra) {
     return '<div class="card pcard' + (p.inUse ? ' inuse' : '') + '" data-act="' + (extra ? 'homeParent' : 'homeToggle') + '" data-v="' + esc(p.areaId) + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(p.areaName) + '　' + kidCounts(p.areaId) + '</b>' + pctHtml(p) + '</div>' +
       (extra && p.inUse ? '<span class="badge use" style="margin:2px 0 0">使用中</span><span class="note">　' + esc(p.assigneeName) + '</span>' : '') + '</div>' +
-      '<button class="btn primary small" data-act="openParent" data-v="' + esc(p.areaId) + '">開く</button>' + saveBtn('saveTilesParent', p.areaId) + '<span class="chev">' + (open ? '▾' : '›') + '</span></div>' + (extra && !p.inUse ? '' : progHtml(p)) + tileBar(p.areaId) + '</div>';
+      saveBtn('saveTilesParent', p.areaId) + '<button class="btn primary small" data-act="openParent" data-v="' + esc(p.areaId) + '">開く</button></div>' + (extra && !p.inUse ? '' : progHtml(p)) + tileBar(p.areaId) + '</div>';
   }
   function renderHome() {
     if (!S.prog || Date.now() - (S.progAt || 0) > 20000) loadProg();
@@ -772,8 +772,8 @@
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
     var h = '<div class="mhead"><div class="t">' + esc(title) + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
-      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(S.user ? S.user.displayName : '') + 'さんようこそ' + (gname ? '<span class="uh">　' + esc(gname) + (/グループ$/.test(gname) ? '' : 'グループ') + '</span>' : '') + '</div><div class="uh">' + esc(S.user ? roleLabel() : '') + '・使用する区域を選択してください・画面 v35</div></div></div>' +
-      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote">' + ptime + '区域を押すと建物が出ます</span><button class="btn secondary small" data-act="progReload">更新</button></div>' : '');
+      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(S.user ? S.user.displayName : '') + 'さんようこそ' + (gname ? '<span class="uh">　' + esc(gname) + (/グループ$/.test(gname) ? '' : 'グループ') + '</span>' : '') + '</div><div class="uh">' + esc(S.user ? roleLabel() : '') + '・使用する区域を選択してください・画面 v36</div></div></div>' +
+      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote">' + ptime + '区域を押すと建物が出ます</span><button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
     if (S.areasLoading && !S.areas.length) {
       el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
     }
@@ -795,13 +795,9 @@
         loose.forEach(function (a) { h += areaCard(a); });
       });
       if (!kids.length) h += '<div class="note" style="padding:14px 4px">使用できる区域はありません。</div>';
-    } else if (!cat) {
-      CATS.forEach(function (c) {
-        var n = catAreas(c[0]).length, use = catAreas(c[0]).filter(function (a) { return a.inUse; }).length;
-        h += '<button class="catbtn" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '<span class="sub">' + (isAdmin() ? '区域 ' + n + '件(使用中 ' + use + '件)' : '担当の区域 ' + n + '件(使用中 ' + use + '件)') + '</span></button>';
-      });
     } else {
-      h += '<div class="note" style="margin:2px 0 6px"><button class="btn small" data-act="homeBack">‹ 区域一覧へ</button>　<b>' + esc(cat) + '</b></div>' + onlyUseBox();
+      cat = S.homeCat = cat || CATS[0][0];
+      h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' + onlyUseBox();
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div style="height:8px"></div>'; }
       else if (parentsOf(cat).length) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
@@ -882,18 +878,18 @@
       renderReport(el);
     } else if (t === 'prefs') {
       var p = getPrefs(), FS = ['小', 'やや小', '標準', '大', '特大', '最大'], fv = String(p.font || '3'), seg = function (act, cur, list) { return '<div class="segrow">' + list.map(function (x) { return '<button class="' + (String(cur) === x[0] ? 'on' : '') + '" data-act="' + act + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
-      var hm = p.houseTap || '';
+      var hm = p.houseTap === 'sheet' || p.houseTap === 'direct' ? p.houseTap : cfg('houseTapMode', 'direct');
       el.innerHTML = '<div class="card"><h3>表示設定</h3>' +
         '<div class="setrow namerow"><div class="grow"><div class="tt">名前</div><div>' + esc(S.user ? S.user.displayName : '') + '<span class="note">　' + esc(roleLabel()) + (S.user && S.user.groupName ? '・' + esc(S.user.groupName) : '') + '</span></div></div><button class="btn danger small" data-act="logout">ログアウト</button></div>' +
         '<div class="setrow"><div class="tt">文字サイズ<span class="cntb">' + fv + ' / 6</span></div><div class="fsr">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="' + (fv === String(n) ? 'on' : '') + '" data-act="prefFont" data-v="' + n + '"><span style="font-size:' + (10 + n * 2) + 'px">あ</span></button>'; }).join('') + '</div></div>' +
         '<div class="setrow"><div class="tt">画面モード</div>' + seg('prefTheme', p.theme || 'auto', [['light', 'ライト'], ['dark', 'ダーク'], ['auto', '端末に合わせる']]) + '</div>' +
         '<div class="setrow"><div class="tt">テーマ</div>' + seg('prefUi', p.ui || '1', [['1', 'テーマ1'], ['2', 'テーマ2'], ['3', 'テーマ3']]) + '</div>' +
-        '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', p.input || '', [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン'], ['', '標準']]) + '</div>' +
-        '<div class="setrow"><div class="tt">一軒家の入力スタイル</div>' + seg('prefHouse', hm, [['direct', 'タップで記録'], ['sheet', 'ウィンドウで選ぶ'], ['', '標準']]) + '</div>' +
-        '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。「標準」は区域係が決めた設定です。</div></div>' +
+        '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', inputTheme(), [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']]) + '</div>' +
+        '<div class="setrow"><div class="tt">一軒家の入力スタイル</div>' + seg('prefHouse', hm, [['direct', 'タップで記録'], ['sheet', 'ウィンドウで選ぶ']]) + '</div>' +
+        '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。最初は区域係が決めた設定になっています。</div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v35　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v36　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     } else if (t === 'help') {
       var inl = cfg('statusSaveMode', 'inline') !== 'manual', mode = cfg('mapProgressMode', 'simple'), hv = SADO.helpTab || 'basic';
@@ -980,7 +976,7 @@
       case 'homeTab': S.homeTab = v; S.homeCat = null; S.homeParent = null; renderHome(); break;
       case 'homeToggle': S.homeOpen = S.homeOpen || {}; S.homeOpen[(S.homeTab || '') + v] = !S.homeOpen[(S.homeTab || '') + v]; renderHome(); break;
       case 'openParent': selectParent(v); break;
-      case 'progReload': S.progAt = 0; loadProg(true).then(function () { toast('最新にしました。'); }); break;
+      case 'progReload': if (S.progBusy) break; S.progAt = 0; S.progBusy = true; renderHome(); var t0 = Date.now(), fin = function () { setTimeout(function () { S.progBusy = false; renderHome(); toast(S.online ? '最新にしました。' : '電波がないため、更新できません。'); }, Math.max(0, 600 - (Date.now() - t0))); }; loadProg(true).then(fin, fin); break;
       case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
       case 'homeParent': S.homeParent = v; renderHome(); break;
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
