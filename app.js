@@ -651,7 +651,7 @@
         if (can && isAdmin()) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval"><input class="memo" data-room="' + esc(r.roomId) + '" placeholder="メモ" value="' + esc(r.memo) + '"></div></div>';
         else if (r.memo && !r.mark) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
         if (r.tenant) h += '<div class="upd">' + esc(r.tenant) + '</div>';
-        if (r.updatedAt) h += '<div class="upd">更新: ' + esc(String(r.updatedAt).slice(0, 16).replace('T', ' ')) + (r.updatedBy ? ' ' + esc(r.updatedBy) : '') + '</div>';
+        if (r.updatedAt) h += '<div class="upd">更新: ' + esc(fmtLocal(r.updatedAt)) + (r.updatedBy ? ' ' + esc(r.updatedBy) : '') + '</div>';
         h += '</div>';
       });
       h += '</div>';
@@ -661,6 +661,13 @@
     sh.innerHTML = h + '</div>'; sh.classList.remove('hidden'); if (keep) sh.querySelector('.body').scrollTop = keep;
   }
   // 訪問状況の変更: 「すぐに保存」ならその場で保存、「まとめて保存」なら下書きにして保存ボタンで送る
+  // 時刻(UTCのISO文字列)を、端末の時間帯(日本なら日本時間)で「2026-11-05 00:26」の形にする
+  function fmtLocal(v) {
+    var t = String(v || ''), d = /Z$|[+-]\d\d:?\d\d$/.test(t) ? new Date(t) : null;
+    if (!d || isNaN(d.getTime())) return t.slice(0, 16).replace('T', ' ');
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
   function setStatusUi(roomId, v) {
     if (cfg('statusSaveMode', 'inline') !== 'manual') { patchRoom(roomId, { status: v }); return; }
     var r = roomById(roomId); if (!r) return; S.draft = S.draft || {};
@@ -706,7 +713,7 @@
     for (var k in patch) op[k] = patch[k];
     if (op.status === undefined && op.memo === undefined && op.mark === undefined) return;
     if (op.status !== undefined && op.memo === undefined) op.memo = r.memo; // 状況だけ変えるときも、今のメモを一緒に送る
-    applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op); restyle(r.buildingId); renderSheet();
+    applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op); restyle(r.buildingId); if (patch.status !== undefined || patch.mark !== undefined) renderSheet(); // メモだけのときは描き直さない(メモ欄から他のボタンを押したとき、最初のタップが消えるため)
   }
   function patchBuilding(bid, patch) {
     var d = S.data[S.cur]; if (!d || !S.user || S.user.role !== 'admin') return; // 建物の名前・メモは区域係のみ
@@ -1076,7 +1083,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v66　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v67　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1156,6 +1163,7 @@
       case 'nav':
         var wasAdmin = !$('#admin').classList.contains('hidden'), curOn = document.querySelector('#nav button.on');
         if (wasAdmin) refreshBootstrap(); // 管理画面で変えたこと(使用開始など)を、区域メニューにすぐ反映する
+        if (v !== 'map' && S.sheetBid && !draftCount()) closeSheet(true); // 建物の詳細が開いていたら、メニューを開く前に閉じる(うしろに残らないように)
         $('#admin').classList.add('hidden'); // 管理画面が開いていたら閉じてから、選んだ画面へ移る
         if (document.documentElement.getAttribute('data-ui') !== '3' && v !== 'map' && curOn && curOn.getAttribute('data-v') === v && !(v === 'admin' && !wasAdmin)) { closePanels(); break; } // 開いているタブをもう一度押すと閉じる(旧GASと同じ)
         if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'report') openMenu('report');
