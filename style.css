@@ -142,7 +142,7 @@ select[data-cat]{margin:0 8px;padding:3px 8px;border-radius:99px;font-size:.85em
 #editBar{z-index:1200}
 body.editing #sheet{max-height:calc(100% - var(--nav) - 150px)}
 /* 読み込み中: グレーにして、くるくるを出す */
-#adMask{position:absolute;left:0;right:0;bottom:0;z-index:30;background:rgba(120,124,130,.38);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+#adMask{position:absolute;left:0;right:0;bottom:0;z-index:30;background:transparent;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
 .spin{width:44px;height:44px;border-radius:50%;border:5px solid rgba(255,255,255,.7);border-top-color:var(--primary);-webkit-animation:spin .8s linear infinite;animation:spin .8s linear infinite}
 @-webkit-keyframes spin{to{-webkit-transform:rotate(360deg)}}@keyframes spin{to{transform:rotate(360deg)}}
 .sk{height:14px;border-radius:7px;background:var(--surface-3);margin:12px 0}.sk.short{width:55%}
@@ -542,3 +542,15 @@ html[data-theme="dark"] .leaflet-tile-pane{-webkit-filter:invert(1) hue-rotate(1
 @media (max-width:440px){.maplayer-row{display:grid;grid-template-columns:1fr 1fr;grid-gap:14px 8px}}
 .cloudopts{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:8px;margin:10px 0}
 .cloudopts .btn{width:100%;text-align:center}
+
+/* v48: 読み込み画面(旧GASと同じ: 全面を背景色で覆い、文字→回転する画像) / 編集モードの赤枠 / ヘルプウィンドウ */
+.bootbox{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;gap:14px}
+.bootbox .bootmsg{font-weight:800;color:var(--text-2)}
+.bootbox .spin,.bootbox .bootimg{margin:0}
+#editFrame{position:fixed;left:0;right:0;top:0;bottom:0;z-index:6500;border:4px solid #d93025;pointer-events:none}
+#editFrame span{background:#d93025;top:0;bottom:auto;border-radius:0 0 8px 8px}
+#map,#editFrame{bottom:0}
+#helpWin{position:fixed;left:0;right:0;top:0;bottom:0;z-index:6200;background:var(--bg);overflow:auto;padding:12px;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+#helpWin.hidden{display:none}
+#helpWin .mhead{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin-bottom:8px}
+#helpWin .mhead .t{-webkit-flex:1;flex:1;font-size:1.2em;font-weight:800}

@@ -324,7 +324,7 @@
       body(acTabs() + '<div class="card"><h3>グループの管理</h3><div class="note">グループの追加・名前の変更・削除ができます。「会衆」は全員が入っている特別なグループです(区域の担当を「会衆」にすると、ログインした全員が編集できます)。責任者は、そのグループに所属しているアカウントから選びます(会衆だけは全アカウントから選べます)。</div><div class="tbar" id="grBtns"></div><div id="grAdd"></div><div id="grList"></div></div>');
       drawGroups(); return;
     }
-    body(acTabs() + '<div class="card"><h3>' + (A.gt === 'all' ? '会衆のアカウント' : esc(groupName(A.gt)) + 'のアカウント') + '<span class="cnt" id="usCnt"></span></h3><div class="tbar"><input type="search" id="usQ" placeholder="ID・名前で探す" value="' + esc(A.q) + '"><select id="usFr"><option value="">すべての権限</option><option value="admin">区域係</option><option value="editor">奉仕者</option></select></div>' +
+    body(acTabs() + '<div class="card"><h3>' + (A.gt === 'all' ? '会衆のアカウント' : esc(groupName(A.gt)) + 'のアカウント') + '<span class="cnt" id="usCnt"></span></h3><div class="tbar"><input type="search" id="usQ" placeholder="ID・名前で探す" value="' + esc(A.q) + '"><select id="usFr"><option value="">すべての権限</option><option value="admin">区域係</option><option value="maintainer">編集者</option><option value="editor">奉仕者</option></select></div>' +
       '<div class="tbar" id="usBtns"></div><div id="usAdd"></div><div id="usList"></div></div>');
     $('#usFr').value = A.fr; drawUsers();
   }
@@ -347,7 +347,7 @@
           '<select data-ue="' + id + '" data-f="groupId">' + opts(realGroups(), 'groupId', 'groupName', grp, 'グループなし') + '</select><select data-ue="' + id + '" data-f="role"><option value="editor"' + (uval(u, 'role') === 'editor' ? ' selected' : '') + '>奉仕者</option><option value="maintainer"' + (uval(u, 'role') === 'maintainer' ? ' selected' : '') + '>編集者</option><option value="admin"' + (uval(u, 'role') === 'admin' ? ' selected' : '') + '>区域係</option></select>' +
           '<label><input type="checkbox" data-ue="' + id + '" data-f="active"' + (uval(u, 'active') ? ' checked' : '') + '> 有効</label><div class="row"><button class="btn small" data-act="ad:userPw" data-v="' + id + '">パスワード再設定</button>' + (u.locked ? '<button class="btn small" data-act="ad:userUnlock" data-v="' + id + '">ロック解除</button>' : '') + '<button class="btn small danger" data-act="ad:userDel" data-v="' + id + '">削除</button></div></div>';
       } else {
-        h += '<div class="urow"><div class="un"><b>' + esc(u.displayName) + (u.active ? '' : '<span class="badge off">無効</span>') + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '</b><small>' + id + '</small></div><div class="ug">' + esc(groupName(u.groupId) || '―') + '</div><span class="badge ' + (u.role === 'admin' ? 'mine' : 'off') + '">' + (u.role === 'admin' ? '区域係' : '奉仕者') + '</span>' +
+        h += '<div class="urow"><div class="un"><b>' + esc(u.displayName) + (u.active ? '' : '<span class="badge off">無効</span>') + (u.locked ? '<span class="badge rej">ロック中</span>' : '') + '</b><small>' + id + '</small></div><div class="ug">' + esc(groupName(u.groupId) || '―') + '</div><span class="badge ' + (u.role === 'admin' ? 'mine' : 'off') + '">' + (u.role === 'admin' ? '区域係' : (u.role === 'maintainer' ? '編集者' : '奉仕者')) + '</span>' +
           '</div>';
       }
     });

@@ -173,12 +173,15 @@
   }
 
   function enterApp() {
-    $('#boot').classList.add('hidden'); $('#loginScreen').classList.add('hidden'); $('#appScreen').classList.remove('hidden'); $('#nav').classList.remove('hidden');
+    $('#loginScreen').classList.add('hidden'); $('#appScreen').classList.remove('hidden'); $('#nav').classList.remove('hidden');
+    // 読み込みが終わるまで、全画面の「読み込み中」を出したままにする(最長6秒)
+    S.bootHold = true; clearTimeout(S.bootT); S.bootT = setTimeout(bootDone, 6000);
     $('#hdrTitle').textContent = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
     initMap(); updateTitle(); renderLegend(); showNav(); if (SADO.onEnter) SADO.onEnter(canEditMode());
-    if (!S.bootAt || Date.now() - S.bootAt > 4000) refreshBootstrap(); else schedulePrefetch(); countPending(); if (isAdmin()) setTimeout(function () { if (SADO.prefetchAdmin) SADO.prefetchAdmin(); }, 1500);
+    if (!S.bootAt || Date.now() - S.bootAt > 4000) { var rb = refreshBootstrap(); rb.then(bootDone, bootDone); } else { schedulePrefetch(); bootDone(); } countPending(); if (isAdmin()) setTimeout(function () { if (SADO.prefetchAdmin) SADO.prefetchAdmin(); }, 1500);
     loadFrames(); loadParentFrames(); goHome();
   }
+  function bootDone() { S.bootHold = false; clearTimeout(S.bootT); var e = $('#boot'); if (e) e.classList.add('hidden'); }
   function refreshBootstrap() {
     return api('getBootstrap').then(function (b) {
       S.settings = b.settings; S.areas = b.areas; S.user = b.user; mergePrefs(b.prefs); applySettings(); S.areasLoading = false; schedulePrefetch();
@@ -867,7 +870,7 @@
   }
   function renderHome0() {
     if (!S.prog || Date.now() - (S.progAt || 0) > 20000) loadProg();
-    var el = $('#home'), cat = S.homeCat, tab = S.homeTab || '', title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
+    var el = $('#home'), cat = S.homeCat, tab = S.homeTab || 'all', title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
     var gname = (S.user && S.user.groupName) || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人'], ['list', '区域一覧']];
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
@@ -987,14 +990,15 @@
         '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', inputTheme(), [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']]) + '</div>' +
         '<div class="setrow"><div class="tt">一軒家の入力スタイル</div>' + seg('prefHouse', hm, [['direct', 'タップで記録'], ['sheet', 'ウィンドウで選ぶ']]) + '</div>' +
         '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。最初は区域係が決めた設定になっています。</div></div>' +
-        '<div id="helpBox">' + helpHtml() + '</div>' +
+        '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v47　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v48　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
-  // ヘルプ(設定メニューの中に出す)
+  // ヘルプ(設定メニューのボタンから、別のウィンドウで出す)
+  function drawHelp() { var b = $('#helpWinBody'); if (b) b.innerHTML = helpHtml(); }
   function helpHtml() {
       var inl = cfg('statusSaveMode', 'inline') !== 'manual', mode = cfg('mapProgressMode', 'simple'), hv = SADO.helpTab || 'basic';
       var steps = [['区域を選ぶ', '画面下の「区域」から、「会衆」「グループ」「個人」のタブで、担当の区域を選んで「開く」を押します。大きな区域を開くと、中の小さな区域がまとめて地図に出ます。「区域一覧」では、すべての区域を見られます。'],
@@ -1120,7 +1124,9 @@
       case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
       case 'areaExp': S.areaOpen = S.areaOpen || {}; S.areaOpen[v] = !S.areaOpen[v]; if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; }); } else renderHome(); break;
       case 'pickBuilding': selectArea(t.getAttribute('data-a'), v); break;
-      case 'helpTab': SADO.helpTab = v; renderMenuBody(); break;
+      case 'helpTab': SADO.helpTab = v; drawHelp(); break;
+      case 'helpOpen': SADO.helpTab = 'basic'; $('#helpWin').classList.remove('hidden'); drawHelp(); break;
+      case 'helpClose': $('#helpWin').classList.add('hidden'); break;
       case 'prefInput': setPref('input', v); applySettings(); renderSheet(); renderMenuBody(); break;
       case 'copyUrl': copyText(shareUrl()); break;
       case 'shareUrl': try { navigator.share({ title: (S.settings && S.settings.appTitle) || document.title, url: shareUrl() }); } catch (e) { copyText(shareUrl()); } break;
