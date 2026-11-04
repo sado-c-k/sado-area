@@ -258,7 +258,7 @@
     if (!window.L) { toast('地図ライブラリ(lib/leaflet.js)が見つかりません。'); return; }
     S.mapReady = true;
     var st = S.settings || {};
-    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
+    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
     map.on('zoomend', function () { syncLabels(); if (!S.edit && (!S.cur || S.merged)) drawFrames(); });
     map.on('dragstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     map.on('zoomstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
@@ -454,7 +454,7 @@
   function selectParent(pid, quiet) {
     var pa = areaById(pid), kids = visibleAreas().filter(function (a) { return a.parentId === pid; });
     if (!kids.length) { toast('開ける小さな区域がありません。'); return Promise.resolve(); }
-    var ml = $('#mapLoading'); if (!quiet && ml) { ml.classList.remove('hidden'); applyLogo($('#mapLoadLogo')); }
+    var ml = null; // 読み込み中の表示は、通信の表示(全画面のくるくる)だけにする。二重に出さない
     return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet); })).then(function () {
       var m = { area: pa || { areaId: pid, areaName: '', canEdit: false }, buildings: [], rooms: [], merged: true };
       kids.forEach(function (k) {
@@ -578,6 +578,10 @@
       var act = function () { if (!live) selectKid(b.areaId); else if (simple) quickRecord(b.buildingId); else openBuilding(b.buildingId); };
       shape.on('click', act); if (simple) shape.on('contextmenu', function () { openBuilding(b.buildingId); });
       bLayer.addLayer(shape); bShapes[b.buildingId] = shape;
+      if (!pin && !ed && shape.getBounds) { // 小さな丸でも押しやすいよう、見えない大きめの押す範囲を重ねる(拡大率によらず約9px)
+        var hc = shape.getBounds().getCenter(), hit = L.circleMarker(hc, { radius: 9, stroke: false, fill: true, fillOpacity: 0, fillColor: '#000' });
+        hit.on('click', act); if (simple) hit.on('contextmenu', function () { openBuilding(b.buildingId); }); bLayer.addLayer(hit);
+      }
       if (pinned && !pin && !ed) {
         var c = shape.getBounds ? shape.getBounds().getCenter() : null;
         if (c) { pin = L.marker(c, { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; pin.on('click', act); bLayer.addLayer(pin); }
@@ -1048,7 +1052,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v56　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v57　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
