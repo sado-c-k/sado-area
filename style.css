@@ -581,3 +581,10 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 .leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + var(--safe-b))}
 @media (min-width:900px){.leaflet-bottom.leaflet-right{margin-bottom:14px}}
 #legend{bottom:calc(var(--nav) + var(--safe-b) + 28px)}
+
+/* v61: 親区域を開いたときの見た目を、アパートを開いたときと同じにする(1つの枠・中の子区域は薄い色のカード) */
+#home .pgroup{border:1px solid var(--primary);box-shadow:0 0 0 2px var(--primary-soft,rgba(46,125,50,.18));border-radius:var(--radius);padding:14px;margin:0 0 12px;background:var(--surface)}
+#home .pgroup>.pcard{border:0;background:none;box-shadow:none;padding:0;margin:0 0 4px}
+#home .pgroup .pkids{margin-left:14px;margin-top:6px}
+#home .pgroup .pkids>.card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin:6px 0 0}
+#home .pgroup .pkids>.card b{color:var(--primary-strong)}

@@ -348,7 +348,7 @@
       if (S.merged) { // 大きな区域: 中の小さな区域の枠を出し、押した区域を選ぶ(選んだ区域は濃く、ほかは薄く)
         frameFeatures().forEach(function (f) {
           if ((S.kids || []).indexOf(f.areaId) < 0) return; var sel = f.areaId === S.sub, k = areaById(f.areaId), id = f.areaId;
-          var poly = L.polygon(geomToLatLngs(f.geometry), { color: '#188038', weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
+          var kuse = !!(k && k.inUse), poly = L.polygon(geomToLatLngs(f.geometry), { color: kuse ? '#188038' : '#1a73e8', weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
           if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: lbCls(k.inUse, k.assigned) });
           poly.on('click', function () { selectKid(id); }); frameLayer.addLayer(poly);
         });
@@ -484,7 +484,7 @@
     document.body.classList.toggle('area-chosen', !!S.cur); if (S.cur) document.body.classList.remove('search-open');
     var cb = $('#areaClearBtn'); if (cb) cb.classList.toggle('hidden', !S.cur); var hd = $('#hdr'); if (hd) hd.style.left = S.cur ? '64px' : '';
     var a = S.cur && areaById(S.cur), t = $('#hdrTitle'), q = $('#hdrQ');
-    var sk = S.merged && S.sub && areaById(S.sub); t.textContent = a ? (sk ? sk.areaName : a.areaName + '') + ((sk ? sk.canEdit : (a.canEdit || S.merged)) ? '' : '（見るだけ）') : ''; t.style.display = S.cur ? '' : 'none'; if (q) { q.style.display = S.cur ? 'none' : ''; if (S.cur) { q.value = ''; hdrSearch(); } }
+    var sk = S.merged && S.sub && areaById(S.sub); t.textContent = a ? (sk ? sk.areaName : a.areaName + '') : ''; t.style.display = S.cur ? '' : 'none'; if (q) { q.style.display = S.cur ? 'none' : ''; if (S.cur) { q.value = ''; hdrSearch(); } }
   }
   // 区域が選ばれていないとき、上のバーで区域名を探して開く(旧GASと同じ)
   function hdrSearch() {
@@ -898,16 +898,17 @@
   // 担当タブ(会衆・グループ・個人)の区域: 「使用中」「担当」の札や担当者名は出さない。区域一覧タブ(plain=true)は従来どおり
   // 区域をひらくと、建物ごとの進み具合(グラフ・訪問済み件数・％)が出る。建物を押すと、地図でその建物の詳細が開く
   function bldListHtml(a) {
-    if (!(S.areaOpen && S.areaOpen[a.areaId])) return ''; var d = S.data[a.areaId]; if (!d) return '<div class="note" style="margin:6px 0 0 14px">読み込み中…</div>';
+    if (!canExp(a) || !(S.areaOpen && S.areaOpen[a.areaId])) return ''; var d = S.data[a.areaId]; if (!d) return '<div class="note" style="margin:6px 0 0 14px">読み込み中…</div>';
     var by = {}; d.rooms.forEach(function (r) { var o = by[r.buildingId] || (by[r.buildingId] = { total: 0, visited: 0, c: {} }); o.total++; var st = statusOf(r.status); o.c[st.id] = (o.c[st.id] || 0) + 1; if (st.visited) o.visited++; });
     var bs = d.buildings.slice().sort(function (x, y) { return String(x.buildingName || '~').localeCompare(String(y.buildingName || '~'), 'ja'); });
     return bs.map(function (b) { var p = by[b.buildingId] || { total: 0, visited: 0, c: {} }; return '<div class="bld" data-act="pickBuilding" data-a="' + esc(a.areaId) + '" data-v="' + esc(b.buildingId) + '"><b>' + esc(b.buildingName || '(名前なしの建物)') + '</b>' + (p.total ? progBar(p) + '<div class="pmeta">訪問済み ' + p.visited + ' / ' + p.total + '件(' + pctOf(p.visited, p.total) + '%)</div>' : '<div class="pmeta">部屋の登録なし</div>') + '</div>'; }).join('') || '<div class="note" style="margin:6px 0 0 14px">建物がありません。</div>';
   }
   function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
+  function canExp(a) { return inCat(a, 'アパート'); } // 建物の一覧を出せるのは、アパートだけ(国仲・遠方は、小さな区域まで)
   function areaCard(a, plain) {
-    if (!plain) return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
+    if (!plain) return '<div class="card' + (canExp(a) ? ' tap' : '') + (a.inUse ? ' inuse' : '') + (canExp(a) && S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '"' + (canExp(a) ? ' data-act="areaExp" data-v="' + esc(a.areaId) + '"' : '') + '><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
       saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
-    return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
+    return '<div class="card' + (canExp(a) ? ' tap' : '') + (a.inUse ? ' inuse' : '') + (canExp(a) && S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '"' + (canExp(a) ? ' data-act="areaExp" data-v="' + esc(a.areaId) + '"' : '') + '><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
       (a.inUse ? esc(a.assigneeName) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
       dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
   }
@@ -1071,7 +1072,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v60　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v61　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1200,7 +1201,7 @@
       case 'hdrPick': $('#hdrQ').value = ''; hdrSearch(); var pk = areaById(v); if (pk && pk.isParent) selectParent(v); else selectArea(v); break;
       case 'layerToggle': openLayerPicker(); break;
       case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
-      case 'areaExp': S.areaOpen = S.areaOpen || {}; S.areaOpen[v] = !S.areaOpen[v]; if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; }); } else renderHome(); break;
+      case 'areaExp': { var ea = areaById(v); if (!ea || !canExp(ea)) break; S.areaOpen = S.areaOpen || {}; S.areaOpen[v] = !S.areaOpen[v]; renderHome(); if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; renderHome(); }); } break; }
       case 'pickBuilding': selectArea(t.getAttribute('data-a'), v); break;
       case 'helpTab': SADO.helpTab = v; drawHelp(); break;
       case 'helpOpen': SADO.helpTab = 'basic'; $('#helpWin').classList.remove('hidden'); drawHelp(); break;
