@@ -576,3 +576,8 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 .area-label.parent-label{background:#1557b0;color:#fff}.area-label.parent-label.lb-use{background:#188038;color:#fff}.area-label.parent-label.lb-gray{background:#5f6368;color:#fff}
 #panelBack{display:none;position:fixed;left:0;right:0;top:0;bottom:0;z-index:1400;background:transparent}
 #home:not(.hidden)~#panelBack,#menu:not(.hidden)~#panelBack{display:block}
+
+/* v52: 著作権表示は旧GASと同じ位置(下のバーのすぐ上。横長の画面では下から14px) / 凡例は著作権表示と重ならない */
+.leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + var(--safe-b))}
+@media (min-width:900px){.leaflet-bottom.leaflet-right{margin-bottom:14px}}
+#legend{bottom:calc(var(--nav) + var(--safe-b) + 28px)}
