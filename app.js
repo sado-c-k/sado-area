@@ -271,7 +271,7 @@
   function renderLegend() {
     var dot = function (c, t, ring) { return '<b><i style="background:' + (ring ? '#fff' : c) + (ring ? ';border:3px solid ' + c : '') + '"></i>' + t + '</b>'; }, h = dot(cfg('mapProgressMode', 'simple') === 'circle' ? '#d1d5db' : '#1a73e8', '未訪問'), circle = cfg('mapProgressMode', 'simple') === 'circle';
     statusList().forEach(function (x) { if (x.visited && !x.done) h += dot(stColor(x), esc(x.label)); }); // 留守(1回目)・留守(2回目)などを、それぞれ別の色で
-    if (circle) statusList().forEach(function (x) { if (x.done) h += dot(stColor(x), esc(x.label)); }); else h += dot('#188038', '訪問済み') + dot('#9aa0a6', '編集不可');
+    if (circle) statusList().forEach(function (x) { if (x.done) h += dot(stColor(x), esc(x.label)); }); else h += dot('#188038', '訪問済み');
     $('#legend').innerHTML = h + dot('#ca8a04', '注意', true) + dot('#b91c1c', '拒否', true);
   }
   function loadFrames() {
@@ -363,7 +363,7 @@
       var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
       if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: lbCls(a.inUse, a.assigned) });
-      poly.on('click', function () { selectArea(id); });
+      poly.on('click', function () { var pa0 = a.parentId && areaById(a.parentId); if (pa0 && pa0.isParent) selectParent(a.parentId); else selectArea(id); }); // 何も選んでいないときは、まず大きな区域を選ぶ
       frameLayer.addLayer(poly);
     });
     if (!S.edit && map && map.getZoom() >= FRAME_PARENT_BELOW) parentOutline(true);
@@ -921,7 +921,8 @@
   }
   function renderHome0() {
     if (!S.prog || Date.now() - (S.progAt || 0) > 20000) loadProg();
-    var el = $('#home'), cat = S.homeCat, tab = S.homeTab || 'all', title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
+    if (!S.homeTab) S.homeTab = 'all';
+    var el = $('#home'), cat = S.homeCat, tab = S.homeTab, title = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
     var gname = (S.user && S.user.groupName) || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人'], ['list', '区域一覧']];
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
@@ -1047,7 +1048,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v54　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v56　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1140,7 +1141,7 @@
       case 'homeCat': S.homeCat = v; S.homeParent = null; S.homeQ = ''; renderHome(); break;
       case 'homeBack': S.homeCat = null; S.homeParent = null; renderHome(); break;
       case 'homeTab': S.homeTab = v; S.homeCat = null; S.homeParent = null; renderHome(); break;
-      case 'homeToggle': S.homeOpen = S.homeOpen || {}; S.homeOpen[(S.homeTab || '') + v] = !S.homeOpen[(S.homeTab || '') + v]; renderHome(); break;
+      case 'homeToggle': S.homeOpen = S.homeOpen || {}; S.homeOpen[(S.homeTab || 'all') + v] = !S.homeOpen[(S.homeTab || 'all') + v]; renderHome(); break;
       case 'openParent': selectParent(v); break;
       case 'syncNow':
         if (!S.online) { toast('今はオフラインです。' + (S.pending ? '未送信の ' + S.pending + ' 件は端末に残っていて、電波がつながると自動で送信されます。' : '電波のあるところで、もう一度押してください。'), 4500); break; }
