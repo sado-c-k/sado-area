@@ -259,7 +259,7 @@
     S.mapReady = true;
     var st = S.settings || {};
     map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
-    map.on('zoomend', function () { syncLabels(); if (!S.edit && (!S.cur || S.merged)) drawFrames(); });
+    map.on('zoomend', function () { syncLabels(); ringSync(); if (!S.edit && (!S.cur || S.merged)) drawFrames(); });
     map.on('dragstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     map.on('zoomstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     try { if (SADO.MapRot) SADO.MapRot.init(); } catch (e) { console.warn('rot init', e); }
@@ -484,7 +484,7 @@
     document.body.classList.toggle('area-chosen', !!S.cur); if (S.cur) document.body.classList.remove('search-open');
     var cb = $('#areaClearBtn'); if (cb) cb.classList.toggle('hidden', !S.cur); var hd = $('#hdr'); if (hd) hd.style.left = S.cur ? '64px' : '';
     var a = S.cur && areaById(S.cur), t = $('#hdrTitle'), q = $('#hdrQ');
-    var sk = S.merged && S.sub && areaById(S.sub); t.textContent = a ? (sk ? sk.areaName : a.areaName + (S.merged ? '(小さな区域を選択)' : '')) + ((sk ? sk.canEdit : (a.canEdit || S.merged)) ? '' : '（見るだけ）') : ''; t.style.display = S.cur ? '' : 'none'; if (q) { q.style.display = S.cur ? 'none' : ''; if (S.cur) { q.value = ''; hdrSearch(); } }
+    var sk = S.merged && S.sub && areaById(S.sub); t.textContent = a ? (sk ? sk.areaName : a.areaName + '') + ((sk ? sk.canEdit : (a.canEdit || S.merged)) ? '' : '（見るだけ）') : ''; t.style.display = S.cur ? '' : 'none'; if (q) { q.style.display = S.cur ? 'none' : ''; if (S.cur) { q.value = ''; hdrSearch(); } }
   }
   // 区域が選ばれていないとき、上のバーで区域名を探して開く(旧GASと同じ)
   function hdrSearch() {
@@ -565,6 +565,12 @@
     });
     return out;
   }
+  // 拒否・注意の枠の太さ: 丸の画面上の大きさ(半径)のおよそ4割。拡大・縮小に合わせて変える
+  function ringW(rM, lat) {
+    var z = map ? map.getZoom() : 16, mpp = 156543.03 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z), px = rM / mpp;
+    return Math.max(2, Math.min(14, px * 0.4));
+  }
+  function ringSync() { Object.keys(bShapes).forEach(function (k) { var sh = bShapes[k]; if (sh && sh._ringR && sh.setStyle) sh.setStyle({ weight: ringW(sh._ringR, sh._ringLat) }); }); }
   function drawBuildings(fit) {
     if (!bLayer) return; bLayer.clearLayers(); bShapes = {}; bPins = {}; bLabels = {};
     var d = S.data[S.cur]; if (!d) return;
@@ -575,7 +581,7 @@
       var f = feat[b.buildingId], shape = null, st = buildingStyle(b.areaId || S.cur, b), apt = isApt(b.areaId || S.cur, b), pinned = hasRoomInfo(b.areaId || S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
       var hasPt = b.lat != null && b.lng != null;
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
-      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (pinned) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = Math.max(1.4, Math.min(4.6 * fontScale(), (nn[b.buildingId] || 1e9) * 0.46)); st.weight = st.radius < 2.6 ? 0.8 : 1; /* 半径5.6m: 地図の拡大・縮小に合わせて大きさが変わる */ shape = L.circle([b.lat, b.lng], st); } }
+      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (pinned) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = Math.max(1.4, Math.min(4.6 * fontScale(), (nn[b.buildingId] || 1e9) * 0.46)); var ringed = st.weight >= 8; st.weight = ringed ? ringW(st.radius, b.lat) : (st.radius < 2.6 ? 0.8 : 1); /* 半径(m): 地図の拡大・縮小に合わせて大きさが変わる。拒否・注意の枠も丸の大きさに合わせて太さが変わる */ shape = L.circle([b.lat, b.lng], st); if (ringed) { shape._ringR = st.radius; shape._ringLat = b.lat; } } }
       if (!shape) return;
       var live = !S.merged || ed || b.areaId === S.sub; // 大きな区域を開いているときは、小さな区域を選ぶまで記録できない(押すと、その建物の小さな区域が選ばれる)
       var simple = !apt && !ed && direct && live;
@@ -705,7 +711,16 @@
   }
 
   // ---------- 未送信の記録と自動同期 ----------
-  function enqueue(op) { return idb.add('queue', op).then(function () { return countPending(); }).then(flush); }
+  // 続けてタップしたときは、同じ部屋(建物)の古い未送信を最新の内容にまとめ、少し待ってから(3秒)最終結果だけを送る
+  var flushT = null;
+  function enqueue(op) {
+    return idb.all('queue').then(function (items) {
+      var old = items.filter(function (i) { var v = i.val; return v.type === op.type && v.areaId === op.areaId && (op.type === 'status' ? v.roomId === op.roomId : (op.type === 'building' && v.buildingId === op.buildingId)); })[0];
+      if (!old) return idb.add('queue', op);
+      var m = {}; for (var k in old.val) m[k] = old.val[k]; for (var k2 in op) m[k2] = op[k2];
+      return idb.del('queue', old.key).then(function () { return idb.add('queue', m); });
+    }).then(function () { return countPending(); }).then(function () { clearTimeout(flushT); flushT = setTimeout(flush, 3000); });
+  }
   function countPending() { return idb.all('queue').then(function (a) { S.pending = a.length; updateBadge(); return a.length; }); }
   function updateBadge() {
     var b = $('#syncBadge'); if (!b) return;
@@ -1056,7 +1071,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v59　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v60　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
