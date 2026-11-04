@@ -77,7 +77,7 @@
     if (S.online !== v) {
       S.online = v; updateBadge(); if (v) flush();
       // 圏外のときは、端末に保存できる地図(地理院タイル)に自動で切り替える。電波が戻ったら元の地図へ
-      try { if (typeof tileLayer !== 'undefined' && tileLayer && tileLayer.setUrl && S.settings) tileLayer.setUrl(tileDef(v ? effSrc() : 'gsi').url); } catch (e) {}
+      try { if (typeof tileLayer !== 'undefined' && tileLayer && tileLayer.setUrl && S.settings) setTile(tileDef(v ? effSrc() : 'gsi')); } catch (e) {}
     }
   }
   var toastTimer;
@@ -212,7 +212,7 @@
   }
   function sessionExpired() { toast('ログインの有効期限が切れました。未送信の記録は端末に残っています。'); S.token = null; idb.del('kv', 'session').then(function () { showLogin(); }); }
   function areaById(id) { for (var i = 0; i < S.areas.length; i++) if (S.areas[i].areaId === id) return S.areas[i]; return null; }
-  function statusList() { return (S.settings && S.settings.statusList) || [{ id: 'unvisited', label: '未訪問', visited: false, done: false }, { id: 'met', label: '会えた', visited: true, done: true }]; }
+  function statusList() { var l = (S.settings && S.settings.statusList); if (l) { if (!l._n) { l = l.map(function (x) { var y = {}; for (var k in x) y[k] = x[k]; y.label = String(x.label || '').replace(/^留守[(（]1回目[)）]$/, '留守1').replace(/^留守[(（]2回目[)）]$/, '留守2'); return y; }); l._n = 1; S.settings.statusList = l; } return l; } return [{ id: 'unvisited', label: '未訪問', visited: false, done: false }, { id: 'met', label: '会えた', visited: true, done: true }]; }
   // ---------- 動作設定の反映(訪問状況の色・入力スタイル・ピンの影など) ----------
   var DEF_COL = { unvisited: '#9aa0a6', met: '#188038', absent1: '#ef6c00', absent2: '#c2410c', vacant: '#6b7280' };
   function stColor(x) { return (x && x.color) || DEF_COL[x && x.id] || '#6b7280'; }
@@ -232,7 +232,7 @@
     var de = document.documentElement;
     de.classList.toggle('no-pin-shadow', cfg('pinShadowEnabled', true) === false);
     de.setAttribute('data-input', inputTheme());
-    try { if (typeof tileLayer !== 'undefined' && tileLayer && S.settings) { var td0 = tileDef(effSrc()); if (tileLayer.setUrl && tileLayer._url !== td0.url) tileLayer.setUrl(td0.url); } } catch (e) {}
+    try { if (typeof tileLayer !== 'undefined' && tileLayer && S.settings) { var td0 = tileDef(effSrc()); if (tileLayer.setUrl && tileLayer._url !== td0.url) setTile(td0); } } catch (e) {}
     try { if (SADO.MapRot && SADO.MapRot.setEnabled) SADO.MapRot.setEnabled(cfg('mapRotationEnabled', true) !== false); } catch (e) {}
   }
   function statusOf(id) { var l = statusList(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return l[0]; }
@@ -248,6 +248,16 @@
     m.innerHTML = '<div class="mb"><h3>地図の種類</h3><div class="maplayer-row">' + l.map(function (o) { return '<button type="button" class="maplayer-opt' + (o[0] === cur ? ' active' : '') + '" data-act="layerPick" data-v="' + o[0] + '"><span class="maplayer-sw">' + (TILE_SW[o[0]] || '') + '</span><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div></div>';
     document.body.appendChild(m);
     m.addEventListener('click', function (e) { if (e.target === m) m.parentNode.removeChild(m); });
+  }
+  // 地図の種類を切り替えるとき、URLだけでなく、拡大の上限(maxZoom・maxNativeZoom)も合わせる。
+  // 合わせないと、地理院の地図(実際のタイルは18まで)なのに19のタイルを取りに行き、最大に拡大すると地図が消える
+  function setTile(td) {
+    if (!tileLayer || !td) return;
+    try {
+      tileLayer.options.maxZoom = td.opt.maxZoom; tileLayer.options.maxNativeZoom = td.opt.maxNativeZoom;
+      tileLayer.setUrl(td.url);
+      if (map) { if (map._updateZoomLevels) map._updateZoomLevels(); if (map.getZoom() > td.opt.maxZoom) map.setZoom(td.opt.maxZoom); }
+    } catch (e) { try { tileLayer.setUrl(td.url); } catch (e2) {} }
   }
   function tileDef(src) {
     var st = S.settings || {};
@@ -504,20 +514,20 @@
   function roomsOf(areaId, bid) { var d = (S.merged && S.cur && S.data[S.cur]) || S.data[areaId]; return d ? d.rooms.filter(function (r) { return r.buildingId === bid; }).sort(function (a, b) { return a.sortOrder - b.sortOrder; }) : []; }
   // 部屋の数え方: 「訪問した」「完了」は動作設定の訪問状況による。拒否・注意の部屋を完了扱いにするかも動作設定で決める
   function roomCounts(areaId, b) {
-    var rs = roomsOf(areaId, b.buildingId), c = { n: rs.length, visited: 0, done: 0, rej: false, cau: false, by: {} }, rcd = cfg('pinRejectCautionDone', true) !== false;
+    var rs = roomsOf(areaId, b.buildingId), c = { n: rs.length, visited: 0, done: 0, sdone: 0, rej: false, cau: false, by: {} }, rcd = cfg('pinRejectCautionDone', true) !== false;
     rs.forEach(function (r) {
       var s = statusOf(r.status), mk = r.mark === 'reject' || r.mark === 'caution';
       c.by[s.id] = (c.by[s.id] || 0) + 1;
-      if (s.visited) c.visited++; if (s.done || (rcd && mk)) c.done++;
+      if (s.visited) c.visited++; if (s.done) c.sdone++; if (s.done || (rcd && mk)) c.done++; // sdone: 印を無視した、訪問状況だけでの完了数(丸の色に使う)
       if (r.mark === 'reject') c.rej = true; if (r.mark === 'caution') c.cau = true;
     });
     return c;
   }
   function buildingStyle(areaId, b) {
     var c = roomCounts(areaId, b), a = areaById(areaId) || (S.data[areaId] && S.data[areaId].area) || {}, thr = (Number(cfg('pinDoneThreshold', 100)) || 100) / 100, off = cfg('mapProgressMode', 'simple') === 'off';
-    var editable = a.canEdit !== false, full = c.n && c.done / c.n >= thr - 1e-9;
-    var part = '#ef6c00'; if (c.visited > 0 || c.done > 0) { var bn = 0; statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (x.visited && !x.done && k > 0 && k >= bn) { part = stColor(x); bn = k; } }); } // 途中の色は、いちばん多い訪問状況(留守1・留守2など)の色
-    var fill = !editable ? '#9aa0a6' : (off ? '#1a73e8' : (full ? '#188038' : (c.visited > 0 || c.done > 0 ? part : '#1a73e8')));
+    var editable = a.canEdit !== false, full = c.n && c.sdone / c.n >= thr - 1e-9; // 丸の色は、拒否・注意の印ではなく、実際の訪問状況で決める
+    var part = '#ef6c00'; if (c.visited > 0 || c.sdone > 0) { var bn = 0; statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (x.visited && !x.done && k > 0 && k >= bn) { part = stColor(x); bn = k; } }); } // 途中の色は、いちばん多い訪問状況(留守1・留守2など)の色
+    var fill = !editable ? '#9aa0a6' : (off ? '#1a73e8' : (full ? '#188038' : (c.visited > 0 || c.sdone > 0 ? part : '#1a73e8')));
     return { color: c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : fill), weight: c.rej || c.cau ? 8 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   // 部屋情報のある建物(部屋が2つ以上・アパート区域)だけがピン。名前だけある建物は丸のまま(名前は表示する)
@@ -527,7 +537,7 @@
   // 旧GAS(佐渡アパートGAS)と同じ見た目: 拡大したときは、しずく形のピン+建物名の札。縮小したときは、小さな丸だけ
   var PIN_DOT_BELOW_ZOOM = 16;
   function pieIcon(b, color) {
-    var c = roomCounts(b.areaId || S.cur, b), n = c.n || 1, stops = [], at = 0, rest = Math.max(0, c.n - c.done);
+    var c = roomCounts(b.areaId || S.cur, b), n = c.n || 1, stops = [], at = 0, rest = Math.max(0, c.n - c.sdone);
     statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (!k || !(x.visited || x.done)) return; var w = k / n * 100; stops.push(stColor(x) + ' ' + at.toFixed(1) + '% ' + (at + w).toFixed(1) + '%'); at += w; });
     stops.push('#d1d5db ' + at.toFixed(1) + '% 100%');
     var ring = c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : '#fff');
@@ -657,7 +667,7 @@
       h += '</div>';
     });
     if (ed && SADO.sheetTools) h += SADO.sheetTools(b);
-    sh.style.height = S.sheetH ? S.sheetH + 'px' : '50%';
+    if (S.sheetH) { sh.style.height = S.sheetH + 'px'; sh.style.maxHeight = ''; } else { sh.style.height = 'auto'; sh.style.maxHeight = '50%'; } // 内容が少ないときは、それ以上広げない
     sh.innerHTML = h + '</div>'; sh.classList.remove('hidden'); if (keep) sh.querySelector('.body').scrollTop = keep;
   }
   // 訪問状況の変更: 「すぐに保存」ならその場で保存、「まとめて保存」なら下書きにして保存ボタンで送る
@@ -700,7 +710,7 @@
   document.addEventListener('pointerdown', function (ev) {
     var t = ev.target; if (!t.closest || !t.closest('#sheet .grip, #sheet .head') || t.closest('button,input,select,textarea')) return;
     var sh = $('#sheet'), y0 = ev.clientY, h0 = sh.getBoundingClientRect().height, navH = 0;
-    sh.classList.add('dragging');
+    sh.classList.add('dragging'); sh.style.maxHeight = '';
     function mv(e) { var nh = Math.max(110, Math.min(window.innerHeight * 0.92 - navH, h0 + (y0 - e.clientY))); sh.style.height = nh + 'px'; S.sheetH = Math.round(nh); }
     function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up); sh.classList.remove('dragging'); }
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
@@ -1083,7 +1093,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v67　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v68　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1212,7 +1222,7 @@
       case 'prefTheme': setPref('theme', v); renderMenuBody(); break;
       case 'hdrPick': $('#hdrQ').value = ''; hdrSearch(); var pk = areaById(v); if (pk && pk.isParent) selectParent(v); else selectArea(v); break;
       case 'layerToggle': openLayerPicker(); break;
-      case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { tileLayer.setUrl(tdn.url); } break;
+      case 'layerPick': S.tileOverride = v; var lmd = document.getElementById('modal'); if (lmd) lmd.parentNode.removeChild(lmd); var tdn = tileDef(v); if (tileLayer && tileLayer.setUrl) { setTile(tdn); } break;
       case 'areaExp': { var ea = areaById(v); if (!ea || !canExp(ea)) break; var aw = !(S.areaOpen && S.areaOpen[v]); S.areaOpen = {}; S.homeOpen = {}; if (aw) S.areaOpen[v] = true; renderHome(); if (S.areaOpen[v] && !S.data[v]) { loadAreaData(v, true).then(function () { renderHome(); }, function (e) { toast(e.message, 4000); S.areaOpen[v] = false; renderHome(); }); } break; }
       case 'pickBuilding': selectArea(t.getAttribute('data-a'), v); break;
       case 'helpTab': SADO.helpTab = v; drawHelp(); break;

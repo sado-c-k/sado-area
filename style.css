@@ -251,9 +251,10 @@ button.north-btn.show{display:-webkit-flex;display:flex;-webkit-align-items:cent
 #sheet .tn{font-size:.8em;opacity:.7;margin-left:6px}
 #sheet .upd{font-size:.7em;opacity:.65;margin-top:4px}
 #sheet select.rstatus{width:100%;min-height:40px}
-.spk{display:grid;grid-template-columns:repeat(3,1fr);grid-gap:5px}
-.spk.n4{grid-template-columns:repeat(2,1fr)}
-#sheet .fgrid.in3 .spk{grid-template-columns:repeat(auto-fit,minmax(60px,1fr))}
+.spk{display:grid;grid-template-columns:repeat(3,1fr);grid-gap:4px}
+.spk.n1{grid-template-columns:1fr}.spk.n2{grid-template-columns:repeat(2,1fr)}.spk.n4{grid-template-columns:repeat(4,1fr)}.spk.n5{grid-template-columns:repeat(5,1fr)}
+.spk.n4 .sp-btn,.spk.n5 .sp-btn{font-size:.78em;padding:2px 1px;white-space:nowrap}
+#sheet .fgrid.in3 .spk.n3{grid-template-columns:repeat(3,1fr)}
 .sp-btn{-webkit-appearance:none;appearance:none;margin:0;font-family:inherit;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text-2);border-radius:9px;min-height:38px;padding:2px 3px;font-size:.82em;font-weight:800;cursor:pointer;line-height:1.15}
 .sp-btn:active{-webkit-transform:scale(.96);transform:scale(.96)}
 .sp-btn:disabled{opacity:.5}

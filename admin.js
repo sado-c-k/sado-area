@@ -260,7 +260,7 @@
   }
   function bulkTarget() {
     var d = { areas: C.ad.areas.filter(function (a) { return (a.category || '国仲') === B.cat; }) }, h = '';
-    if (B.scope === 'area') return '<div class="fxgrid"><div><label>対象区域</label><select id="bkId">' + areaOpts(d.areas, B.id, '区域を選んでください') + '</select></div></div>';
+    if (B.scope === 'area') { var ps = d.areas.filter(function (a) { return a.isParent; }), po = ps.length ? '<optgroup label="親区域(中の子区域すべて)">' + ps.map(function (a) { return '<option value="p:' + esc(a.areaId) + '"' + ('p:' + a.areaId === String(B.id) ? ' selected' : '') + '>' + esc(a.areaName) + '(すべての子区域)</option>'; }).join('') + '</optgroup>' : '', ao = areaOpts(d.areas, B.id, '区域を選んでください'), i0 = ao.indexOf('</option>') + 9; return '<div class="fxgrid"><div><label>対象区域(親区域を選ぶと、中の子区域すべてが対象)</label><select id="bkId">' + ao.slice(0, i0) + po + ao.slice(i0) + '</select></div></div>'; }
     h = '<div class="fxgrid"><div><label>区域</label><select id="bkArea">' + areaOpts(d.areas, B.area, '区域を選んでください') + '</select></div><div><label>対象の建物</label><select id="bkId">' + (C.bkB ? opts(C.bkB, 'buildingId', 'buildingName', B.id, '建物を選んでください') : '<option value="">(先に区域を選ぶ)</option>') + '</select></div></div>';
     return h;
   }
@@ -270,7 +270,7 @@
     if (el && el.value) nm = el.options[el.selectedIndex].text;
     if (!B.id || !nm) return '<div class="bsum muted">対象を選んでください。</div>';
     if (!B.st && !B.memo) return '<div class="bsum muted">クリアする項目を選んでください。</div>';
-    return '<div class="bsum"><b>' + (B.scope === 'area' ? '区域' : '建物') + '「' + esc(nm) + '」</b> の <b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b> を消します。<br><small>' + (B.st ? (B.vac === 'keep' ? '空室の部屋はそのまま残します。' : '空室の部屋も含めて消します。') : '') + (B.memo ? (B.flag === 'keep' ? '「注意」「拒否」の部屋のメモは残します。' : '「注意」「拒否」の部屋のメモも消します。') : '') + '</small></div>';
+    return '<div class="bsum"><b>' + (/^p:/.test(String(B.id)) ? '親区域' : (B.scope === 'area' ? '区域' : '建物')) + '「' + esc(nm) + '」</b> の <b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b> を消します。<br><small>' + (B.st ? (B.vac === 'keep' ? '空室の部屋はそのまま残します。' : '空室の部屋も含めて消します。') : '') + (B.memo ? (B.flag === 'keep' ? '「注意」「拒否」の部屋のメモは残します。' : '「注意」「拒否」の部屋のメモも消します。') : '') + '</small></div>';
   }
   function drawBulk() {
     var l = C.last, d = C.ad;
@@ -298,7 +298,7 @@
     if (!B.st && !B.memo) { toast('訪問またはメモを選んでください。'); return; }
     var el = document.getElementById('bkId'), nm = el.options[el.selectedIndex].text;
     modal('一括クリアの確認', '<div class="bcr"><span>対象</span><b>' + (B.scope === 'area' ? '区域' : '建物') + '「' + esc(nm) + '」</b></div><div class="bcr"><span>消す項目</span><b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b></div>' + (B.st ? '<div class="bcr"><span>空室の部屋</span><b>' + (B.vac === 'keep' ? '残す' : '消す') + '</b></div>' : '') + (B.memo ? '<div class="bcr"><span>注意・拒否のメモ</span><b>' + (B.flag === 'keep' ? '残す' : '消す') + '</b></div>' : '') + '<div class="note">直前の1回分は「元に戻す」で復元できます。</div>', 'クリアする', function () {
-      after(api('bulkClear', { scopeType: B.scope, scopeId: B.id, clearStatus: B.st, clearMemo: B.memo, keepVacantStatus: B.vac === 'keep', keepFlaggedMemo: B.flag === 'keep' }), function (r) { return r.count + '件をクリアしました(元に戻せます)。'; }, function () { C.prog = null; loadBulk(); });
+      after(api('bulkClear', { scopeType: /^p:/.test(String(B.id)) ? 'parent' : B.scope, scopeId: String(B.id).replace(/^p:/, ''), clearStatus: B.st, clearMemo: B.memo, keepVacantStatus: B.vac === 'keep', keepFlaggedMemo: B.flag === 'keep' }), function (r) { return r.count + '件をクリアしました(元に戻せます)。'; }, function () { C.prog = null; loadBulk(); });
     });
   }
   // ---------- アカウント(ユーザー・グループ) ----------
@@ -417,7 +417,7 @@
 
   // ---------- 動作設定 ----------
   var ST = {}, VS = [];
-  var DEF_VS = [{ id: 'unvisited', label: '未訪問', visited: false, done: false, color: '#9aa0a6' }, { id: 'met', label: '会えた', visited: true, done: true, color: '#188038' }, { id: 'absent1', label: '留守(1回目)', visited: true, done: false, color: '#ef6c00' }, { id: 'absent2', label: '留守(2回目)', visited: true, done: false, color: '#c2410c' }, { id: 'vacant', label: '空室', visited: true, done: true, color: '#6b7280' }];
+  var DEF_VS = [{ id: 'unvisited', label: '未訪問', visited: false, done: false, color: '#9aa0a6' }, { id: 'met', label: '会えた', visited: true, done: true, color: '#188038' }, { id: 'absent1', label: '留守1', visited: true, done: false, color: '#ef6c00' }, { id: 'absent2', label: '留守2', visited: true, done: false, color: '#c2410c' }, { id: 'vacant', label: '空室', visited: true, done: true, color: '#6b7280' }];
   var COL_BY = { unvisited: '#9aa0a6', met: '#188038', absent1: '#ef6c00', absent2: '#c2410c', vacant: '#6b7280' };
   var TXT = [['appTitle', 'アプリのタイトル', 'ログイン画面・上のバー・ブラウザのタブ名に表示されます。'], ['mapLat', '地図の最初の位置(緯度)', '例: 38.08'], ['mapLng', '地図の最初の位置(経度)', '例: 138.44'], ['mapZoom', '地図の最初の拡大率', '例: 13'], ['autoEndMonths', '開始日から自動で終了するまでの月数', ''], ['fiscalStartMonth', '年度のはじまりの月', ''], ['logDocId', '記録用GoogleドキュメントのID', ''], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', '']];
   function isOn(v) { return v === true || String(v) === 'true'; }
