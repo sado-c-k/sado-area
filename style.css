@@ -524,3 +524,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;bo
 .tabs.sub{padding-top:0}
 .ptool .btn{display:-webkit-inline-flex;display:inline-flex;-webkit-align-items:center;align-items:center;gap:6px}
 .ptool .btn .cspin{width:16px;height:16px}
+#syncBadge{cursor:pointer}
+
+/* v38: コンパスの針は中心(16,16)を軸に回す。ダークモードは地図の色を反転 */
+.compass-btn .compass-needle{transform-origin:16px 16px;transform-box:view-box}
+html[data-theme="dark"] .leaflet-tile-pane{-webkit-filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9);filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+/* v39: 管理メニューの区域管理を、区域メニューのカードと同じ見た目に */
+#admin .prow{padding:9px 11px;border-radius:10px;margin:0 0 8px}
+#admin .prow .pn{font-weight:800;font-size:.93em;overflow-wrap:anywhere}
+#admin .prow .pp{font-weight:900;font-size:1em}
+#admin .prow .badge{margin-left:8px;padding:1px 9px;border-radius:999px;font-size:.7em;font-weight:800}
+#admin .prow .pbar{height:10px;margin:6px 0 3px}
+#admin .prow .pm{font-size:.78em;font-weight:600;line-height:1.5;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:0 8px}
+#admin .prow .pm span:last-child{margin-left:auto;text-align:right}
+.menu-user-box .gright{margin:0 0 0 auto;padding-left:10px;font-size:.85em;font-weight:700;color:var(--text-2);text-align:right}
