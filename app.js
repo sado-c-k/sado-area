@@ -423,7 +423,7 @@
   function selectParent(pid, quiet) {
     var pa = areaById(pid), kids = visibleAreas().filter(function (a) { return a.parentId === pid; });
     if (!kids.length) { toast('開ける小さな区域がありません。'); return Promise.resolve(); }
-    if (!quiet) toast((pa ? pa.areaName : '') + ' を読み込み中…', 1500);
+    var ml = $('#mapLoading'); if (!quiet && ml) { ml.classList.remove('hidden'); applyLogo($('#mapLoadLogo')); }
     return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet); })).then(function () {
       var m = { area: pa || { areaId: pid, areaName: '', canEdit: false }, buildings: [], rooms: [], merged: true };
       kids.forEach(function (k) {
@@ -436,7 +436,7 @@
       if (SADO.onAreaChange) SADO.onAreaChange();
       S.cur = pid; S.merged = true; if (!quiet || S.kids.indexOf(S.sub) < 0) S.sub = null; if (!quiet) closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); closePanels();
       if (!quiet) { try { var fb = frameLayer && frameLayer.getBounds && frameLayer.getBounds(); if (fb && fb.isValid && fb.isValid()) map.fitBounds(fb, { padding: [30, 30], maxZoom: 17 }); } catch (e) {} toast('地図の枠から、記録する小さな区域を選んでください。', 4000); }
-    })['catch'](function (e) { toast(e.message, 5000); });
+    })['catch'](function (e) { toast(e.message, 5000); }).then(function () { if (ml) ml.classList.add('hidden'); });
   }
   // 大きな区域の中で、小さな区域を選ぶ(その区域の建物だけが出て、記録できる)
   function selectKid(id) {
@@ -584,7 +584,7 @@
       fl[k].sort(function (x, y) { return String(x.roomId).localeCompare(String(y.roomId), 'ja', { numeric: true }); }).forEach(function (r) {
         var cur = S.draft && S.draft[r.roomId] !== undefined ? S.draft[r.roomId] : r.status, nm = String(r.roomName || '(部屋名なし)'), long = nm.length > 5;
         h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead"><div class="rn">' + esc(nm) + '</div>' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + (ed ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
-        h += '<div class="rrow pick"><div class="rlabel">訪問:</div><div class="rval">' + pickerHtml(r, can, cur) + '</div></div>';
+        h += '<div class="rrow pick"><div class="rlabel"></div><div class="rval">' + pickerHtml(r, can, cur) + '</div></div>';
         if (can && isAdmin()) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval"><input class="memo" data-room="' + esc(r.roomId) + '" placeholder="メモ" value="' + esc(r.memo) + '"></div></div>';
         else if (r.memo && !r.mark) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
         if (isAdmin() && can) h += '<div class="rrow marks">' + [['reject', '拒否'], ['caution', '注意']].map(function (m) { return '<button class="chip mark-' + m[0] + (r.mark === m[0] ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setMark" data-room="' + esc(r.roomId) + '" data-v="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>';
@@ -892,8 +892,8 @@
         h += '<div class="subhead">' + esc(c[1]) + '</div>';
         S.areas.filter(function (p) { return p.isParent && by[p.areaId]; }).forEach(function (p) {
           var open = !!(S.homeOpen && S.homeOpen[tab + p.areaId]);
-          h += parentRowHtml(p, open, false);
-          if (open) h += '<div class="pkids" style="margin-left:14px">' + by[p.areaId].map(function (k) { return areaCard(k); }).join('') + '</div>';
+          if (open) h += '<div class="pgroup">' + parentRowHtml(p, open, false) + '<div class="pkids">' + by[p.areaId].map(function (k) { return areaCard(k); }).join('') + '</div></div>';
+          else h += parentRowHtml(p, open, false);
         });
         loose.forEach(function (a) { h += areaCard(a); });
       });
@@ -902,10 +902,11 @@
       cat = S.homeCat = cat || CATS[0][0];
       h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' + onlyUseBox();
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
-      if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div style="height:8px"></div>'; }
+      if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="pgroup"><div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div class="pkids">'; }
       else if (parentsOf(cat).length) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
       else h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
       list.forEach(function (a) { h += areaCard(a, true); });
+      if (par) h += '</div></div>';
       if (!list.length) h += '<div class="note" style="padding:12px 4px">担当の区域はありません。区域係に、担当の設定を確認してください。</div>';
     }
     el.innerHTML = h + '</div>';
@@ -993,7 +994,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v48　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v49　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }

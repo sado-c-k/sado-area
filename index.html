@@ -9,10 +9,11 @@
 <title>佐渡住宅GAS</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="lib/leaflet.css">
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 <div id="boot"><div class="bootbox"><div class="bootmsg">読み込み中...</div><div id="bootLogo" class="spin"></div></div></div>
+<div id="mapLoading" class="hidden"><div class="loadbox"><div id="mapLoadLogo" class="spin"></div><div class="note">読み込み中...</div></div></div>
 <div id="helpWin" class="hidden"><div class="mhead"><div class="t">ヘルプ</div><button data-act="helpClose" aria-label="閉じる">✕</button></div><div class="mbody" id="helpWinBody"></div></div>
 <script>try{var L=JSON.parse(localStorage.getItem("sado-logo")||"{}");if(L.m==="custom"&&L.i){var e=document.getElementById("bootLogo");e.className="bootimg";e.style.backgroundImage="url("+L.i+")";}}catch(x){}</script>
 
@@ -61,9 +62,9 @@
 <script defer src="config.js"></script>
 <script defer src="lib/leaflet.js"></script>
 <script defer src="lib/leaflet-rotate.js"></script>
-<script defer src="app.js?v=48"></script>
-<script defer src="maprot.js?v=48"></script>
-<script defer src="admin.js?v=48"></script>
-<script defer src="edit.js?v=48"></script>
+<script defer src="app.js?v=49"></script>
+<script defer src="maprot.js?v=49"></script>
+<script defer src="admin.js?v=49"></script>
+<script defer src="edit.js?v=49"></script>
 </body>
 </html>

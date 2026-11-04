@@ -554,3 +554,13 @@ html[data-theme="dark"] .leaflet-tile-pane{-webkit-filter:invert(1) hue-rotate(1
 #helpWin.hidden{display:none}
 #helpWin .mhead{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin-bottom:8px}
 #helpWin .mhead .t{-webkit-flex:1;flex:1;font-size:1.2em;font-weight:800}
+
+/* v49: 親区域と子区域を1つの枠で囲む(区域メニュー・区域一覧・管理の区域管理で共通) */
+.pgroup{border:2px solid var(--primary);border-radius:16px;padding:6px;margin:8px 0 12px;background:rgba(46,125,50,.05)}
+.pgroup>.pcard,.pgroup>.pgrp{margin-top:0}
+.pgroup .pkids{margin-left:14px;margin-top:6px}
+.pgroup .pkids>.card:last-child{margin-bottom:0}
+.ptree .pgroup .prow.child{margin-left:0}
+#mapLoading{position:fixed;left:0;right:0;top:0;bottom:0;z-index:3000;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;pointer-events:none}
+#mapLoading.hidden{display:none}
+#mapLoading .loadbox{background:var(--bg);border-radius:16px;padding:18px 26px;box-shadow:0 4px 18px rgba(0,0,0,.25)}

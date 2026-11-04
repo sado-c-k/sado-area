@@ -123,8 +123,8 @@
       if (C.only && !pa.inUse && !shown.length) return;
       n++;
       var open = !!C.exp[pa.areaId] || (!!q && shown.length && !hit(pa)), p = sumProg(ks);
-      h += progRow(pa, p, '', '', ks.length, open);
-      if (open) shown.forEach(function (k) { h += progRow(k, P[k.areaId] || empty, '', ' child', 0); });
+      if (open) h += '<div class="pgroup">' + progRow(pa, p, '', '', ks.length, open) + '<div class="pkids">' + shown.map(function (k) { return progRow(k, P[k.areaId] || empty, '', ' child', 0); }).join('') + '</div></div>';
+      else h += progRow(pa, p, '', '', ks.length, open);
     });
     loose.filter(function (a) { return hit(a) && (!C.only || a.inUse); }).forEach(function (a) { n++; h += progRow(a, P[a.areaId] || empty, '', '', 0); });
     el.innerHTML = h || '<div class="note">表示する区域がありません。</div>';
