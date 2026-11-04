@@ -2,7 +2,7 @@
    ・アプリ本体と地図ライブラリは、いったん端末に保存し、次回からは保存したものを先に出す(裏で最新版を取り直す)
    ・地図の画像(タイル)は、一度見たもの・「地図を端末に保存」したものを端末から出す
    ※ アプリを更新したら、下の VERSION の数字を上げると、全員の端末が新しい版に入れ替わる */
-var VERSION = 'v40';
+var VERSION = 'v41';
 var SHELL = 'shell-' + VERSION, TILES = 'tiles-v1';
 var FILES = ['./', 'index.html', 'style.css', 'config.js', 'app.js', 'maprot.js', 'lib/leaflet-rotate.js', 'admin.js', 'edit.js', 'manifest.json', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'data/areas.geojson'];
 
