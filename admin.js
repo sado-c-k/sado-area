@@ -88,7 +88,7 @@
     loadAd().then(function (d) {
       var only = false; try { only = localStorage.getItem('adOnlyInUse') === '1'; } catch (e) {}
       C.only = only;
-      var h = '<div class="card"><h3>区域管理</h3><div class="note">区域の一覧と進み具合です。区域を開くと、使用の開始・終了、期間、メモを設定できます。</div><div id="apSum" class="note" style="margin-top:6px">進み具合を計算中…</div>' + SADO.progLegend() +
+      var h = '<div class="card"><h3>区域管理</h3>' + SADO.progLegend() +
         '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域だけ表示</label><div id="apList" class="ptree"></div></div>' +
         '<details class="card" id="arMore"><summary><b>その他の操作</b></summary><div class="note" style="margin-top:8px">区域・建物・部屋の追加は「区域編集」、アカウント・グループ・担当者の追加は「アカウント」から行えます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">区域編集を開く</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウントを開く</button></div>' +
         '<div class="note" style="margin-top:10px">期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +

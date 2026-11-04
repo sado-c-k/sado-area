@@ -590,3 +590,5 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 #home .pgroup .pkids>.card b{color:var(--primary-strong)}
 #home .mbody .pgroup>.pcard.inuse,#home .mbody .pgroup>.pcard{border:0;padding:0}
 #home .mbody .pgroup .pkids>.card.inuse{border:1px solid var(--border)}
+#home .mbody .pgroup.inuse{border-left:4px solid var(--success)}
+.ptool .onlyuse{margin-left:auto}

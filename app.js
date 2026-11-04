@@ -854,11 +854,11 @@
     return parentsOf(cat).filter(function (p) { return !q || p.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).map(function (p) {
       var open = !!(S.homeOpen && S.homeOpen['list' + p.areaId]);
       if (!open) return parentRowHtml(p, false, true);
-      var ks = (p._kids || []).slice(); return '<div class="pgroup">' + parentRowHtml(p, true, true) + '<div class="pkids">' + ks.map(function (k) { return areaCard(k, true); }).join('') + '</div></div>';
+      var ks = (p._kids || []).slice(); return '<div class="pgroup' + (p.inUse ? ' inuse' : '') + '">' + parentRowHtml(p, true, true) + '<div class="pkids">' + ks.map(function (k) { return areaCard(k, true); }).join('') + '</div></div>';
     }).join('') || '<div class="note" style="padding:12px 4px">該当する区域がありません。</div>';
   }
   function parentListHtml(cat) {
-    return '<div class="note">' + (isAdmin() ? 'すべての大きな区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><input type="search" id="homeQ" class="homeq" placeholder="区域名で探す" value="' + esc(S.homeQ || '') + '"><div id="homeList">' + parentRows(cat, S.homeQ) + '</div>';
+    return (isAdmin() ? '' : '<div class="note">あなた、またはあなたのグループが担当の区域です。</div>') + '<input type="search" id="homeQ" class="homeq" placeholder="区域名で探す" value="' + esc(S.homeQ || '') + '"><div id="homeList">' + parentRows(cat, S.homeQ) + '</div>';
   }
   function bindHomeQ() { var i = $('#homeQ'); if (i) i.oninput = function () { S.homeQ = i.value; $('#homeList').innerHTML = parentRows(S.homeCat, S.homeQ); }; }
   // ---------- 区域ごとの進み具合(旧GASの区域メニューと同じ: グラフ・％・訪問済み部屋数) ----------
@@ -912,7 +912,7 @@
       (a.inUse ? esc(a.assigneeName) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
       dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
   }
-  function onlyUseBox() { return '<div class="onlyuse" data-act="toggleOnly" style="margin:4px 2px 10px;padding:8px 6px;cursor:pointer"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;vertical-align:middle"' + (S.onlyUse ? ' checked' : '') + '> <span style="vertical-align:middle">使用中の区域のみ表示</span></div>'; }
+  function onlyUseBox() { return '<span class="onlyuse" data-act="toggleOnly" style="display:inline-flex;align-items:center;gap:6px;margin:0 10px 0 0;cursor:pointer;white-space:nowrap;font-size:.9em"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;margin:0"' + (S.onlyUse ? ' checked' : '') + '><span>使用中の区域のみ表示</span></span>'; }
   var CLOUD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H17"/><path d="M12 11v9"/><path d="m9 17 3 3 3-3"/></svg>';
   var DOCI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>';
   function dlBtn(id) { return S.settings && S.settings.hasDownloads ? '<button class="btn small" data-act="dlPick" data-v="' + esc(id) + '" title="印刷用の地図(PDF・PNG)" aria-label="印刷用の地図(PDF・PNG)" style="padding:6px 9px">' + DOCI + '</button>' : ''; }
@@ -952,7 +952,7 @@
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
     var h = '<div class="mhead"><div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(title) : '') + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
       userBox() +
-      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote"></span><button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
+      '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote"></span>' + (tab === 'list' ? onlyUseBox() : '') + '<button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
     if (S.areasLoading && !S.areas.length) {
       el._h = null; el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
     }
@@ -968,7 +968,7 @@
         h += '<div class="subhead">' + esc(c[1]) + '</div>';
         S.areas.filter(function (p) { return p.isParent && by[p.areaId]; }).forEach(function (p) {
           var open = !!(S.homeOpen && S.homeOpen[tab + p.areaId]);
-          if (open) h += '<div class="pgroup">' + parentRowHtml(p, open, false) + '<div class="pkids">' + by[p.areaId].map(function (k) { return areaCard(k); }).join('') + '</div></div>';
+          if (open) h += '<div class="pgroup' + (p.inUse ? ' inuse' : '') + '">' + parentRowHtml(p, open, false) + '<div class="pkids">' + by[p.areaId].map(function (k) { return areaCard(k); }).join('') + '</div></div>';
           else h += parentRowHtml(p, open, false);
         });
         loose.forEach(function (a) { h += areaCard(a); });
@@ -976,11 +976,11 @@
       if (!kids.length) h += '<div class="note" style="padding:14px 4px">使用できる区域はありません。</div>';
     } else {
       cat = S.homeCat = cat || CATS[0][0];
-      h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' + onlyUseBox();
+      h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>';
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="pgroup"><div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div class="pkids">'; }
       else if (parentsOf(cat).length) { h += parentListHtml(cat); setHomeHtml(el, h + '</div>'); bindHomeQ(); return; }
-      else h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
+      else h += (isAdmin() ? '' : '<div class="note">あなた、またはあなたのグループが担当の区域です。</div>') + '<div style="height:8px"></div>';
       list.forEach(function (a) { h += areaCard(a, true); });
       if (par) h += '</div></div>';
       if (!list.length) h += '<div class="note" style="padding:12px 4px">担当の区域はありません。区域係に、担当の設定を確認してください。</div>';
@@ -1072,7 +1072,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v62　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v63　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
