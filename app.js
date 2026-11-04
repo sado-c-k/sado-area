@@ -281,7 +281,7 @@
     idb.get('kv', 'frames2').then(function (g) { if (g && !S.frames2) { S.frames2 = g; drawFrames(); } }, function () {});
     fetch((CFG.geoBase || 'data/') + 'areas_parent.geojson').then(function (r) { if (!r.ok) throw new Error('x'); return r.json(); }).then(function (g) { idb.set('kv', 'frames2', g); S.frames2 = g; drawFrames(); })['catch'](function () {});
   }
-  var FRAME_PARENT_LABEL = 13; // 大きな区域の名前は、これ以上拡大してから出す。小さな区域の名前は FRAME_PARENT_BELOW 以上で出す
+  var FRAME_PARENT_LABEL = 14; // 大きな区域の名前は、これ以上拡大してから出す。小さな区域の名前は FRAME_PARENT_BELOW 以上で出す
   var FRAME_PARENT_BELOW = 15; // 地図の縮尺がこれより小さい(引いている)ときは、大きな区域の枠だけを出す
   function parentFrameList() {
     var pid = {}, out = [];
@@ -313,6 +313,15 @@
     return out;
   }
   SADO.frameFeatures = frameFeatures;
+  // 小さな区域の枠を出しているときも、大きな区域の太い枠(と名前)を重ねる。名前は withLabel のときだけ
+  function parentOutline(withLabel) {
+    parentFrameList().forEach(function (f) {
+      var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
+      var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? '#188038' : '#1a73e8', weight: 4, fill: false, interactive: false });
+      if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: 'area-label parent-label' });
+      frameLayer.addLayer(poly);
+    });
+  }
   function drawFrames() {
     if (!frameLayer) return; frameLayer.clearLayers();
     if (!S.cur && !S.edit && map && map.getZoom() < FRAME_PARENT_BELOW) { // 引いて見ているときは、大きな区域の枠だけ
@@ -321,7 +330,7 @@
         pf.forEach(function (f) {
           var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
           var inUse = kids.some(function (k) { return k.inUse; });
-          var poly = L.polygon(geomToLatLngs(f.geometry), { color: inUse ? '#188038' : '#1a73e8', weight: 2, dashArray: inUse ? null : '6 4', fillOpacity: inUse ? 0.12 : 0.04 });
+          var poly = L.polygon(geomToLatLngs(f.geometry), { color: inUse ? '#188038' : '#1a73e8', weight: 4, dashArray: inUse ? null : '6 4', fillOpacity: inUse ? 0.12 : 0.04 });
           if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: 'area-label' });
           poly.on('click', function () { selectParent(f.areaId); }); frameLayer.addLayer(poly);
         });
@@ -332,10 +341,11 @@
       if (S.merged) { // 大きな区域: 中の小さな区域の枠を出し、押した区域を選ぶ(選んだ区域は濃く、ほかは薄く)
         frameFeatures().forEach(function (f) {
           if ((S.kids || []).indexOf(f.areaId) < 0) return; var sel = f.areaId === S.sub, k = areaById(f.areaId), id = f.areaId;
-          var poly = L.polygon(geomToLatLngs(f.geometry), { color: '#188038', weight: sel ? 4 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
+          var poly = L.polygon(geomToLatLngs(f.geometry), { color: '#188038', weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
           if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: 'area-label' });
           poly.on('click', function () { selectKid(id); }); frameLayer.addLayer(poly);
         });
+        parentOutline(false); // 大きな区域を選んでいる間は、名前を消す(枠だけ残す)
         return;
       }
       var ids = {}; ids[S.cur] = 1;
@@ -347,10 +357,11 @@
       if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
       var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
-      if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName + (a.inUse ? '（使用中）' : ''), { permanent: true, direction: 'center', className: 'area-label' });
+      if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: 'area-label' });
       poly.on('click', function () { selectArea(id); });
       frameLayer.addLayer(poly);
     });
+    if (!S.edit && map && map.getZoom() >= FRAME_PARENT_BELOW) parentOutline(true);
   }
 
   // ---------- 区域の選択とデータの読み込み ----------
@@ -994,7 +1005,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v49　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v50　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
