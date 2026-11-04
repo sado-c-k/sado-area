@@ -38,8 +38,8 @@
 
   function open() {
     var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
-    a.innerHTML = '<div class="mhead"><div class="t">' + esc((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS') + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
-      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u ? u.displayName : '') + 'さんようこそ</div></div></div>' +
+    a.innerHTML = '<div class="mhead"><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS')) + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
+      SADO.userBox() +
       '<div class="tabs grid">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>';
     go(tab);
   }
@@ -398,9 +398,9 @@
   }
   function loadSettings() {
     api('getSettings').then(function (s) {
-      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsi', mapTileUrl: '', mapTileAttribution: '' };
+      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsi', mapTileUrl: '', mapTileAttribution: '' };
       for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
-      ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled'].forEach(function (k) { s[k] = String(s[k]); });
+      ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled'].forEach(function (k) { s[k] = String(s[k]); });
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
       VS = VS.map(function (x) { x.color = x.color || COL_BY[x.id] || '#6b7280'; return x; });
       var sel = function (k, list) { return '<select id="st-' + k + '">' + list.map(function (o) { return '<option value="' + o[0] + '"' + (String(s[k]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
@@ -421,6 +421,7 @@
         stSw('autoRefreshEnabled', '部屋情報の自動更新', '建物の詳細を開いている間、ほかの人の入力を自動で反映します。') +
         stRow('更新の間隔', '間隔を短くするほど、アクセスが増えて重くなります。人数が多いときは15秒以上をおすすめします。', sel('autoRefreshIntervalSec', [['5', '5秒'], ['10', '10秒'], ['15', '15秒'], ['30', '30秒'], ['60', '60秒']])) +
         stSw('onboardingHelpEnabled', 'サイトを開いたときにヘルプを表示', 'はじめて開いた端末に、ヘルプ(使い方)を表示します。') +
+        stSw('menuTitleEnabled', 'メニューのタイトル', '各メニューの上に、アプリの名前(例: 佐渡区域)を表示します。オフにすると表示しません。') +
         stSw('mapRotationEnabled', 'マップの回転', '2本指で地図を回したり、現在地の向きに合わせて地図を回したりする機能です。') +
         stSw('pinShadowEnabled', 'ピンの影', '地図のピンに影をつけます。オフにすると、地図の拡大・縮小が軽くなります。') +
         '</div><div class="card"><h3>運用の設定</h3>' + TXT.slice(4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') + '</div>' +
@@ -434,7 +435,7 @@
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
     vals.logoImage = ST.logoImage || '';
     ['logoMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
-    ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
+    ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
     vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
     after(api('saveSettings', { values: vals }), '保存しました。', function () { busy(false); try { SADO.refreshBootstrap(); } catch (e) {} });
   }

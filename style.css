@@ -538,3 +538,7 @@ html[data-theme="dark"] .leaflet-tile-pane{-webkit-filter:invert(1) hue-rotate(1
 #admin .prow .pm{font-size:.78em;font-weight:600;line-height:1.5;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:0 8px}
 #admin .prow .pm span:last-child{margin-left:auto;text-align:right}
 .menu-user-box .gright{margin:0 0 0 auto;padding-left:10px;font-size:.85em;font-weight:700;color:var(--text-2);text-align:right}
+/* v40: 地図の種類は、幅がせまい端末では2×2で並べる。雲マークの三択 */
+@media (max-width:440px){.maplayer-row{display:grid;grid-template-columns:1fr 1fr;grid-gap:14px 8px}}
+.cloudopts{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:8px;margin:10px 0}
+.cloudopts .btn{width:100%;text-align:center}

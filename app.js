@@ -122,6 +122,12 @@
     (S.pending ? flush() : Promise.resolve()).then(go, go);
   }
   function fontScale() { return [0.75, 0.9, 1, 1.25, 1.5, 1.8][(parseInt(getPrefs().font, 10) || 3) - 1] || 1; }
+  // 名前と所属グループ「admin　　/ヘルモン」。ホーム・各メニュー・管理メニューで同じ表示にする
+  function userBox() {
+    var u = S.user || {}, g = String(u.groupName || '').replace(/グループ$/, '');
+    return '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u.displayName || '') + '</div></div>' + (g ? '<div class="uh gright">/' + esc(g) + '</div>' : '') + '</div>';
+  }
+  SADO.userBox = userBox;
   function houseMode() { var h = getPrefs().houseTap; return h === 'sheet' || h === 'direct' ? h : cfg('houseTapMode', 'direct'); }
 
   function boot() {
@@ -192,9 +198,9 @@
     var todo = visibleAreas().filter(function (a) { return !a.isParent && a.inUse && !S.data[a.areaId]; }).map(function (a) { return a.areaId; });
     if (isAdmin() && SADO.prefetchAdmin) SADO.prefetchAdmin();
     if (!todo.length) return;
-    S.pf = true; var i = 0;
+    S.pf = true; var i = 0; loadProg();
     function next() { if (i >= todo.length || !S.online || !S.token) return Promise.resolve(); var id = todo[i++]; return loadAreaData(id, true).then(null, function () {}).then(next); }
-    Promise.all([next(), next()]).then(function () { S.pf = false; });
+    Promise.all([next(), next(), next()]).then(function () { S.pf = false; });
   }
   function sessionExpired() { toast('ログインの有効期限が切れました。未送信の記録は端末に残っています。'); S.token = null; idb.del('kv', 'session').then(function () { showLogin(); }); }
   function areaById(id) { for (var i = 0; i < S.areas.length; i++) if (S.areas[i].areaId === id) return S.areas[i]; return null; }
@@ -231,7 +237,7 @@
     var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
     var cur = effSrc(), l = TILE_LIST.slice(); if (S.settings && S.settings.mapTileUrl) l.push(['custom', '自分で指定']);
     m = document.createElement('div'); m.id = 'modal';
-    m.innerHTML = '<div class="mb"><h3>地図の種類</h3><div class="maplayer-row">' + l.map(function (o) { return '<button type="button" class="maplayer-opt' + (o[0] === cur ? ' active' : '') + '" data-act="layerPick" data-v="' + o[0] + '"><span class="maplayer-sw">' + (TILE_SW[o[0]] || '') + '</span><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div><div class="note" style="text-align:center">選んだ地図は、開き直すと元に戻ります。</div></div>';
+    m.innerHTML = '<div class="mb"><h3>地図の種類</h3><div class="maplayer-row">' + l.map(function (o) { return '<button type="button" class="maplayer-opt' + (o[0] === cur ? ' active' : '') + '" data-act="layerPick" data-v="' + o[0] + '"><span class="maplayer-sw">' + (TILE_SW[o[0]] || '') + '</span><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div></div>';
     document.body.appendChild(m);
     m.addEventListener('click', function (e) { if (e.target === m) m.parentNode.removeChild(m); });
   }
@@ -335,7 +341,25 @@
     var fromIdb = function () { return Promise.all(keys.map(function (k) { return idb.get('geo', k); })).then(function (l) { return set(l.filter(Boolean)[0] || null); }); };
     return get(keys[0]).then(set, function () { return keys[1] ? get(keys[1]).then(set, fromIdb) : fromIdb(); });
   }
+  // すでに端末(メモリ・保存領域)にある区域は、待たずにすぐ出す。最新のデータは裏で取り直す(アプリを開く時に先に取っておくので、切り替えがパッと出る)
+  var bgT = {};
+  function bgRefresh(areaId) {
+    if (!S.online || !S.token || (bgT[areaId] && Date.now() - bgT[areaId] < 30000)) return; bgT[areaId] = Date.now();
+    api('getAreaData', { areaId: areaId }, true).then(function (d) {
+      var same = JSON.stringify(d) === JSON.stringify(S.baseData && S.baseData[areaId]); (S.baseData = S.baseData || {})[areaId] = d; if (same) return;
+      if (S.sheetBid && draftCount()) return; // 入力途中のものがあるときは、そのままにしておく
+      S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
+    }, function () {});
+  }
   function loadAreaData(areaId, force) {
+    if (!force) {
+      var fast = function () { bgRefresh(areaId); return applyQueue(areaId).then(function () { return loadGeo(areaId); }); };
+      if (S.data[areaId]) return fast();
+      return idb.get('area', areaId).then(function (d) { if (!d) return loadAreaData0(areaId, force); S.data[areaId] = d; return fast(); });
+    }
+    return loadAreaData0(areaId, force);
+  }
+  function loadAreaData0(areaId, force) {
     var local = function () { return idb.get('area', areaId).then(function (d) { if (!d) throw new Error('この区域は、まだ端末に保存されていません。電波のあるところで一度開いてください。'); S.data[areaId] = d; }); };
     var p = (S.online || force) ? api('getAreaData', { areaId: areaId }, force).then(function (d) { S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
     return p.then(function () { return applyQueue(areaId); }).then(function () { return loadGeo(areaId); });
@@ -753,7 +777,7 @@
   function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
   function areaCard(a, plain) {
     if (!plain) return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
-      dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
+      saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
     return '<div class="card tap' + (a.inUse ? ' inuse' : '') + (S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '" data-act="areaExp" data-v="' + esc(a.areaId) + '"><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
       (a.inUse ? esc(a.assigneeName) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
       dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
@@ -766,7 +790,9 @@
   function saveBtn(act, id) {
     var ka = areaById(id), j = S.tile && (S.tile[id] || (ka && ka.parentId && S.tile[ka.parentId]));
     if (j) return '<button class="btn small" disabled aria-label="地図を保存中" style="padding:6px 9px">' + SPIN + '</button>';
-    if (tileDone()[id]) return ''; // 保存が終わったら、雲のマークは出さない
+    var dls = act === 'saveTiles' && S.settings && S.settings.hasDownloads; // 区域カードの雲は、「オフラインで使う/PDF/画像」の三択
+    if (tileDone()[id] && !dls) return ''; // 保存が終わったら、雲のマークは出さない
+    if (dls) return '<button class="btn small" data-act="cloudPick" data-v="' + esc(id) + '" title="地図の保存・ダウンロード" aria-label="地図の保存・ダウンロード" style="padding:6px 9px">' + CLOUD + '</button>';
     return '<button class="btn small" data-act="' + act + '" data-v="' + esc(id) + '" title="地図を端末に保存" aria-label="地図を端末に保存" style="padding:6px 9px">' + CLOUD + '</button>';
   }
   var TILE_KB = 15; // 地図1枚のおよその大きさ(KB)。端末からは正確な容量がわからないので、目安として出す
@@ -793,8 +819,8 @@
     var gname = (S.user && S.user.groupName) || '', TABS = [['all', '会衆'], ['group', 'グループ'], ['user', '個人'], ['list', '区域一覧']];
     var mineOf = function (k) { return visibleAreas().filter(function (a) { return a.inUse && (a.kinds || []).indexOf(k) >= 0; }); };
     var hhm = S.progAt ? new Date(S.progAt) : null, ptime = hhm ? (hhm.getHours() < 10 ? '0' : '') + hhm.getHours() + ':' + (hhm.getMinutes() < 10 ? '0' : '') + hhm.getMinutes() + ' 時点・' : '';
-    var h = '<div class="mhead"><div class="t">' + esc(title) + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
-      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(S.user ? S.user.displayName : '') + 'さんようこそ</div></div>' + (gname ? '<div class="uh gright">' + esc(gname) + (/グループ$/.test(gname) ? '' : 'グループ') + '</div>' : '') + '</div>' +
+    var h = '<div class="mhead"><div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(title) : '') + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
+      userBox() +
       '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote"></span><button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
     if (S.areasLoading && !S.areas.length) {
       el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
@@ -841,8 +867,8 @@
   function renderMenu() {
     var tabs = [];
     var ttl = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    $('#menu').innerHTML = '<div class="mhead">' + (SADO.menuTab === 'home' ? '' : '<button class="menu-back" data-act="menuHome">‹ メニュー</button>') + '<div class="t">' + esc(ttl) + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
-      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(S.user ? S.user.displayName : '') + 'さんようこそ</div></div></div>' +
+    $('#menu').innerHTML = '<div class="mhead">' + (SADO.menuTab === 'home' ? '' : '<button class="menu-back" data-act="menuHome">‹ メニュー</button>') + '<div class="t">' + (cfg('menuTitleEnabled', true) !== false ? esc(ttl) : '') + '</div><button data-act="navClose" aria-label="閉じる">✕</button></div>' +
+      userBox() +
       '<div class="mbody" id="menuBody"></div>';
     renderMenuBody();
   }
@@ -911,7 +937,7 @@
         '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。最初は区域係が決めた設定になっています。</div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v39　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v40　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     } else if (t === 'help') {
       var inl = cfg('statusSaveMode', 'inline') !== 'manual', mode = cfg('mapProgressMode', 'simple'), hv = SADO.helpTab || 'basic';
@@ -1045,6 +1071,19 @@
       case 'syncNow': flush().then(function () { return countPending(); }).then(function () { toast(S.pending ? '送信できなかった分が残っています。' : '送信しました。'); renderMenuBody(); }); break;
       case 'saveTiles': saveTiles([v]); break;
       case 'saveTilesParent': saveTiles(visibleAreas().filter(function (a) { return a.parentId === v; }).map(function (a) { return a.areaId; }), true, v); break;
+      case 'cloudPick': (function () {
+        var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
+        var nm = (S.areas.filter(function (x) { return x.areaId === v; })[0] || {}).areaName || '', done = tileDone()[v];
+        m = document.createElement('div'); m.id = 'modal';
+        m.innerHTML = '<div class="mb"><h3>' + esc(nm) + '</h3><div class="cloudopts">' +
+          '<button class="btn primary" data-act="saveTiles" data-v="' + esc(v) + '">オフラインでも使用' + (done ? '(保存済み・更新)' : '') + '</button>' +
+          '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDFをダウンロード</button>' +
+          '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">画像をダウンロード</button>' +
+          '<button class="btn" id="dlNo">キャンセル</button></div><div class="note">PDF・画像のダウンロードは、電波が必要です。</div></div>';
+        document.body.appendChild(m);
+        var cl = function () { if (m.parentNode) m.parentNode.removeChild(m); };
+        m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { var t2 = e.target; if (t2 === m || (t2.getAttribute && /^(saveTiles|dlFile)$/.test(t2.getAttribute('data-act') || ''))) setTimeout(cl, 0); });
+      })(); break;
       case 'dlPick': (function () {
         var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
         var nm = (S.areas.filter(function (x) { return x.areaId === v; })[0] || {}).areaName || '';
