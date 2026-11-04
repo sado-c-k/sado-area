@@ -482,3 +482,38 @@ html[data-ui="3"] #sheet{bottom:0}
 input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;box-shadow:0 0 0 3px var(--primary-soft)!important;outline:0}
 .note{line-height:1.6}
 .badge{border-radius:999px;font-weight:800}
+
+/* v35: 設定の項目ボタンは丸角(旧GASと同じ) */
+.segrow{display:-webkit-flex;display:flex;background:var(--surface-3);border-radius:999px;padding:3px}
+.segrow button{-webkit-flex:1;flex:1;border:0;background:transparent;border-radius:999px;min-height:40px;padding:0 6px;font-weight:700;color:var(--text-2);cursor:pointer;font-size:.9em}
+.segrow button.on{background:var(--primary);color:var(--on-primary)}
+.fsr{display:-webkit-flex;display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:16px;padding:3px}
+.fsr button{-webkit-flex:1;flex:1;border:0;background:transparent;border-radius:12px;min-height:46px;color:var(--text-2);font-weight:700;cursor:pointer}
+.fsr button.on{background:var(--primary);color:var(--on-primary)}
+.setrow{padding:10px 0;border-top:0;border-bottom:0}
+.setrow .tt{font-weight:800;margin-bottom:8px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between}
+.setrow .cntb{font-size:.8em;font-weight:700;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:1px 10px}
+.namerow{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center}
+.namerow .tt{margin-bottom:2px}
+
+/* 報告・ヘルプ・設定・区域・管理の窓を、同じ作りにそろえる(旧GAS) */
+.subcard{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:12px;margin:10px 0}
+.subcard .fl{font-weight:800;font-size:.85em;color:var(--text-2);margin:8px 0 6px}
+.subcard .fl:first-child{margin-top:0}
+.subcard select,.subcard input,.subcard textarea{width:100%;border-radius:999px;min-height:46px;padding:10px 14px}
+.subcard textarea{border-radius:14px;min-height:110px}
+.req{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;font-size:.75em;padding:0 8px;margin-left:6px}
+.btn.secondary{border:1px solid var(--border)}
+#menu .btn.primary.grow,#menu .btn.secondary.grow{border-radius:999px;min-height:48px}
+#menu .mbody,#admin .mbody{padding-top:2px}
+
+/* 区域カード: 親は左に色、子は薄い色。使用期間は右下 */
+.pm2{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-justify-content:space-between;justify-content:space-between}
+.pm2 .pper{margin-left:auto;text-align:right}
+.pkids .card.inuse{border-left-color:rgba(24,128,56,.38)}
+.tprog{margin-top:6px}.tprog .pbar{margin:2px 0 3px}
+
+.loadbox{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;padding:36px 0}
+.loadbox .spin,.loadbox .bootimg{width:44px;height:44px;margin-bottom:10px}
+.loadbox .spin{border-color:var(--border);border-top-color:var(--primary)}
+.cspin{-webkit-animation:spin .8s linear infinite;animation:spin .8s linear infinite}

@@ -39,7 +39,7 @@
   function open() {
     var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
     a.innerHTML = '<div class="mhead"><div class="t">' + esc((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS') + '</div><button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
-      '<div class="adwelcome"><div class="grow">' + esc(u ? u.displayName : '') + 'さんようこそ</div><button class="btn small danger" data-act="ad:close">管理者モード終了</button></div>' +
+      '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u ? u.displayName : '') + 'さんようこそ</div></div></div>' +
       '<div class="tabs grid">' + TABS.map(function (t) { return '<button class="tab" data-act="ad:tab" data-v="' + t[0] + '" id="adt-' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody" id="adBody"></div>';
     go(tab);
   }
@@ -379,7 +379,7 @@
   var ST = {}, VS = [];
   var DEF_VS = [{ id: 'unvisited', label: '未訪問', visited: false, done: false, color: '#9aa0a6' }, { id: 'met', label: '会えた', visited: true, done: true, color: '#188038' }, { id: 'absent1', label: '留守(1回目)', visited: true, done: false, color: '#ef6c00' }, { id: 'absent2', label: '留守(2回目)', visited: true, done: false, color: '#c2410c' }, { id: 'vacant', label: '空室', visited: true, done: true, color: '#6b7280' }];
   var COL_BY = { unvisited: '#9aa0a6', met: '#188038', absent1: '#ef6c00', absent2: '#c2410c', vacant: '#6b7280' };
-  var TXT = [['appTitle', 'アプリのタイトル', 'ログイン画面・上のバー・ブラウザのタブ名に表示されます。'], ['mapLat', '地図の最初の位置(緯度)', '例: 38.08'], ['mapLng', '地図の最初の位置(経度)', '例: 138.44'], ['mapZoom', '地図の最初の拡大率', '例: 13'], ['apartmentUrl', '「アパート」ボタンの行き先', '佐渡アパートGASのURL。空にするとボタンを隠します。'], ['autoEndMonths', '開始日から自動で終了するまでの月数', ''], ['fiscalStartMonth', '年度のはじまりの月', ''], ['logDocId', '記録用GoogleドキュメントのID', ''], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', '']];
+  var TXT = [['appTitle', 'アプリのタイトル', 'ログイン画面・上のバー・ブラウザのタブ名に表示されます。'], ['mapLat', '地図の最初の位置(緯度)', '例: 38.08'], ['mapLng', '地図の最初の位置(経度)', '例: 138.44'], ['mapZoom', '地図の最初の拡大率', '例: 13'], ['autoEndMonths', '開始日から自動で終了するまでの月数', ''], ['fiscalStartMonth', '年度のはじまりの月', ''], ['logDocId', '記録用GoogleドキュメントのID', ''], ['downloadFolderId', '印刷用PDF・PNGを入れたフォルダのID', '']];
   function isOn(v) { return v === true || String(v) === 'true'; }
   function stSeg(k, list) { return '<div class="segrow">' + list.map(function (x) { return '<button type="button" class="' + (String(ST[k]) === x[0] ? 'on' : '') + '" data-act="ad:seg" data-k="' + k + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; }
   function stSw(k, title, desc) { return '<div class="swrow"><div class="tx"><div class="tt" style="font-weight:800">' + title + '</div><div class="ds" style="font-size:.82em;color:var(--text-3)">' + desc + '</div></div><label class="switch"><input type="checkbox" id="sw-' + k + '"' + (isOn(ST[k]) ? ' checked' : '') + '><i></i></label></div>'; }
@@ -411,7 +411,7 @@
           '<div style="margin-top:6px"><div class="note">「自分で指定」のときだけ使います。画像のアドレス(https:// で始まり、{z}・{x}・{y} を含む)</div><input style="width:100%" id="st-mapTileUrl" value="' + esc(s.mapTileUrl) + '" placeholder="https://example.com/{z}/{x}/{y}.png"><div class="note" style="margin-top:4px">出典の表記(利用する地図サービスの規約に合わせて)</div><input style="width:100%" id="st-mapTileAttribution" maxlength="200" value="' + esc(s.mapTileAttribution) + '"></div>') +
         TXT.slice(1, 4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
         stRow('デフォルトの入力スタイル', '建物の詳細で、訪問状況を選ぶ形です。各端末の「表示設定」で、端末ごとに変えることもできます。', stSeg('inputTheme', [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']])) +
-        stRow('一軒家などの記録のしかた', '部屋情報のない建物(一軒家など)を、地図でタップしたときの動きです。アパートなど部屋情報のある建物は、いつも詳細ウィンドウが開きます。', stSeg('houseTapMode', [['direct', 'タップで記録(長押しで詳細)'], ['sheet', '詳細ウィンドウを開く']])) +
+        stRow('デフォルトの一軒家の入力スタイル', '一軒家など部屋情報のない建物を、地図でタップしたときの動きです。各自が設定メニューで、好みに変えられます。', stSeg('houseTapMode', [['direct', 'タップで記録(長押しで詳細)'], ['sheet', '詳細ウィンドウを開く']])) +
         stRow('区域メニューの進捗表示', '', stSeg('areaProgressView', [['graph', 'グラフ'], ['chips', '文字']])) +
         stRow('マップ上で進捗を表示', 'ピン(シンプル): 未訪問・途中・完了でピンを色分けします。<br>サークル: 輪の色が部屋の状況の割合、中央の数字が残りの部屋の数です。<br>オフ: 色分けしません。', stSeg('mapProgressMode', [['simple', 'ピン(シンプル)'], ['circle', 'サークル'], ['off', 'オフ']])) +
         stRow('訪問状況の選択肢', '建物の詳細で選ぶ「訪問状況」を変えられます。上から順に表示されます。「訪問した扱い」と「完了扱い」で、進み具合の数え方が変わります。「未訪問」は消せません。', '<div id="vsBox"></div><div class="row"><button type="button" class="btn small" data-act="ad:vsAdd">選択肢を追加</button><button type="button" class="btn small" data-act="ad:vsReset">標準に戻す</button></div>') +
@@ -430,7 +430,7 @@
   }
   function saveSettingsNow() {
     vsSync();
-    var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'apartmentUrl', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
+    var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
     vals.logoImage = ST.logoImage || '';
     ['logoMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
