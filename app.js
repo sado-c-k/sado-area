@@ -318,8 +318,9 @@
   SADO.frameFeatures = frameFeatures;
   // 小さな区域の枠を出しているときも、大きな区域の太い枠(と名前)を重ねる。名前は withLabel のときだけ
   function lbCls(inUse, assigned) { return 'area-label' + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); }
-  function parentOutline(withLabel) {
+  function parentOutline(withLabel, onlyId) {
     parentFrameList().forEach(function (f) {
+      if (onlyId && f.areaId !== onlyId) return;
       var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? '#188038' : '#1a73e8', weight: 4, fill: false, interactive: false });
       if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: lbCls(kids.some(function (k) { return k.inUse; })) + ' parent-label' });
@@ -349,7 +350,7 @@
           if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: lbCls(k.inUse, k.assigned) });
           poly.on('click', function () { selectKid(id); }); frameLayer.addLayer(poly);
         });
-        parentOutline(false); // 大きな区域を選んでいる間は、名前を消す(枠だけ残す)
+        parentOutline(false, S.cur); // 大きな区域を選んでいる間は、名前を消す(選んだ大きな区域の枠だけ残す)
         return;
       }
       var ids = {}; ids[S.cur] = 1;
@@ -465,7 +466,7 @@
       S.data[pid] = m; S.geo[pid] = S.geo[kids[0].areaId]; S.kids = kids.map(function (k) { return k.areaId; });
       if (SADO.onAreaChange) SADO.onAreaChange();
       S.cur = pid; S.merged = true; if (!quiet || S.kids.indexOf(S.sub) < 0) S.sub = null; if (!quiet) closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); closePanels();
-      if (!quiet) { try { var fb = frameLayer && frameLayer.getBounds && frameLayer.getBounds(); if (fb && fb.isValid && fb.isValid()) { map.invalidateSize(); map.fitBounds(fb, { padding: [30, 30], maxZoom: 17 }); } } catch (e) {} toast('地図の枠から、記録する小さな区域を選んでください。', 4000); }
+      if (!quiet) { fitArea(S.kids); setTimeout(function () { if (S.cur === pid) fitArea(S.kids); }, 250); toast('地図の枠から、記録する小さな区域を選んでください。', 4000); }
     })['catch'](function (e) { toast(e.message, 5000); }).then(function () { if (ml) ml.classList.add('hidden'); });
   }
   // 大きな区域の中で、小さな区域を選ぶ(その区域の建物だけが出て、記録できる)
@@ -1046,7 +1047,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v52　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v53　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
