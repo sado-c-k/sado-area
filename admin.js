@@ -677,5 +677,5 @@
     else if (t.id === 'edFilter') { C.filter = t.value; renderEdit(); var e = document.getElementById('edFilter'); if (e) e.focus(); }
   });
   // 管理を開く前に、区域の一覧と進み具合を裏で読んでおく(開いたとき、すぐ表示できる)
-  SADO.openAdmin = open;
+  SADO.openAdmin = open; SADO.closeAdmin = function () { close(); };
 })();

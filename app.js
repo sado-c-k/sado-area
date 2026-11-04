@@ -125,7 +125,7 @@
   // 名前と所属グループ「admin　　/ヘルモン」。ホーム・各メニュー・管理メニューで同じ表示にする
   function userBox() {
     var u = S.user || {}, g = String(u.groupName || '').replace(/グループ$/, '');
-    return '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u.displayName || '') + '</div></div>' + (g ? '<div class="uh gright">/' + esc(g) + '</div>' : '') + '</div>';
+    return '<div class="menu-user-box"><div class="grow"><div class="un">' + esc(u.displayName || '') + '</div></div>' + (g ? '<div class="uh gright">/<span class="gsp"></span>' + esc(g) + '</div>' : '') + '</div>';
   }
   SADO.userBox = userBox;
   function houseMode() { var h = getPrefs().houseTap; return h === 'sheet' || h === 'direct' ? h : cfg('houseTapMode', 'direct'); }
@@ -246,9 +246,9 @@
   }
   function tileDef(src) {
     var st = S.settings || {};
-    if (src === 'custom' && st.mapTileUrl) return { url: st.mapTileUrl, opt: { maxZoom: 19, attribution: st.mapTileAttribution || '' } };
-    var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; };
-    if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' } };
+    if (src === 'custom' && st.mapTileUrl) return { url: st.mapTileUrl, opt: { maxZoom: 20, maxNativeZoom: 19, attribution: st.mapTileAttribution || '' } };
+    var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 19, maxNativeZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; };
+    if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap contributors' } };
     if (src === 'gsiphoto') return G('seamlessphoto', 18, '地理院タイル(航空写真)');
     if (src === 'gsipale') return G('pale', 18, '地理院タイル(淡色)');
     return G('std', 18, '地理院タイル');
@@ -269,7 +269,12 @@
     SADO.map = map;
   }
   function renderLegend() {
-    $('#legend').innerHTML = '<b><i style="background:#1a73e8"></i>未訪問</b><b><i style="background:#ef6c00"></i>途中</b><b><i style="background:#188038"></i>完了</b><b><i style="background:#9aa0a6"></i>編集不可</b><b><i style="background:#fff;border:2px solid #b91c1c"></i>拒否あり</b>';
+    var dot = function (c, t, ring) { return '<b><i style="background:' + (ring ? '#fff' : c) + (ring ? ';border:3px solid ' + c : '') + '"></i>' + t + '</b>'; }, h = '';
+    if (cfg('mapProgressMode', 'simple') === 'circle') { // サークル: 訪問状況ごとの色(留守1・留守2も別々)
+      h += dot('#d1d5db', '未訪問');
+      statusList().forEach(function (x) { if (x.visited || x.done) h += dot(stColor(x), esc(x.label)); });
+    } else h += dot('#1a73e8', '未訪問') + dot('#ef6c00', '途中') + dot('#188038', '訪問済み') + dot('#9aa0a6', '編集不可');
+    $('#legend').innerHTML = h + dot('#ca8a04', '注意あり', true) + dot('#b91c1c', '拒否あり', true);
   }
   function loadFrames() {
     var show = function (g) { S.frames = g; drawFrames(); };
@@ -314,11 +319,12 @@
   }
   SADO.frameFeatures = frameFeatures;
   // 小さな区域の枠を出しているときも、大きな区域の太い枠(と名前)を重ねる。名前は withLabel のときだけ
+  function lbCls(inUse, assigned) { return 'area-label' + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); }
   function parentOutline(withLabel) {
     parentFrameList().forEach(function (f) {
       var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? '#188038' : '#1a73e8', weight: 4, fill: false, interactive: false });
-      if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: 'area-label parent-label' });
+      if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: lbCls(kids.some(function (k) { return k.inUse; })) + ' parent-label' });
       frameLayer.addLayer(poly);
     });
   }
@@ -331,7 +337,7 @@
           var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
           var inUse = kids.some(function (k) { return k.inUse; });
           var poly = L.polygon(geomToLatLngs(f.geometry), { color: inUse ? '#188038' : '#1a73e8', weight: 4, dashArray: inUse ? null : '6 4', fillOpacity: inUse ? 0.12 : 0.04 });
-          if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: 'area-label' });
+          if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: lbCls(inUse) });
           poly.on('click', function () { selectParent(f.areaId); }); frameLayer.addLayer(poly);
         });
         return;
@@ -342,7 +348,7 @@
         frameFeatures().forEach(function (f) {
           if ((S.kids || []).indexOf(f.areaId) < 0) return; var sel = f.areaId === S.sub, k = areaById(f.areaId), id = f.areaId;
           var poly = L.polygon(geomToLatLngs(f.geometry), { color: '#188038', weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
-          if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: 'area-label' });
+          if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: lbCls(k.inUse, k.assigned) });
           poly.on('click', function () { selectKid(id); }); frameLayer.addLayer(poly);
         });
         parentOutline(false); // 大きな区域を選んでいる間は、名前を消す(枠だけ残す)
@@ -357,7 +363,7 @@
       if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
       var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
-      if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: 'area-label' });
+      if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: lbCls(a.inUse, a.assigned) });
       poly.on('click', function () { selectArea(id); });
       frameLayer.addLayer(poly);
     });
@@ -404,7 +410,7 @@
     api('getAreaData', { areaId: areaId }, true).then(function (d) {
       var same = JSON.stringify(d) === JSON.stringify(S.baseData && S.baseData[areaId]); (S.baseData = S.baseData || {})[areaId] = d; if (same) return;
       if (S.sheetBid && draftCount()) return; // 入力途中のものがあるときは、そのままにしておく
-      S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
+      S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.merged && S.kids && S.kids.indexOf(areaId) >= 0 && !S.edit && !(S.sheetBid && draftCount())) { selectParent(S.cur, true).then(function () { drawBuildings(false); if (S.sheetBid) renderSheet(); }); return; } if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
     }, function () {});
   }
   function loadAreaData(areaId, force) {
@@ -420,12 +426,22 @@
     var p = (S.online || force) ? api('getAreaData', { areaId: areaId }, force).then(function (d) { S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
     return p.then(function () { return applyQueue(areaId); }).then(function () { return loadGeo(areaId); });
   }
+  // 区域を選んだら、その区域の枠(なければ建物)に合わせて、地図を動かして拡大する
+  function fitArea(ids) {
+    if (!map) return;
+    try {
+      var b = null;
+      frameFeatures().forEach(function (f) { if (ids.indexOf(f.areaId) < 0) return; var pb = L.polygon(geomToLatLngs(f.geometry)).getBounds(); if (pb && pb.isValid && pb.isValid()) { if (!b) b = L.latLngBounds(pb.getSouthWest(), pb.getNorthEast()); else b.extend(pb); } });
+      map.invalidateSize(); if (b && b.isValid()) map.fitBounds(b, { padding: [30, 30], maxZoom: 19 });
+    } catch (e) {}
+  }
   function selectArea(areaId, bid) {
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
     return loadAreaData(areaId).then(function () {
       if (SADO.onAreaChange) SADO.onAreaChange();
       S.cur = areaId; S.merged = false; S.sub = null; closeSheet(true); drawFrames(); drawBuildings(true); updateTitle(); closePanels();
       var d = S.data[areaId]; if (d && d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(areaId); if (i >= 0) S.areas[i] = d.area; }
+      if (!bid) setTimeout(function () { if (S.cur === areaId) fitArea([areaId]); }, 80);
       if (bid) { var bq = S.data[areaId] && S.data[areaId].buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (bq && bq.lat != null && map) { map.setView([bq.lat, bq.lng], Math.max(map.getZoom(), 17)); } openBuilding(bid); }
       if (a && !a.canEdit) toast(a.inUse ? '「' + a.areaName + '」は担当外のため、見るだけです。' : '「' + a.areaName + '」は使用中ではないため、見るだけです。', 3500);
     })['catch'](function (e) { toast(e.message, 5000); });
@@ -446,7 +462,7 @@
       S.data[pid] = m; S.geo[pid] = S.geo[kids[0].areaId]; S.kids = kids.map(function (k) { return k.areaId; });
       if (SADO.onAreaChange) SADO.onAreaChange();
       S.cur = pid; S.merged = true; if (!quiet || S.kids.indexOf(S.sub) < 0) S.sub = null; if (!quiet) closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); closePanels();
-      if (!quiet) { try { var fb = frameLayer && frameLayer.getBounds && frameLayer.getBounds(); if (fb && fb.isValid && fb.isValid()) map.fitBounds(fb, { padding: [30, 30], maxZoom: 17 }); } catch (e) {} toast('地図の枠から、記録する小さな区域を選んでください。', 4000); }
+      if (!quiet) { try { var fb = frameLayer && frameLayer.getBounds && frameLayer.getBounds(); if (fb && fb.isValid && fb.isValid()) { map.invalidateSize(); map.fitBounds(fb, { padding: [30, 30], maxZoom: 17 }); } } catch (e) {} toast('地図の枠から、記録する小さな区域を選んでください。', 4000); }
     })['catch'](function (e) { toast(e.message, 5000); }).then(function () { if (ml) ml.classList.add('hidden'); });
   }
   // 大きな区域の中で、小さな区域を選ぶ(その区域の建物だけが出て、記録できる)
@@ -472,7 +488,7 @@
   }
 
 
-  function roomsOf(areaId, bid) { var d = S.data[areaId]; return d ? d.rooms.filter(function (r) { return r.buildingId === bid; }).sort(function (a, b) { return a.sortOrder - b.sortOrder; }) : []; }
+  function roomsOf(areaId, bid) { var d = (S.merged && S.cur && S.data[S.cur]) || S.data[areaId]; return d ? d.rooms.filter(function (r) { return r.buildingId === bid; }).sort(function (a, b) { return a.sortOrder - b.sortOrder; }) : []; }
   // 部屋の数え方: 「訪問した」「完了」は動作設定の訪問状況による。拒否・注意の部屋を完了扱いにするかも動作設定で決める
   function roomCounts(areaId, b) {
     var rs = roomsOf(areaId, b.buildingId), c = { n: rs.length, visited: 0, done: 0, rej: false, cau: false, by: {} }, rcd = cfg('pinRejectCautionDone', true) !== false;
@@ -488,7 +504,7 @@
     var c = roomCounts(areaId, b), a = areaById(areaId) || (S.data[areaId] && S.data[areaId].area) || {}, thr = (Number(cfg('pinDoneThreshold', 100)) || 100) / 100, off = cfg('mapProgressMode', 'simple') === 'off';
     var editable = a.canEdit !== false, full = c.n && c.done / c.n >= thr - 1e-9;
     var fill = !editable ? '#9aa0a6' : (off ? '#1a73e8' : (full ? '#188038' : (c.visited > 0 || c.done > 0 ? '#ef6c00' : '#1a73e8')));
-    return { color: c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : fill), weight: c.rej || c.cau ? 3 : 1.5, fillColor: fill, fillOpacity: 0.6 };
+    return { color: c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : fill), weight: c.rej || c.cau ? 5 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   // 部屋情報のある建物(部屋が2つ以上・アパート区域)だけがピン。名前だけある建物は丸のまま(名前は表示する)
   function hasRoomInfo(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1; }
@@ -501,7 +517,7 @@
     statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (!k || !(x.visited || x.done)) return; var w = k / n * 100; stops.push(stColor(x) + ' ' + at.toFixed(1) + '% ' + (at + w).toFixed(1) + '%'); at += w; });
     stops.push('#d1d5db ' + at.toFixed(1) + '% 100%');
     var ring = c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : '#fff');
-    return L.divIcon({ className: '', html: '<div class="pin-pie" style="background:conic-gradient(' + stops.join(',') + ');border-color:' + ring + '"><b>' + rest + '</b></div>', iconSize: [34, 34], iconAnchor: [17, 17] });
+    return L.divIcon({ className: '', html: '<div class="pin-pie" style="background:conic-gradient(' + stops.join(',') + ');border-color:' + ring + ';border-width:' + (c.rej || c.cau ? 5 : 3) + 'px"><b>' + rest + '</b></div>', iconSize: [34, 34], iconAnchor: [17, 17] });
   }
   function pinIcon(b, color) {
     if (cfg('mapProgressMode', 'simple') === 'circle') return pieIcon(b, color);
@@ -529,16 +545,28 @@
     var l = statusList(), r = rs[0], i = 0; l.forEach(function (x, k) { if (x.id === r.status) i = k; });
     var nx = l[(i + 1) % l.length]; patchRoom(r.roomId, { status: nx.id }); toast('記録: ' + nx.label + '(もう一度タップで次の状況。長押しで詳細)', 1800);
   }
+  // 建物が密集しているところでは、丸が重ならないよう、いちばん近い建物までの距離に合わせて小さくする
+  function nearestMap(list) {
+    var G = {}, cs = 0.0004, out = {};
+    list.forEach(function (b) { var k = Math.floor(b._la / cs) + '_' + Math.floor(b._ln / cs); (G[k] = G[k] || []).push(b); });
+    list.forEach(function (b) {
+      var cx = Math.floor(b._la / cs), cy = Math.floor(b._ln / cs), best = 1e9, kx = Math.cos(b._la * Math.PI / 180);
+      for (var i = -1; i <= 1; i++) for (var j = -1; j <= 1; j++) { var a = G[(cx + i) + '_' + (cy + j)]; if (!a) continue; for (var q = 0; q < a.length; q++) { var o = a[q]; if (o === b) continue; var dy = (o._la - b._la) * 111320, dx = (o._ln - b._ln) * 111320 * kx, dd = Math.sqrt(dx * dx + dy * dy); if (dd < best) best = dd; } }
+      out[b.buildingId] = best;
+    });
+    return out;
+  }
   function drawBuildings(fit) {
     if (!bLayer) return; bLayer.clearLayers(); bShapes = {}; bPins = {}; bLabels = {};
     var d = S.data[S.cur]; if (!d) return;
+    var nn = {}; try { var pts = []; d.buildings.forEach(function (b) { if (b.lat != null && b.lng != null && b.lat !== '' && b.lng !== '') { b._la = Number(b.lat); b._ln = Number(b.lng); if (isFinite(b._la) && isFinite(b._ln)) pts.push(b); } }); nn = nearestMap(pts); } catch (e) {}
     var geo = S.geo[S.cur], feat = {}, bounds = null, direct = houseMode() !== 'sheet';
     if (geo && geo.features) geo.features.forEach(function (f) { feat[f.properties.uuid2] = f; });
     d.buildings.forEach(function (b) {
       var f = feat[b.buildingId], shape = null, st = buildingStyle(b.areaId || S.cur, b), apt = isApt(b.areaId || S.cur, b), pinned = hasRoomInfo(b.areaId || S.cur, b), ed = !!(S.edit && SADO.editMarker), pin = null;
       var hasPt = b.lat != null && b.lng != null;
       if (f) shape = L.polygon(geomToLatLngs(f.geometry), st);
-      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (pinned) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = 4.6 * fontScale(); st.weight = 1; /* 半径5.6m: 地図の拡大・縮小に合わせて大きさが変わる */ shape = L.circle([b.lat, b.lng], st); } }
+      else if (hasPt) { if (ed) shape = SADO.editMarker(b); else if (pinned) { pin = shape = L.marker([b.lat, b.lng], { icon: pinIcon(b, st.fillColor) }); pin._color = st.fillColor; } else { st.radius = Math.max(1.4, Math.min(4.6 * fontScale(), (nn[b.buildingId] || 1e9) * 0.46)); st.weight = st.radius < 2.6 ? 0.8 : 1; /* 半径5.6m: 地図の拡大・縮小に合わせて大きさが変わる */ shape = L.circle([b.lat, b.lng], st); } }
       if (!shape) return;
       var live = !S.merged || ed || b.areaId === S.sub; // 大きな区域を開いているときは、小さな区域を選ぶまで記録できない(押すと、その建物の小さな区域が選ばれる)
       var simple = !apt && !ed && direct && live;
@@ -553,7 +581,7 @@
       var bb = shape.getBounds ? shape.getBounds() : L.latLngBounds([shape.getLatLng()]);
       if (!bounds) bounds = L.latLngBounds(bb.getSouthWest(), bb.getNorthEast()); else bounds.extend(bb);
     });
-    if (fit && bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
+    if (fit && bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 19 });
     syncLabels();
   }
   function restyle(bid) {
@@ -582,7 +610,7 @@
     var h = '<div class="grip"><i></i></div><div class="head"><div class="row"><div class="name grow">' + esc(b.buildingName || '建物名なし') + '</div><div class="ainline">' + esc(a.areaName) + '</div><button class="xbtn" data-act="closeSheet" aria-label="閉じる">×</button></div></div>';
     h += '<div class="body"><div class="tool">' + (b.lat != null && b.lng != null ? '<button class="btn small" data-act="route">経路</button>' : '') + (manual && can ? '<button class="btn small primary' + (dirty ? '' : ' dis') + '" data-act="saveDraft">保存' + (dirty ? '(' + dirty + ')' : '') + '</button>' : '') + '' + (cfg('autoRefreshEnabled', true) === false ? '<button class="btn small" data-act="sheetRefresh">更新</button>' : '') + '<button class="btn small" data-act="report">報告</button></div>';
     var ed = !!(S.edit && S.user && S.user.role === 'admin');
-    if (!can) h += '<div class="locknote">この区域は' + (a.inUse ? '担当外' : '「使用中」ではない') + 'ため、見るだけです。</div>';
+    if (!can) h += '<div class="locknote">' + (a.inUse ? 'この区域は担当外のため、見るだけです。' : 'この区域は使用できません') + '</div>';
     if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
     else if (b.buildingMemo) h += '<div class="bmemo"><span>メモ：</span>' + esc(b.buildingMemo) + '</div>';
     // 階ごとにまとめる(旧GASの建物詳細と同じ)
@@ -591,14 +619,13 @@
     keys.sort(function (x, y) { var nx = parseInt(x, 10), ny = parseInt(y, 10), ax = !isNaN(nx), ay = !isNaN(ny); if (ax && ay) return nx - ny; if (ax) return -1; if (ay) return 1; return x.localeCompare(y, 'ja'); });
     if (!rs.length) h += '<div class="note" style="padding:10px 2px">部屋データがありません。</div>';
     keys.forEach(function (k) {
-      h += '<div class="flabel">' + (k === '不明' ? '階数不明' : esc(k) + '階') + '</div><div class="fgrid in' + th + '">';
+      h += (rs.length > 1 ? '<div class="flabel">' + (k === '不明' ? '階数不明' : esc(k) + '階') + '</div>' : '') + '<div class="fgrid in' + th + '">';
       fl[k].sort(function (x, y) { return String(x.roomId).localeCompare(String(y.roomId), 'ja', { numeric: true }); }).forEach(function (r) {
         var cur = S.draft && S.draft[r.roomId] !== undefined ? S.draft[r.roomId] : r.status, nm = String(r.roomName || '(部屋名なし)'), long = nm.length > 5;
-        h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead"><div class="rn">' + esc(nm) + '</div>' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : r.mark === 'caution' ? '<span class="badge cau">注意</span>' : '') + (ed ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
+        h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead"><div class="rn">' + esc(nm) + (!ed && r.mark ? '<div class="mkb">' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : '<span class="badge cau">注意</span>') + '</div>' : '') + '</div>' + (ed ? '<select class="rmark" data-room="' + esc(r.roomId) + '"><option value="">区分なし</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option></select>' : '') + (ed ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
         h += '<div class="rrow pick"><div class="rlabel"></div><div class="rval">' + pickerHtml(r, can, cur) + '</div></div>';
         if (can && isAdmin()) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval"><input class="memo" data-room="' + esc(r.roomId) + '" placeholder="メモ" value="' + esc(r.memo) + '"></div></div>';
         else if (r.memo && !r.mark) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
-        if (isAdmin() && can) h += '<div class="rrow marks">' + [['reject', '拒否'], ['caution', '注意']].map(function (m) { return '<button class="chip mark-' + m[0] + (r.mark === m[0] ? ' on' : '') + (can ? '' : ' dis') + '" data-act="setMark" data-room="' + esc(r.roomId) + '" data-v="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>';
         if (r.tenant) h += '<div class="upd">' + esc(r.tenant) + '</div>';
         if (r.updatedAt) h += '<div class="upd">更新: ' + esc(String(r.updatedAt).slice(0, 16).replace('T', ' ')) + (r.updatedBy ? ' ' + esc(r.updatedBy) : '') + '</div>';
         h += '</div>';
@@ -655,13 +682,13 @@
     for (var k in patch) op[k] = patch[k];
     if (op.status === undefined && op.memo === undefined && op.mark === undefined) return;
     if (op.status !== undefined && op.memo === undefined) op.memo = r.memo; // 状況だけ変えるときも、今のメモを一緒に送る
-    applyOp(d, op); persistArea(); enqueue(op); restyle(r.buildingId); renderSheet();
+    applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op); restyle(r.buildingId); renderSheet();
   }
   function patchBuilding(bid, patch) {
     var d = S.data[S.cur]; if (!d || !S.user || S.user.role !== 'admin') return; // 建物の名前・メモは区域係のみ
     var bq = d.buildings.filter(function (x) { return x.buildingId === bid; })[0], op = { type: 'building', areaId: (bq && bq.areaId) || S.cur, buildingId: bid, label: d.area.areaName + ' 建物' };
     for (var k in patch) op[k] = patch[k];
-    applyOp(d, op); persistArea(); enqueue(op);
+    applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op);
   }
 
   // ---------- 未送信の記録と自動同期 ----------
@@ -771,6 +798,10 @@
   function catAreas(cat) { return visibleAreas().filter(function (a) { return inCat(a, cat); }); }
   function catAreasShown(cat) { return catAreas(cat).filter(function (a) { return !S.onlyUse || a.inUse; }); }
   function activeNav(v) { var bs = document.querySelectorAll('#nav button'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-v') === v); }
+  document.addEventListener('click', function (ev) { // 窓の外(うしろの空白)をタッチしたら、窓を閉じる
+    if (!ev.target || ev.target.id !== 'panelBack') return;
+    if (!$('#admin').classList.contains('hidden')) { if (SADO.closeAdmin) SADO.closeAdmin(); } else closePanels();
+  });
   function closePanels() { $('#home').classList.add('hidden'); $('#menu').classList.add('hidden'); activeNav('map'); }
   SADO.activeNav = activeNav;
   (function () { // 建物詳細が開いている間は body に印を付ける(下のバーを隠すため)
@@ -792,7 +823,11 @@
   }
   function parentRows(cat, q) {
     q = (q || '').replace(/[\s　]/g, '').toLowerCase();
-    return parentsOf(cat).filter(function (p) { return !q || p.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).map(function (p) { return parentRowHtml(p, false, true); }).join('') || '<div class="note" style="padding:12px 4px">該当する区域がありません。</div>';
+    return parentsOf(cat).filter(function (p) { return !q || p.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).map(function (p) {
+      var open = !!(S.homeOpen && S.homeOpen['list' + p.areaId]);
+      if (!open) return parentRowHtml(p, false, true);
+      var ks = (p._kids || []).slice(); return '<div class="pgroup">' + parentRowHtml(p, true, true) + '<div class="pkids">' + ks.map(function (k) { return areaCard(k, true); }).join('') + '</div></div>';
+    }).join('') || '<div class="note" style="padding:12px 4px">該当する区域がありません。</div>';
   }
   function parentListHtml(cat) {
     return '<div class="note">' + (isAdmin() ? 'すべての大きな区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><input type="search" id="homeQ" class="homeq" placeholder="区域名で探す" value="' + esc(S.homeQ || '') + '"><div id="homeList">' + parentRows(cat, S.homeQ) + '</div>';
@@ -889,7 +924,7 @@
       userBox() +
       '<div class="tabs fill">' + TABS.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' on' : '') + '" data-act="homeTab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="mbody">' + (tab ? progLegend() + '<div class="ptool"><span class="pnote"></span><button class="btn secondary small" data-act="progReload' + (S.progBusy ? '" disabled="disabled' : '') + '">' + (S.progBusy ? SPIN + '更新中…' : '更新') + '</button></div>' : '');
     if (S.areasLoading && !S.areas.length) {
-      el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
+      el._h = null; el.innerHTML = h + '<div class="loadbox"><div class="spin" id="homeSpin"></div><div class="note">読み込み中…</div></div></div>'; applyLogo($('#homeSpin')); return;
     }
     if (!tab) {
       h += '<div class="note" style="padding:14px 4px">上の「会衆」「グループ」「個人」「区域一覧」から選んでください。</div>';
@@ -914,14 +949,16 @@
       h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' + onlyUseBox();
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="pgroup"><div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div class="pkids">'; }
-      else if (parentsOf(cat).length) { h += parentListHtml(cat); el.innerHTML = h + '</div>'; bindHomeQ(); return; }
+      else if (parentsOf(cat).length) { h += parentListHtml(cat); setHomeHtml(el, h + '</div>'); bindHomeQ(); return; }
       else h += '<div class="note">' + (isAdmin() ? 'すべての区域です。' : 'あなた、またはあなたのグループが担当の区域です。') + '</div><div style="height:8px"></div>';
       list.forEach(function (a) { h += areaCard(a, true); });
       if (par) h += '</div></div>';
       if (!list.length) h += '<div class="note" style="padding:12px 4px">担当の区域はありません。区域係に、担当の設定を確認してください。</div>';
     }
-    el.innerHTML = h + '</div>';
+    setHomeHtml(el, h + '</div>');
   }
+  // 中身が前と同じなら書き換えない(書き換えの最中にタッチすると、押したことが無効になるため)
+  function setHomeHtml(el, html) { if (el._h === html && el.firstChild) return; el._h = html; el.innerHTML = html; }
 
   // ---------- メニュー(設定・ダウンロード) ----------
   function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'report' ? 'report' : 'settings'); renderMenu(); }
@@ -1005,7 +1042,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v50　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v51　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1109,7 +1146,7 @@
         break;
       case 'progReload': if (S.progBusy) break; S.progAt = 0; S.progBusy = true; renderHome(); var t0 = Date.now(), fin = function () { setTimeout(function () { S.progBusy = false; renderHome(); toast(S.online ? '最新にしました。' : '電波がないため、更新できません。'); }, Math.max(0, 600 - (Date.now() - t0))); }; Promise.all([refreshBootstrap(), loadProg(true)]).then(fin, fin); break; // 区域の一覧も、いっしょに最新にする
       case 'toggleOnly': S.onlyUse = !S.onlyUse; renderHome(); break;
-      case 'homeParent': S.homeParent = v; renderHome(); break;
+      case 'homeParent': S.homeOpen = S.homeOpen || {}; S.homeOpen['list' + v] = !S.homeOpen['list' + v]; renderHome(); break;
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
       case 'locate': if (t.id !== 'locBtn') locate(); break; // 右上の◎はコンパス部品が処理する(二重に動かさない)
@@ -1180,6 +1217,7 @@
     var t = ev.target;
     if (t.classList && t.classList.contains('memo')) patchRoom(t.getAttribute('data-room'), { memo: t.value });
     else if (t.classList && t.classList.contains('rstatus')) setStatusUi(t.getAttribute('data-room'), t.value);
+    else if (t.classList && t.classList.contains('rmark')) patchRoom(t.getAttribute('data-room'), { mark: t.value });
     else if (t.id === 'rpArea') { R.area = t.value; R.bld = ''; renderMenuBody(); if (R.area && !S.data[R.area]) loadAreaData(R.area).then(function () { if (R.area === t.value) renderMenuBody(); }, function () {}); }
     else if (t.id === 'rpBld') R.bld = t.value;
     else if (t.id === 'rpPlace') R.place = t.value;

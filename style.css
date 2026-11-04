@@ -565,3 +565,14 @@ html[data-theme="dark"] .leaflet-tile-pane{-webkit-filter:invert(1) hue-rotate(1
 #mapLoading.hidden{display:none}
 #mapLoading .loadbox{background:var(--bg);border-radius:16px;padding:18px 26px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
 .area-label.parent-label{background:#1557b0;color:#fff;font-size:1.02em}
+
+/* v51 */
+.menu-user-box .gsp{display:inline-block;width:.55em}
+.leaflet-control-attribution{font-size:10px!important;line-height:1.35!important;padding:1px 6px!important;background:rgba(255,255,255,.75)!important;border-radius:6px 0 0 0}
+html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8)!important}
+#sheet .mkb{margin-top:3px}
+#sheet .rmark{margin-left:6px;max-width:8em;font-size:.85em}
+.area-label.lb-use{color:#137333}.area-label.lb-gray{color:#5f6368}
+.area-label.parent-label{background:#1557b0;color:#fff}.area-label.parent-label.lb-use{background:#188038;color:#fff}.area-label.parent-label.lb-gray{background:#5f6368;color:#fff}
+#panelBack{display:none;position:fixed;left:0;right:0;top:0;bottom:0;z-index:1400;background:transparent}
+#home:not(.hidden)~#panelBack,#menu:not(.hidden)~#panelBack{display:block}
