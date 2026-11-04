@@ -2,14 +2,14 @@
    ・アプリ本体と地図ライブラリは、いったん端末に保存し、次回からは保存したものを先に出す(裏で最新版を取り直す)
    ・地図の画像(タイル)は、一度見たもの・「地図を端末に保存」したものを端末から出す
    ※ アプリを更新したら、下の VERSION の数字を上げると、全員の端末が新しい版に入れ替わる */
-var VERSION = 'v9';
+var VERSION = 'v42';
 var SHELL = 'shell-' + VERSION, TILES = 'tiles-v1';
-var FILES = ['./', 'index.html', 'style.css', 'config.js', 'app.js', 'admin.js', 'manifest.json', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'data/areas.geojson'];
+var FILES = ['./', 'index.html', 'style.css', 'config.js', 'app.js', 'maprot.js', 'lib/leaflet-rotate.js', 'admin.js', 'edit.js', 'manifest.json', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'data/areas.geojson'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(SHELL).then(function (c) {
     // 1つでも無いファイルがあっても、全体が失敗しないように1つずつ入れる
-    return Promise.all(FILES.map(function (f) { return c.add(f)['catch'](function () {}); }));
+    return Promise.all(FILES.map(function (f) { return c.add(new Request(f, { cache: 'reload' }))['catch'](function () {}); }));
   }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
