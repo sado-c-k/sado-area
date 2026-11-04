@@ -407,14 +407,16 @@
   // すでに端末(メモリ・保存領域)にある区域は、待たずにすぐ出す。最新のデータは裏で取り直す(アプリを開く時に先に取っておくので、切り替えがパッと出る)
   var bgT = {};
   function bgRefresh(areaId) {
-    if (!S.online || !S.token || (bgT[areaId] && Date.now() - bgT[areaId] < 30000)) return; bgT[areaId] = Date.now();
+    if (!S.online || !S.token || (S.merged && areaId === S.cur) || (bgT[areaId] && Date.now() - bgT[areaId] < 30000)) return; bgT[areaId] = Date.now(); // 大きな区域を開いているときは、まとめたデータを上書きしない
     api('getAreaData', { areaId: areaId }, true).then(function (d) {
       var same = JSON.stringify(d) === JSON.stringify(S.baseData && S.baseData[areaId]); (S.baseData = S.baseData || {})[areaId] = d; if (same) return;
+      if (S.merged && areaId === S.cur) return;
       if (S.sheetBid && draftCount()) return; // 入力途中のものがあるときは、そのままにしておく
       S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.merged && S.kids && S.kids.indexOf(areaId) >= 0 && !S.edit && !(S.sheetBid && draftCount())) { selectParent(S.cur, true).then(function () { drawBuildings(false); if (S.sheetBid) renderSheet(); }); return; } if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
     }, function () {});
   }
   function loadAreaData(areaId, force) {
+    if (S.merged && areaId === S.cur) return selectParent(areaId, true); // 大きな区域を開いているときは、小さな区域をまとめ直す(まとめたデータを空の親データで上書きしない)
     if (!force) {
       var fast = function () { bgRefresh(areaId); return applyQueue(areaId).then(function () { return loadGeo(areaId); }); };
       if (S.data[areaId]) return fast();
@@ -1054,7 +1056,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v58　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v59　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
