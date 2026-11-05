@@ -637,3 +637,7 @@ html[data-font="1"],html[data-font="2"]{--fs:15px}html[data-font="3"]{--fs:16px}
 /* v78: テーマ3の「‹ メニュー」が縦に崩れるのを直す */
 html[data-ui="3"] #menu .mhead .menu-back{width:auto;height:auto;border-radius:8px;white-space:nowrap;-webkit-flex:0 0 auto;flex:0 0 auto;margin:0 6px 0 -4px;padding:6px 8px;font-size:.95em;line-height:1.2}
 html[data-ui="3"] #menu .mhead .t{white-space:nowrap}
+
+/* v83 読み込み中(操作を受け付けない間)は、画面全体を薄く白くする */
+#loading{background:rgba(255,255,255,.62)!important;-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px)}
+#loading .spin{border-color:rgba(0,0,0,.12);border-top-color:var(--primary)}

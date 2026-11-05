@@ -438,7 +438,7 @@
   }
   function loadSettings() {
     api('getSettings').then(function (s) {
-      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapTileUrl: '', mapTileAttribution: '' };
+      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
       for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
       ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled'].forEach(function (k) { s[k] = String(s[k]); });
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
@@ -449,7 +449,8 @@
         stRow('読み込み中のロゴ', '読み込み中に出る、くるくる回る印です。「カスタム」では、好きな画像を使えます(自動で小さくします)。回転しても見た目のよい、正方形に近い画像がおすすめです。「設定を保存」で反映されます。', stSeg('logoMode', [['default', 'デフォルト(○)'], ['custom', 'カスタム']]) + '<div style="margin-top:8px"><img id="logoPrev" alt="" style="width:64px;height:64px;object-fit:contain;border:1px solid var(--border);border-radius:12px;background:#fff;' + (s.logoImage ? '' : 'display:none') + '"' + (s.logoImage ? ' src="' + esc(s.logoImage) + '"' : '') + '><input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:block;margin-top:6px"></div>') +
         stRow('デフォルトのマップ取得先', '地図を開いたときに最初に使う背景です。「設定を保存」でその場で切り替わります。(OpenStreetMapと航空写真は、「地図を端末に保存」の対象外です)', sel('mapTileSource', [['gsipale', '国土地理院'], ['gsiphoto', '国土地理院(航空写真)'], ['osm', 'OpenStreetMap'], ['custom', '自分で指定']]) +
           '<div style="margin-top:6px"><div class="note">「自分で指定」のときだけ使います。画像のアドレス(https:// で始まり、{z}・{x}・{y} を含む)</div><input style="width:100%" id="st-mapTileUrl" value="' + esc(s.mapTileUrl) + '" placeholder="https://example.com/{z}/{x}/{y}.png"><div class="note" style="margin-top:4px">出典の表記(利用する地図サービスの規約に合わせて)</div><input style="width:100%" id="st-mapTileAttribution" maxlength="200" value="' + esc(s.mapTileAttribution) + '"></div>') +
-        TXT.slice(1, 4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') +
+        stRow('地図の最初の表示', '全区域: すべての区域が画面に入る位置と縮尺で始まります。<br>指定する: 下の緯度・経度・拡大率で始まります(例: 緯度38.05、経度138.38、拡大率10)。', stSeg('mapInitMode', [['all', '全区域が入る位置'], ['custom', '指定する']]) +
+          '<div class="row" style="margin-top:8px"><label for="st-mapLat">緯度　</label><input style="width:110px" id="st-mapLat" inputmode="decimal" value="' + esc(s.mapLat) + '"></div><div class="row" style="margin-top:6px"><label for="st-mapLng">経度　</label><input style="width:110px" id="st-mapLng" inputmode="decimal" value="' + esc(s.mapLng) + '"></div><div class="row" style="margin-top:6px"><label for="st-mapZoom">拡大率　</label><input style="width:110px" id="st-mapZoom" inputmode="numeric" value="' + esc(s.mapZoom) + '"></div>') +
         stRow('デフォルトの入力スタイル', '建物の詳細で、訪問状況を選ぶ形です。各端末の「表示設定」で、端末ごとに変えることもできます。', stSeg('inputTheme', [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']])) +
         stRow('デフォルトの一軒家の入力スタイル', '一軒家など部屋情報のない建物を、地図でタップしたときの動きです。各自が設定メニューで、好みに変えられます。', stSeg('houseTapMode', [['direct', 'タップで記録(長押しで詳細)'], ['sheet', '詳細ウィンドウを開く']])) +
         stRow('区域メニューの進捗表示', '', stSeg('areaProgressView', [['graph', 'グラフ'], ['chips', '文字']])) +
@@ -474,7 +475,7 @@
     var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
     vals.logoImage = ST.logoImage || '';
-    ['logoMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
+    ['logoMode', 'mapInitMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
     ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
     vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
     toast('保存しました。'); api('saveSettings', { values: vals }).then(function () {}, function (e) { toast((e && e.message || String(e)) + '\n(保存できませんでした。もう一度押してください)', 6000); });

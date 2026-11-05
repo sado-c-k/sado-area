@@ -238,7 +238,7 @@
   function statusOf(id) { var l = statusList(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return l[0]; }
 
   // ---------- 地図 ----------
-  function effSrc() { var v = S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsipale'; return v === 'gsi' ? 'gsipale' : v; } // 標準の地理院地図はやめて、pale(薄い色)を「国土地理院」として使う(古い設定の 'gsi' は淡色として扱う)
+  function effSrc() { var v = S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsipale'; return v === 'gsi' ? 'gsipale' : v; } // 標準の地理院地図はやめて、pale(薄い色)を「国土地理院」として使う(古い設定の 'gsi' はpaleとして扱う)
   var TILE_LIST = [['osm', 'OpenStreetMap'], ['gsiphoto', '航空写真'], ['gsipale', '国土地理院']];
   var TILE_SW = {"osm": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f4f1ea\"/><path d=\"M0 0h26c-4 12 6 18 2 30S10 44 0 46Z\" fill=\"#a9dcf5\"/><path d=\"M40 0h24v26c-8 2-16-4-18-12S42 6 40 0Z\" fill=\"#b8e0c0\"/><path d=\"M0 64 64 20\" stroke=\"#fff\" stroke-width=\"9\"/><path d=\"M0 64 64 20\" stroke=\"#e5b858\" stroke-width=\"3\"/><path d=\"M30 0 38 64\" stroke=\"#fff\" stroke-width=\"5\"/></svg>", "gsiphoto": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#58694a\"/><path d=\"M0 0h30L0 34Z\" fill=\"#6f7f5c\"/><path d=\"M64 64H28l36-34Z\" fill=\"#43523a\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#9c9a92\" stroke-width=\"9\" fill=\"none\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#d8d6cf\" stroke-width=\"1.5\" stroke-dasharray=\"5 4\" fill=\"none\"/></svg>", "gsi": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f6f2e4\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e9f0d4\"/><path d=\"M0 46 64 22\" stroke=\"#f4b04a\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d9d2bd\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#d9a89a\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#d9a89a\"/></svg>", "gsipale": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#eceff2\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e2e8ec\"/><path d=\"M0 46 64 22\" stroke=\"#cfd6dc\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d5dbe0\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#cdd3d8\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#cdd3d8\"/></svg>", "custom": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#e8e0f0\"/><path d=\"M0 46 64 22\" stroke=\"#fff\" stroke-width=\"6\"/><circle cx=\"32\" cy=\"30\" r=\"7\" fill=\"#a58bc8\"/></svg>"};
   function openLayerPicker() {
@@ -272,11 +272,20 @@
     if (!window.L) { toast('地図ライブラリ(lib/leaflet.js)が見つかりません。'); return; }
     S.mapReady = true;
     var st = S.settings || {};
-    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([38.05, 138.38], 10);
-    // 最初の表示は、佐渡全域が画面に入る位置と縮尺にする(画面の大きさに合わせて自動調整)
-    var SADO_BOUNDS = [[37.78, 138.18], [38.36, 138.60]], userMoved = false;
-    function fitSado() { if (userMoved || S.cur) return; try { map.invalidateSize(false); map.fitBounds(SADO_BOUNDS, { animate: false, padding: [4, 4] }); } catch (e) {} }
-    fitSado(); setTimeout(fitSado, 300); setTimeout(fitSado, 1200);
+    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([st.mapLat || 38.05, st.mapLng || 138.38], st.mapZoom || 10);
+    // 最初の表示: 設定が「指定する」なら指定の緯度経度・拡大率、そうでなければ全区域が画面に入る位置と縮尺
+    var userMoved = false;
+    S.fitInit = function () {
+      if (userMoved || S.cur || !map) return;
+      try {
+        map.invalidateSize(false);
+        if (String(st.mapInitMode) === 'custom' && isFinite(st.mapLat) && isFinite(st.mapLng) && st.mapLat && st.mapLng) { map.setView([Number(st.mapLat), Number(st.mapLng)], Number(st.mapZoom) || 13, { animate: false }); return; }
+        var b = null; frameFeatures().forEach(function (f) { try { var bb = L.polygon(geomToLatLngs(f.geometry)).getBounds(); b = b ? b.extend(bb) : bb; } catch (e) {} });
+        if (!b || !b.isValid()) b = L.latLngBounds([[37.78, 138.18], [38.36, 138.60]]);
+        map.fitBounds(b, { animate: false, padding: [6, 6] });
+      } catch (e) {}
+    };
+    S.fitInit(); setTimeout(S.fitInit, 300); setTimeout(S.fitInit, 1200);
     try { map.getContainer().addEventListener('pointerdown', function () { userMoved = true; }, { once: true }); } catch (e) {}
     map.on('zoomend', function () { syncLabels(); ringSync(); if (!S.edit && (!S.cur || S.merged)) drawFrames(); });
     map.on('dragstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
@@ -294,7 +303,7 @@
     $('#legend').innerHTML = h + dot('#ca8a04', '注意', true) + dot('#b91c1c', '拒否', true);
   }
   function loadFrames() {
-    var show = function (g) { S.frames = g; drawFrames(); };
+    var show = function (g) { S.frames = g; drawFrames(); if (S.fitInit) S.fitInit(); };
     if (S.frames) show(S.frames);
     fetch((CFG.geoBase || 'data/') + 'areas.geojson').then(function (r) { if (!r.ok) throw new Error('x'); return r.json(); }).then(function (g) { idb.set('kv', 'frames', g); show(g); })['catch'](function () {});
   }
