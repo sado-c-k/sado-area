@@ -532,8 +532,8 @@
   }
   // 部屋情報のある建物(部屋が2つ以上・アパート区域)だけがピン。名前だけある建物は丸のまま(名前は表示する)
   function hasRoomInfo(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1; }
-  // 詳細ウィンドウで記録する建物: 部屋情報のある建物と、名前のある建物。これ以外(一軒家など)は動作設定しだいで、地図を直接タップして記録する
-  function isApt(areaId, b) { return hasRoomInfo(areaId, b) || !!String(b.buildingName || '').trim(); }
+  // 詳細ウィンドウで記録する建物: 部屋が複数ある建物(アパート区分を含む)。これ以外(一軒家など)は動作設定しだいで、地図を直接タップして記録する
+  function isApt(areaId, b) { return hasRoomInfo(areaId, b); } // 詳細ウィンドウで記録するかは、部屋が複数あるか(またはアパート区分)だけで決める。名前の有無は見ない
   // 旧GAS(佐渡アパートGAS)と同じ見た目: 拡大したときは、しずく形のピン+建物名の札。縮小したときは、小さな丸だけ
   var PIN_DOT_BELOW_ZOOM = 16;
   function pieIcon(b, color) {
@@ -645,7 +645,7 @@
     h += '<div class="body"><div class="tool">' + (b.lat != null && b.lng != null ? '<button class="btn small" data-act="route">経路</button>' : '') + (manual && can ? '<button class="btn small primary' + (dirty ? '' : ' dis') + '" data-act="saveDraft">保存' + (dirty ? '(' + dirty + ')' : '') + '</button>' : '') + '' + (cfg('autoRefreshEnabled', true) === false ? '<button class="btn small" data-act="sheetRefresh">更新</button>' : '') + '<button class="btn small" data-act="report">報告</button></div>';
     var ed = !!(S.edit && S.user && S.user.role === 'admin');
     if (!can) h += '<div class="locknote">' + (a.inUse ? 'この区域は担当外のため、見るだけです。' : 'この区域は使用できません') + '</div>';
-    if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>';
+    if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>' + (SADO.sheetTools ? SADO.sheetTools(b) : ''); // 編集の道具(部屋追加・削除・区域変更)は、部屋の一覧の手前(上)に置く
     else if (b.buildingMemo) h += '<div class="bmemo"><span>メモ：</span>' + esc(b.buildingMemo) + '</div>';
     // 階ごとにまとめる(旧GASの建物詳細と同じ)
     var fl = {}, keys = [];
@@ -666,7 +666,6 @@
       });
       h += '</div>';
     });
-    if (ed && SADO.sheetTools) h += SADO.sheetTools(b);
     if (S.sheetH) { sh.style.height = S.sheetH + 'px'; sh.style.maxHeight = ''; } else { sh.style.height = 'auto'; sh.style.maxHeight = '50%'; } // 内容が少ないときは、それ以上広げない
     sh.innerHTML = h + '</div>'; sh.classList.remove('hidden'); if (keep) sh.querySelector('.body').scrollTop = keep;
   }
@@ -1093,7 +1092,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v68　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v69　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }

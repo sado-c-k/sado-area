@@ -12,6 +12,8 @@
   function canEdit() { return !!(S.user && (S.user.role === 'admin' || S.user.role === 'maintainer')); } // 編集者は、区域の追加・境界線の変更はできない
   function fail(e) { toast(e && e.message ? e.message : String(e), 6000); }
   function count() { return Object.keys(E.pend).length; }
+  // 保存したあと、地図への反映に数秒かかるので、終わるまで「反映中」を出す
+  function reflect() { toast('地図に反映中です…', 30000); return SADO.reloadCur().then(function (r) { toast('反映しました。', 1200); return r; }, function (e) { fail(e); }); }
   function rm(l) { if (l && map()) map().removeLayer(l); }
 
   // ---------- どの区域の枠の中か ----------
@@ -38,11 +40,11 @@
   SADO.onEnter = function (can) { if (!can && E.on) toggle(true); };
   SADO.editOn = function () { return E.on; };
   var HINT = {
-    none: '点で表示されている建物のピンは、ドラッグで動かせます(動かしたら「保存」)。\n建物を押すと、部屋の追加・削除や建物の削除ができます。',
-    apt: '地図をタップして、集合住宅の位置を決めてください',
-    house: '地図をタップして、一軒家を置いていきます(ピンはドラッグで動かせます)。\n置き終わったら「確定」を押してください。',
-    area: '地図をタップして、新しい区域の枠の角を順番に置いていきます。\n3点以上置いたら「確定」を押してください。',
-    bound: '角の点(白)はドラッグで動かせます。点を押すと削除、辺の中央の点(小さい点)を押すと角が増えます。\n直したら「境界線を保存」を押してください。'
+    none: '建物の印をタップ → 部屋・区域・削除の編集\n印をドラッグ → 位置を動かす(あとで「保存」)',
+    apt: '集合住宅を置く場所を、地図でタップしてください',
+    house: '一軒家を置く場所を、地図でタップ(何軒でも)。\n置き終わったら「確定」を押します。',
+    area: '新しい区域の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。',
+    bound: '白い点をドラッグ → 角を動かす / 点をタップ → 角を消す\n辺の中央の小さい点をタップ → 角を増やす。直したら「枠を保存」'
   };
   function paint() {
     var adm = isAdmin(); $('#edAreaBtn').classList.toggle('hidden', !adm); $('#edBoundBtn').classList.toggle('hidden', !adm);
@@ -54,7 +56,7 @@
     tool.classList.toggle('hidden', !(E.mode === 'house' || E.mode === 'area' || E.mode === 'bound'));
     if (E.mode === 'house') { n = E.pts.length; $('#edToolInfo').textContent = '一軒家 ' + n + '軒'; $('#edToolOk').textContent = '確定'; $('#edToolOk').disabled = !n; }
     else if (E.mode === 'area') { n = E.av.length; $('#edToolInfo').textContent = '角 ' + n + '点'; $('#edToolOk').textContent = '確定'; $('#edToolOk').disabled = n < 3; }
-    else if (E.mode === 'bound') { $('#edToolInfo').textContent = E.bd ? '「' + E.bd.name + '」の枠' : ''; $('#edToolOk').textContent = '境界線を保存'; $('#edToolOk').disabled = !(E.bd && E.bd.undo.length); }
+    else if (E.mode === 'bound') { $('#edToolInfo').textContent = E.bd ? '「' + E.bd.name + '」の枠' : ''; $('#edToolOk').textContent = '枠を保存'; $('#edToolOk').disabled = !(E.bd && E.bd.undo.length); }
     var canUndo = E.mode === 'house' ? E.pts.length : E.mode === 'area' ? E.av.length : E.mode === 'bound' ? (E.bd && E.bd.undo.length) : E.undo.length;
     $('#edUndoBtn').disabled = !canUndo;
     $('#edSaveBtn').textContent = '保存' + (count() ? '（' + count() + '）' : '');
@@ -171,7 +173,7 @@
   }
   function afterCreate(areaIds, openId) {
     toast('建物を追加しました。');
-    if (S.cur && areaIds.indexOf(S.cur) >= 0) return SADO.reloadCur().then(function () { if (openId) SADO.openBuilding(openId); });
+    if (S.cur && areaIds.indexOf(S.cur) >= 0) return reflect().then(function () { if (openId) SADO.openBuilding(openId); });
     redraw();
   }
   function aptDialog(lat, lng) {
@@ -219,7 +221,7 @@
       });
       return api('createBuildings', { items: items }).then(function () {
         var areas = items.map(function (x) { return x.areaId; }); endMode(); paint(); toast(items.length + '軒の一軒家を追加しました。');
-        return (S.cur && areas.indexOf(S.cur) >= 0) ? SADO.reloadCur() : redraw();
+        return (S.cur && areas.indexOf(S.cur) >= 0) ? reflect() : redraw();
       });
     });
   }
@@ -300,15 +302,15 @@
 
   // ---------- 建物のシートの下に出す道具 ----------
   SADO.sheetTools = function (b) {
-    return '<div class="tools"><div class="row"><button class="btn small primary" data-act="ed:addRooms" data-v="' + esc(b.buildingId) + '">＋ 部屋を追加</button><button class="btn small danger" data-act="ed:delB" data-v="' + esc(b.buildingId) + '">この建物を削除</button></div>' +
-      '<div class="row" style="margin-top:8px"><span class="note">区域</span><select id="bArea">' + areaOptions(S.cur) + '</select><button class="btn small" data-act="ed:moveB" data-v="' + esc(b.buildingId) + '">変更</button></div></div>';
+    return '<div class="tools edtools"><div class="flabel">この建物を編集</div><div class="row"><button class="btn small primary" data-act="ed:addRooms" data-v="' + esc(b.buildingId) + '">＋ 部屋を追加</button><button class="btn small danger" data-act="ed:delB" data-v="' + esc(b.buildingId) + '">この建物を削除</button></div>' +
+      '<div class="row" style="margin-top:8px"><span class="note">別の区域へ移す</span><select id="bArea">' + areaOptions(S.cur) + '</select><button class="btn small" data-act="ed:moveB" data-v="' + esc(b.buildingId) + '">移す</button></div></div>';
   };
   function addRoomsDialog(bid) {
     modal('部屋を追加', '<label>部屋番号</label><input id="arN" placeholder="例：101-105, 201, 202"><label>階(空欄なら部屋番号から自動で判定)</label><input id="arF" maxlength="10" placeholder="例：1"><div class="prev" id="arPrev"></div>' +
       '<div class="note">「101-105」のように書くと、101〜105をまとめて追加できます。すでにある部屋番号は追加されません。</div>', '追加する', function () {
         var names = parseRoomNames($('#arN').value), fl = ($('#arF').value || '').trim(); if (!names.length) throw new Error('部屋番号を入力してください。');
         return api('addRooms', { buildingId: bid, rooms: names.map(function (n) { return { roomName: n, floor: fl || floorOf(n) }; }) }).then(function (n) {
-          toast(n ? n + '部屋を追加しました。' : '追加できる部屋がありません(すべて登録済みです)。'); return SADO.reloadCur();
+          toast(n ? n + '部屋を追加しました。' : '追加できる部屋がありません(すべて登録済みです)。'); return reflect();
         });
       });
     $('#arN').oninput = function () { var ns = parseRoomNames(this.value); $('#arPrev').textContent = ns.length ? ns.length + '部屋: ' + ns.slice(0, 12).join(', ') + (ns.length > 12 ? ' …' : '') : ''; };
@@ -328,16 +330,16 @@
       case 'addRooms': addRoomsDialog(v); break;
       case 'delRoom':
         var r = S.data[S.cur].rooms.filter(function (x) { return x.roomId === v; })[0];
-        if (r && window.confirm('部屋「' + r.roomName + '」を削除しますか？\n(入力済みの訪問状況も表示されなくなります)')) api('setActive', { kind: 'room', id: v, active: false }).then(function () { toast('部屋を削除しました。'); return SADO.reloadCur(); }, fail);
+        if (r && window.confirm('部屋「' + r.roomName + '」を削除しますか？\n(入力済みの訪問状況も表示されなくなります)')) api('setActive', { kind: 'room', id: v, active: false }).then(function () { toast('部屋を削除しました。'); return reflect(); }, fail);
         break;
       case 'delB':
         var b = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === v; })[0];
         if (b && window.confirm('建物「' + b.buildingName + '」を削除しますか？\n地図と一覧に表示されなくなります。') && window.confirm('本当に削除しますか？(あとからスプレッドシートで元に戻すことはできます)'))
-          api('setActive', { kind: 'building', id: v, active: false }).then(function () { SADO.closeSheet(); toast('建物を削除しました。'); return SADO.reloadCur(); }, fail);
+          api('setActive', { kind: 'building', id: v, active: false }).then(function () { SADO.closeSheet(); toast('建物を削除しました。'); return reflect(); }, fail);
         break;
       case 'moveB':
         var to = $('#bArea').value; if (!to || to === S.cur) { toast('別の区域を選んでください。'); break; }
-        api('setBuildingArea', { buildingId: v, areaId: to }).then(function () { SADO.closeSheet(); toast('区域を変更しました。'); return SADO.reloadCur(); }, fail);
+        api('setBuildingArea', { buildingId: v, areaId: to }).then(function () { SADO.closeSheet(); toast('区域を変更しました。'); return reflect(); }, fail);
         break;
     }
   };
