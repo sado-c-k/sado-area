@@ -90,7 +90,7 @@
   // ---------- 起動 ----------
   function applyPrefs(p) {
     p = p || {};
-    document.documentElement.setAttribute('data-font', p.font || '3');
+    document.documentElement.setAttribute('data-font', String(p.font) === '1' ? '2' : (p.font || '3')); // 文字サイズは旧GASと同じ 2〜7(小・標準・大・特大・超特大・最大)。古い設定の1は2として扱う
     document.documentElement.setAttribute('data-ui', p.ui === '2' || p.ui === '3' ? p.ui : '1');
     var th = p.theme || 'auto', dark = th === 'dark' || (th === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
@@ -1081,11 +1081,11 @@
     } else if (t === 'report') {
       renderReport(el);
     } else if (t === 'prefs') {
-      var p = getPrefs(), FS = ['小', 'やや小', '標準', '大', '特大', '最大'], fv = String(p.font || '3'), seg = function (act, cur, list) { return '<div class="segrow">' + list.map(function (x) { return '<button class="' + (String(cur) === x[0] ? 'on' : '') + '" data-act="' + act + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
+      var p = getPrefs(), FS = ['小', '標準', '大', '特大', '超特大', '最大'], fv = String(p.font) === '1' ? '2' : String(p.font || '3'), seg = function (act, cur, list) { return '<div class="segrow">' + list.map(function (x) { return '<button class="' + (String(cur) === x[0] ? 'on' : '') + '" data-act="' + act + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
       var hm = p.houseTap === 'sheet' || p.houseTap === 'direct' ? p.houseTap : cfg('houseTapMode', 'direct');
       el.innerHTML = '<div class="card"><h3>表示設定</h3>' +
         '<div class="setrow namerow"><div class="grow"><div class="tt">名前</div><div>' + esc(S.user ? S.user.displayName : '') + '<span class="note">　' + esc(roleLabel()) + (S.user && S.user.groupName ? '・' + esc(S.user.groupName) : '') + '</span></div></div><button class="btn danger small" data-act="logout">ログアウト</button></div>' +
-        '<div class="setrow"><div class="tt">文字サイズ<span class="cntb">' + fv + ' / 6</span></div><div class="fsr">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button class="' + (fv === String(n) ? 'on' : '') + '" data-act="prefFont" data-v="' + n + '"><span style="font-size:' + (10 + n * 2) + 'px">あ</span></button>'; }).join('') + '</div></div>' +
+        '<div class="setrow"><div class="tt">文字サイズ<span class="cntb">' + FS[+fv - 2] + '</span></div><div class="fsr">' + [2, 3, 4, 5, 6, 7].map(function (n) { return '<button class="' + (fv === String(n) ? 'on' : '') + '" data-act="prefFont" data-v="' + n + '"><span style="font-size:' + (8 + n * 2) + 'px">あ</span></button>'; }).join('') + '</div></div>' +
         '<div class="setrow"><div class="tt">画面モード</div>' + seg('prefTheme', p.theme || 'auto', [['light', 'ライト'], ['dark', 'ダーク'], ['auto', '端末に合わせる']]) + '</div>' +
         '<div class="setrow"><div class="tt">テーマ</div>' + seg('prefUi', p.ui || '1', [['1', 'テーマ1'], ['2', 'テーマ2'], ['3', 'テーマ3']]) + '</div>' +
         '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', inputTheme(), [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']]) + '</div>' +
@@ -1094,7 +1094,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v76　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v77　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }

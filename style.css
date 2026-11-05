@@ -627,3 +627,6 @@ html[data-ui="3"] #admin{top:0;bottom:0;width:min(460px,100%);border-radius:0}
 /* v75: 狭い画面でも、タイトルとユーザー名/グループ名を1行に(入りきらない分は…で省略) */
 @media (max-width:440px){.mhead{flex-wrap:nowrap}.mhead .t{flex:0 1 auto;white-space:nowrap;min-width:0}.mhead .mhuser{order:0;flex:1 1 0;min-width:0;margin:0;padding:0 2px 0 6px;font-size:.78em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}}
 #sheet .body{-webkit-flex:1 1 auto;flex:1 1 auto;min-height:0}
+
+/* v77: 文字の大きさを旧GASと同じ6段階(2〜7)に。本文は 15・16・18・20・22・24px */
+html[data-font="1"],html[data-font="2"]{--fs:15px}html[data-font="3"]{--fs:16px}html[data-font="4"]{--fs:18px}html[data-font="5"]{--fs:20px}html[data-font="6"]{--fs:22px}html[data-font="7"]{--fs:24px}
