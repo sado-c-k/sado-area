@@ -612,3 +612,7 @@ html[data-theme="dark"] #home .card.tap.open,html[data-theme="dark"] #home .pgro
 /* v66: 一覧が長いタブ(会衆)で、見出しやタブが縮んで高さが変わらないように固定 */
 #home .mhead,#home>.tabs,#menu .mhead,#menu>.tabs,#admin .mhead,#admin>.tabs{-webkit-flex:0 0 auto;flex:0 0 auto}
 #editBar .row.edend{justify-content:flex-end}#editBar .row.edend>*{margin-right:0;margin-left:6px}
+#editBar .row.edmain{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
+#editBar .row.edmain>*{-webkit-flex:1 1 0;flex:1 1 0;margin-right:6px;padding-left:4px;padding-right:4px;white-space:nowrap}
+#editBar .row.edmain>*:last-child{margin-right:0}
+#editBar .row.edend #edUndoBtn{margin-right:auto;margin-left:0}

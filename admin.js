@@ -298,7 +298,7 @@
     if (!B.st && !B.memo) { toast('訪問またはメモを選んでください。'); return; }
     var el = document.getElementById('bkId'), nm = el.options[el.selectedIndex].text;
     modal('一括クリアの確認', '<div class="bcr"><span>対象</span><b>' + (B.scope === 'area' ? '区域' : '建物') + '「' + esc(nm) + '」</b></div><div class="bcr"><span>消す項目</span><b>' + (B.st && B.memo ? '訪問とメモ' : (B.st ? '訪問' : 'メモ')) + '</b></div>' + (B.st ? '<div class="bcr"><span>空室の部屋</span><b>' + (B.vac === 'keep' ? '残す' : '消す') + '</b></div>' : '') + (B.memo ? '<div class="bcr"><span>注意・拒否のメモ</span><b>' + (B.flag === 'keep' ? '残す' : '消す') + '</b></div>' : '') + '<div class="note">直前の1回分は「元に戻す」で復元できます。</div>', 'クリアする', function () {
-      after(api('bulkClear', { scopeType: /^p:/.test(String(B.id)) ? 'parent' : B.scope, scopeId: String(B.id).replace(/^p:/, ''), clearStatus: B.st, clearMemo: B.memo, keepVacantStatus: B.vac === 'keep', keepFlaggedMemo: B.flag === 'keep' }), function (r) { return r.count + '件をクリアしました(元に戻せます)。'; }, function () { C.prog = null; loadBulk(); });
+      after(api('bulkClear', { scopeType: /^p:/.test(String(B.id)) ? 'parent' : B.scope, scopeId: String(B.id).replace(/^p:/, ''), clearStatus: B.st, clearMemo: B.memo, keepVacantStatus: B.vac === 'keep', keepFlaggedMemo: B.flag === 'keep' }), function (r) { return r.count + '件をクリアしました(元に戻せます)。'; }, function () { C.prog = null; if (SADO.forgetAreas) SADO.forgetAreas(); loadBulk(); });
     });
   }
   // ---------- アカウント(ユーザー・グループ) ----------
@@ -622,7 +622,7 @@
       case 'delReport': opt(function () { return api('deleteReport', { reportId: v }); }, null, function () {}, function () { var el = document.querySelector('[data-act="ad:delReport"][data-v="' + v + '"]'); var row = el && el.closest('.fxg'); if (row) { var cnt = document.querySelector('#adBody .cnt'); row.remove(); if (cnt) cnt.textContent = Math.max(0, (+cnt.textContent || 1) - 1); } }); break;
       case 'bulk': bulkRun(); break;
       case 'bkScope': B.scope = v; B.id = ''; B.area = ''; C.bkB = null; drawBulk(); break;
-      case 'undoBulk': modal('元に戻す', '<div class="note">直前の一括クリアで消した記録を元に戻します。</div>', '元に戻す', function () { after(api('undoBulk'), function (r) { return r.count + '件を元に戻しました。'; }, function () { C.prog = null; loadBulk(); }); }); break;
+      case 'undoBulk': modal('元に戻す', '<div class="note">直前の一括クリアで消した記録を元に戻します。</div>', '元に戻す', function () { after(api('undoBulk'), function (r) { return r.count + '件を元に戻しました。'; }, function () { C.prog = null; if (SADO.forgetAreas) SADO.forgetAreas(); loadBulk(); }); }); break;
       // アカウント
       case 'uEdit': A.editU = true; A.ud = {}; drawUsers(); break;
       case 'uCancel': A.editU = false; A.ud = {}; drawUsers(); break;

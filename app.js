@@ -1092,7 +1092,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v71　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v72　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1282,6 +1282,14 @@
   SADO.goHome = goHome; SADO.selectArea = selectArea; SADO.openBuilding = openBuilding; SADO.refreshBootstrap = refreshBootstrap; SADO.renderMenu = renderMenu;
   SADO.toast = toast; SADO.openMenu = openMenu;
   SADO.selectArea = selectArea; SADO.canEditMode = canEditMode; SADO.isMaint = isMaint; SADO.S = S; SADO.api = api; SADO.drawFrames = drawFrames; SADO.refreshBootstrap = refreshBootstrap; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = function () { closeSheet(true); }; SADO.areaById = areaById;
+  // 一括クリアなどで、サーバーの記録がまとめて変わったとき: 端末に覚えていた区域のデータを捨て、開いている区域は読み直す(古い訪問状況を見せない)
+  SADO.forgetAreas = function () {
+    var keep = {}; if (S.cur) keep[S.cur] = 1; (S.kids || []).forEach(function (k) { keep[k] = 1; });
+    Object.keys(S.data).forEach(function (k) { if (!keep[k]) delete S.data[k]; });
+    var p = idb.clear('area'); try { return Promise.resolve(p).then(function () { return SADO.reloadCur(); }, function () {})['catch'](function () {}); } catch (e) { return Promise.resolve(); }
+  };
+  // 次に区域を開くとき、端末の古い記録を見せないために、覚えていたデータを(開いていない区域ぶんも)捨てておく。bgRefreshの結果が戻るまで古い表示が残るのを防ぐ
+
   SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return (S.merged ? selectParent(S.cur, true) : loadAreaData(S.cur, true)).then(function () { drawBuildings(false); renderSheet(); }); };
   boot();
 })();
