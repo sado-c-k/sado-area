@@ -420,13 +420,17 @@
   }
   // 建物の形は、親区域ごとのファイル(area_<親ID>.geojson)があればそれを使い、なければ子区域のファイル(area_<子ID>.geojson)を使う
   var geoK = {};
+  // 建物の形のファイルが無い(404)区域は、しばらく(12時間)取りにいかない。何度も取りにいくと、コンソールにエラーが増え続けるため
+  var GEO_MISS_KEY = 'sado-geo-miss', geoMiss = (function () { try { var o = JSON.parse(localStorage.getItem(GEO_MISS_KEY) || '{}'), t = Date.now(), r = {}, k; for (k in o) if (t - o[k] < 43200000) r[k] = o[k]; return r; } catch (e) { return {}; } })();
+  function geoMissSave() { try { localStorage.setItem(GEO_MISS_KEY, JSON.stringify(geoMiss)); } catch (e) {} }
   function loadGeo(areaId) {
     if (S.geo[areaId]) return Promise.resolve(S.geo[areaId]);
     var a = areaById(areaId), keys = (a && a.parentId) ? [a.parentId, areaId] : [areaId], base = CFG.geoBase || 'data/';
     var set = function (g) { S.geo[areaId] = g; return g; };
     var get = function (k) {
       if (geoK[k]) return Promise.resolve(geoK[k]);
-      return fetch(base + 'area_' + encodeURIComponent(k) + '.geojson').then(function (r) { if (!r.ok) throw new Error('x'); return r.json(); }).then(function (g) { geoK[k] = g; idb.set('geo', k, g); return g; });
+      if (geoMiss[k]) return Promise.reject(new Error('miss'));
+      return fetch(base + 'area_' + encodeURIComponent(k) + '.geojson').then(function (r) { if (!r.ok) { if (r.status === 404) { geoMiss[k] = Date.now(); geoMissSave(); } throw new Error('x'); } return r.json(); }).then(function (g) { geoK[k] = g; idb.set('geo', k, g); return g; });
     };
     var fromIdb = function () { return Promise.all(keys.map(function (k) { return idb.get('geo', k); })).then(function (l) { return set(l.filter(Boolean)[0] || null); }); };
     return get(keys[0]).then(set, function () { return keys[1] ? get(keys[1]).then(set, fromIdb) : fromIdb(); });
@@ -1111,7 +1115,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v87　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v88　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
