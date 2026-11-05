@@ -238,7 +238,7 @@
   function statusOf(id) { var l = statusList(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return l[0]; }
 
   // ---------- 地図 ----------
-  function effSrc() { var v = S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsipale'; return v === 'gsi' ? 'gsipale' : v; } // 標準の地理院地図はやめて、淡色を「国土地理院」として使う(古い設定の 'gsi' は淡色として扱う)
+  function effSrc() { var v = S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsipale'; return v === 'gsi' ? 'gsipale' : v; } // 標準の地理院地図はやめて、pale(薄い色)を「国土地理院」として使う(古い設定の 'gsi' は淡色として扱う)
   var TILE_LIST = [['osm', 'OpenStreetMap'], ['gsiphoto', '航空写真'], ['gsipale', '国土地理院']];
   var TILE_SW = {"osm": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f4f1ea\"/><path d=\"M0 0h26c-4 12 6 18 2 30S10 44 0 46Z\" fill=\"#a9dcf5\"/><path d=\"M40 0h24v26c-8 2-16-4-18-12S42 6 40 0Z\" fill=\"#b8e0c0\"/><path d=\"M0 64 64 20\" stroke=\"#fff\" stroke-width=\"9\"/><path d=\"M0 64 64 20\" stroke=\"#e5b858\" stroke-width=\"3\"/><path d=\"M30 0 38 64\" stroke=\"#fff\" stroke-width=\"5\"/></svg>", "gsiphoto": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#58694a\"/><path d=\"M0 0h30L0 34Z\" fill=\"#6f7f5c\"/><path d=\"M64 64H28l36-34Z\" fill=\"#43523a\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#9c9a92\" stroke-width=\"9\" fill=\"none\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#d8d6cf\" stroke-width=\"1.5\" stroke-dasharray=\"5 4\" fill=\"none\"/></svg>", "gsi": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f6f2e4\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e9f0d4\"/><path d=\"M0 46 64 22\" stroke=\"#f4b04a\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d9d2bd\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#d9a89a\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#d9a89a\"/></svg>", "gsipale": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#eceff2\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e2e8ec\"/><path d=\"M0 46 64 22\" stroke=\"#cfd6dc\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d5dbe0\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#cdd3d8\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#cdd3d8\"/></svg>", "custom": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#e8e0f0\"/><path d=\"M0 46 64 22\" stroke=\"#fff\" stroke-width=\"6\"/><circle cx=\"32\" cy=\"30\" r=\"7\" fill=\"#a58bc8\"/></svg>"};
   function openLayerPicker() {
@@ -265,14 +265,19 @@
     var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 19, maxNativeZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; };
     if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap contributors' } };
     if (src === 'gsiphoto') return G('seamlessphoto', 18, '地理院タイル(航空写真)');
-    return G('pale', 18, '地理院タイル(淡色)'); // 国土地理院 = 淡色
+    return G('pale', 18, '地理院タイル'); // 国土地理院
   }
   function initMap() {
     if (S.mapReady) return;
     if (!window.L) { toast('地図ライブラリ(lib/leaflet.js)が見つかりません。'); return; }
     S.mapReady = true;
     var st = S.settings || {};
-    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([st.mapLat || 38.08, st.mapLng || 138.44], st.mapZoom || 13);
+    map = L.map('map', { zoomControl: false, attributionControl: true, tap: false, rotate: true, bearing: 0, touchRotate: false, rotateControl: false, doubleClickZoom: false }).setView([38.05, 138.38], 10);
+    // 最初の表示は、佐渡全域が画面に入る位置と縮尺にする(画面の大きさに合わせて自動調整)
+    var SADO_BOUNDS = [[37.78, 138.18], [38.36, 138.60]], userMoved = false;
+    function fitSado() { if (userMoved || S.cur) return; try { map.invalidateSize(false); map.fitBounds(SADO_BOUNDS, { animate: false, padding: [4, 4] }); } catch (e) {} }
+    fitSado(); setTimeout(fitSado, 300); setTimeout(fitSado, 1200);
+    try { map.getContainer().addEventListener('pointerdown', function () { userMoved = true; }, { once: true }); } catch (e) {}
     map.on('zoomend', function () { syncLabels(); ringSync(); if (!S.edit && (!S.cur || S.merged)) drawFrames(); });
     map.on('dragstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     map.on('zoomstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
@@ -944,7 +949,7 @@
   function saveBtn(act, id) {
     var ka = areaById(id), j = S.tile && (S.tile[id] || (ka && ka.parentId && S.tile[ka.parentId]));
     if (j) return '<button class="btn small" disabled aria-label="地図を保存中" style="padding:6px 9px">' + SPIN + '</button>';
-    var dls = act === 'saveTiles' && S.settings && S.settings.hasDownloads; // 区域カードの雲は、「オフラインで使う/PDF/画像」の三択
+    var dls = (act === 'saveTiles' || act === 'saveTilesParent') && S.settings && S.settings.hasDownloads; // 区域カードの雲は、「オフラインで使う/PDF/画像」の三択
     if (tileDone()[id] && !dls) return ''; // 保存が終わったら、雲のマークは出さない
     if (dls) return '<button class="btn small" data-act="cloudPick" data-v="' + esc(id) + '" title="地図の保存・ダウンロード" aria-label="地図の保存・ダウンロード" style="padding:6px 9px">' + CLOUD + '</button>';
     return '<button class="btn small" data-act="' + act + '" data-v="' + esc(id) + '" title="地図を端末に保存" aria-label="地図を端末に保存" style="padding:6px 9px">' + CLOUD + '</button>';
@@ -1241,17 +1246,17 @@
       case 'saveTilesParent': saveTiles(visibleAreas().filter(function (a) { return a.parentId === v; }).map(function (a) { return a.areaId; }), true, v); break;
       case 'cloudPick': (function () {
         var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
-        var nm = (S.areas.filter(function (x) { return x.areaId === v; })[0] || {}).areaName || '', done = tileDone()[v];
+        var ca = S.areas.filter(function (x) { return x.areaId === v; })[0] || {}, nm = ca.areaName || '', isPar = !!ca.isParent, done = tileDone()[v];
         m = document.createElement('div'); m.id = 'modal';
         m.innerHTML = '<div class="mb"><h3>' + esc(nm) + '</h3><div class="cloudopts">' +
-          '<button class="btn primary" data-act="saveTiles" data-v="' + esc(v) + '">オフラインでも使用' + (done ? '(保存済み・更新)' : '') + '</button>' +
+          '<button class="btn primary" data-act="' + (isPar ? 'saveTilesParent' : 'saveTiles') + '" data-v="' + esc(v) + '">オフラインでも使用' + (done ? '(保存済み・更新)' : '') + '</button>' +
           '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDFをダウンロード</button>' +
           (/^\d+-\d+$/.test(nm) ? '' : '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="duplex">両面印刷用PDFをダウンロード</button>') +
           '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">画像をダウンロード</button>' +
           '<button class="btn" id="dlNo">キャンセル</button></div><div class="note">PDF・画像のダウンロードは、電波が必要です。</div></div>';
         document.body.appendChild(m);
         var cl = function () { if (m.parentNode) m.parentNode.removeChild(m); };
-        m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { var t2 = e.target; if (t2 === m || (t2.getAttribute && /^(saveTiles|dlFile)$/.test(t2.getAttribute('data-act') || ''))) setTimeout(cl, 0); });
+        m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { var t2 = e.target; if (t2 === m || (t2.getAttribute && /^(saveTiles|saveTilesParent|dlFile)$/.test(t2.getAttribute('data-act') || ''))) setTimeout(cl, 0); });
       })(); break;
       case 'dlPick': (function () {
         var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
