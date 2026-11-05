@@ -60,7 +60,7 @@
     var canUndo = E.mode === 'house' ? E.pts.length : E.mode === 'area' ? E.av.length : E.mode === 'bound' ? (E.bd && E.bd.undo.length) : E.undo.length;
     $('#edUndoBtn').disabled = !canUndo;
     $('#edSaveBtn').textContent = '保存して終了' + (count() ? '（' + count() + '）' : '');
-    $('#editHint').textContent = HINT[E.mode || 'none']; $('#editHint').classList.toggle('hidden', !HINT[E.mode || 'none']);
+    var hint = HINT[E.mode || 'none'] || (E.on && !E.mode && !S.cur ? '地図の区域の枠(オレンジの点線)の中をタップすると、その区域を選べます' : ''); $('#editHint').textContent = hint; $('#editHint').classList.toggle('hidden', !hint);
   }
   function redraw() { SADO.drawFrames(); if (S.cur) { SADO.drawBuildings(false); SADO.renderSheet(); } }
   SADO.hideFrame = function (id) { return !!(E.bd && E.bd.areaId === id); };
@@ -151,6 +151,11 @@
       E.mode = null; paint(); if (E.tmp) rm(E.tmp); E.tmp = L.marker(ll, { opacity: 0.6 }).addTo(map()); aptDialog(ll.lat, ll.lng);
     } else if (E.mode === 'house') addHousePoint(ll.lat, ll.lng);
     else if (E.mode === 'area') { E.av.push({ lat: ll.lat, lng: ll.lng }); drawAv(); paint(); }
+    else if (!E.mode) { // 何も選んでいないとき: 区域の枠の中をタップして、編集する区域を選ぶ(ほかの区域へも切り替えられる)
+      var id = areaAt(ll.lat, ll.lng); if (!id || id === S.cur) return;
+      if (count()) { toast('先に「保存して終了」か「戻す」で、いまの変更を片づけてください。', 3000); return; }
+      SADO.selectArea(id).then(paint);
+    }
   }
   function numIcon(n) { return L.divIcon({ className: '', html: '<div class="edn">' + n + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }); }
 
