@@ -427,11 +427,13 @@
       var same = JSON.stringify(d) === JSON.stringify(S.baseData && S.baseData[areaId]); (S.baseData = S.baseData || {})[areaId] = d; if (same) return;
       if (S.merged && areaId === S.cur) return;
       if (S.sheetBid && draftCount()) return; // 入力途中のものがあるときは、そのままにしておく
-      S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.merged && S.kids && S.kids.indexOf(areaId) >= 0 && !S.edit && !(S.sheetBid && draftCount())) { selectParent(S.cur, true).then(function () { drawBuildings(false); if (S.sheetBid) renderSheet(); }); return; } if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
+      d._loaded = Date.now(); S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.merged && S.kids && S.kids.indexOf(areaId) >= 0 && !S.edit && !(S.sheetBid && draftCount())) { selectParent(S.cur, true).then(function () { drawBuildings(false); if (S.sheetBid) renderSheet(); }); return; } if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
     }, function () {});
   }
   function loadAreaData(areaId, force) {
     if (S.merged && areaId === S.cur) return selectParent(areaId, true); // 大きな区域を開いているときは、小さな区域をまとめ直す(まとめたデータを空の親データで上書きしない)
+    // 一括クリアなどのあとは、それより前に読み込んだデータを使わず、サーバーから読み直す(古い訪問状況を一瞬でも見せない)
+    if (!force && S.freshAfter && (!S.data[areaId] || (S.data[areaId]._loaded || 0) < S.freshAfter)) { var fresh = function (d) { return !d || (d._loaded || 0) < S.freshAfter; }; if (!S.data[areaId] || fresh(S.data[areaId])) { if (S.online) force = true; } }
     if (!force) {
       var fast = function () { bgRefresh(areaId); return applyQueue(areaId).then(function () { return loadGeo(areaId); }); };
       if (S.data[areaId]) return fast();
@@ -441,7 +443,7 @@
   }
   function loadAreaData0(areaId, force) {
     var local = function () { return idb.get('area', areaId).then(function (d) { if (!d) throw new Error('この区域は、まだ端末に保存されていません。電波のあるところで一度開いてください。'); S.data[areaId] = d; }); };
-    var p = (S.online || force) ? api('getAreaData', { areaId: areaId }, force).then(function (d) { S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
+    var p = (S.online || force) ? api('getAreaData', { areaId: areaId }, force).then(function (d) { d._loaded = Date.now(); S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
     return p.then(function () { return applyQueue(areaId); }).then(function () { return loadGeo(areaId); });
   }
   // 区域を選んだら、その区域の枠(なければ建物)に合わせて、地図を動かして拡大する
@@ -643,9 +645,9 @@
     var manual = cfg('statusSaveMode', 'inline') === 'manual', dirty = draftCount(), th = inputTheme();
     var h = '<div class="grip"><i></i></div><div class="head"><div class="row"><div class="name grow">' + esc(b.buildingName || '建物名なし') + '</div><div class="ainline">' + esc(a.areaName) + '</div><button class="xbtn" data-act="closeSheet" aria-label="閉じる">×</button></div></div>';
     h += '<div class="body"><div class="tool">' + (b.lat != null && b.lng != null ? '<button class="btn small" data-act="route">経路</button>' : '') + (manual && can ? '<button class="btn small primary' + (dirty ? '' : ' dis') + '" data-act="saveDraft">保存' + (dirty ? '(' + dirty + ')' : '') + '</button>' : '') + '' + (cfg('autoRefreshEnabled', true) === false ? '<button class="btn small" data-act="sheetRefresh">更新</button>' : '') + '<button class="btn small" data-act="report">報告</button></div>';
-    var ed = !!(S.edit && S.user && S.user.role === 'admin');
+    var ed = !!(S.edit && S.user && S.user.role === 'admin'), edm = !!(S.edit && canEditMode()); // ed: 区域係だけ(拒否・注意の印)。edm: 区域係と編集者(建物の名前・メモ、部屋や建物の追加・削除・区域の移動)
     if (!can) h += '<div class="locknote">' + (a.inUse ? 'この区域は担当外のため、見るだけです。' : 'この区域は使用できません') + '</div>';
-    if (ed) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>' + (SADO.sheetTools ? SADO.sheetTools(b) : ''); // 編集の道具(部屋追加・削除・区域変更)は、部屋の一覧の手前(上)に置く
+    if (edm) h += '<div class="row"><input class="grow" id="bName" placeholder="建物の名前" value="' + esc(b.buildingName) + '"><input class="grow" id="bMemo" placeholder="建物のメモ" value="' + esc(b.buildingMemo) + '"></div>' + (SADO.sheetTools ? SADO.sheetTools(b) : ''); // 編集の道具(部屋追加・削除・区域変更)は、部屋の一覧の手前(上)に置く
     else if (b.buildingMemo) h += '<div class="bmemo"><span>メモ：</span>' + esc(b.buildingMemo) + '</div>';
     // 階ごとにまとめる(旧GASの建物詳細と同じ)
     var fl = {}, keys = [];
@@ -656,7 +658,7 @@
       h += (rs.length > 1 ? '<div class="flabel">' + (k === '不明' ? '階数不明' : esc(k) + '階') + '</div>' : '') + '<div class="fgrid in' + th + '">';
       fl[k].sort(function (x, y) { return String(x.roomId).localeCompare(String(y.roomId), 'ja', { numeric: true }); }).forEach(function (r) {
         var cur = S.draft && S.draft[r.roomId] !== undefined ? S.draft[r.roomId] : r.status, nm = String(r.roomName || '(部屋名なし)'), long = nm.length > 5;
-        h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead"><div class="rn">' + esc(nm) + (!ed && r.mark ? '<div class="mkb">' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : '<span class="badge cau">注意</span>') + '</div>' : '') + '</div>' + (ed ? '<select class="rmark" data-room="' + esc(r.roomId) + '"><option value="">区分なし</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option></select>' : '') + (ed ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
+        h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead">' + (edm ? '<div class="rn"><input class="rnm" data-room="' + esc(r.roomId) + '" placeholder="部屋名" value="' + esc(r.roomName) + '"><input class="rfl" data-room="' + esc(r.roomId) + '" placeholder="階" value="' + esc(r.floor) + '">' : '<div class="rn">' + esc(nm)) + (!ed && !edm && r.mark ? '<div class="mkb">' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : '<span class="badge cau">注意</span>') + '</div>' : '') + '</div>' + (ed ? '<select class="rmark" data-room="' + esc(r.roomId) + '"><option value="">区分なし</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option></select>' : '') + (edm ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
         h += '<div class="rrow pick"><div class="rlabel"></div><div class="rval">' + pickerHtml(r, can, cur) + '</div></div>';
         if (can && isAdmin()) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval"><input class="memo" data-room="' + esc(r.roomId) + '" placeholder="メモ" value="' + esc(r.memo) + '"></div></div>';
         else if (r.memo && !r.mark) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
@@ -725,7 +727,7 @@
     applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op); restyle(r.buildingId); if (patch.status !== undefined || patch.mark !== undefined) renderSheet(); // メモだけのときは描き直さない(メモ欄から他のボタンを押したとき、最初のタップが消えるため)
   }
   function patchBuilding(bid, patch) {
-    var d = S.data[S.cur]; if (!d || !S.user || S.user.role !== 'admin') return; // 建物の名前・メモは区域係のみ
+    var d = S.data[S.cur]; if (!d || !S.user || !canEditMode()) return; // 建物の名前・メモは、区域係と編集者(編集モードのとき)
     var bq = d.buildings.filter(function (x) { return x.buildingId === bid; })[0], op = { type: 'building', areaId: (bq && bq.areaId) || S.cur, buildingId: bid, label: d.area.areaName + ' 建物' };
     for (var k in patch) op[k] = patch[k];
     applyOp(d, op); if (S.merged && S.data[op.areaId] && S.data[op.areaId] !== d) applyOp(S.data[op.areaId], op); persistArea(); enqueue(op);
@@ -1092,7 +1094,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v72　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v75　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1273,6 +1275,7 @@
     else if (t.id === 'rpBld') R.bld = t.value;
     else if (t.id === 'rpPlace') R.place = t.value;
     else if (t.id === 'rpText') R.text = t.value;
+    else if (t.classList && (t.classList.contains('rnm') || t.classList.contains('rfl'))) { if (SADO.editRoom) SADO.editRoom(t.getAttribute('data-room'), t.classList.contains('rnm') ? { roomName: t.value.trim() } : { floor: t.value.trim() }); }
     else if (t.id === 'bName') { if (t.value.trim()) patchBuilding(S.sheetBid, { buildingName: t.value.trim() }); }
     else if (t.id === 'bMemo') patchBuilding(S.sheetBid, { buildingMemo: t.value });
   });
@@ -1284,6 +1287,7 @@
   SADO.selectArea = selectArea; SADO.canEditMode = canEditMode; SADO.isMaint = isMaint; SADO.S = S; SADO.api = api; SADO.drawFrames = drawFrames; SADO.refreshBootstrap = refreshBootstrap; SADO.drawBuildings = drawBuildings; SADO.renderSheet = renderSheet; SADO.closeSheet = function () { closeSheet(true); }; SADO.areaById = areaById;
   // 一括クリアなどで、サーバーの記録がまとめて変わったとき: 端末に覚えていた区域のデータを捨て、開いている区域は読み直す(古い訪問状況を見せない)
   SADO.forgetAreas = function () {
+    S.freshAfter = Date.now();
     var keep = {}; if (S.cur) keep[S.cur] = 1; (S.kids || []).forEach(function (k) { keep[k] = 1; });
     Object.keys(S.data).forEach(function (k) { if (!keep[k]) delete S.data[k]; });
     var p = idb.clear('area'); try { return Promise.resolve(p).then(function () { return SADO.reloadCur(); }, function () {})['catch'](function () {}); } catch (e) { return Promise.resolve(); }

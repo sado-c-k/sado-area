@@ -301,6 +301,11 @@
   }
 
   // ---------- 建物のシートの下に出す道具 ----------
+  SADO.editRoom = function (roomId, patch) { // 編集者・区域係: 部屋名・階数の変更
+    if (patch.roomName !== undefined && !patch.roomName) { toast('部屋名は空にできません。'); return; }
+    var p = { roomId: roomId }; for (var k in patch) p[k] = patch[k];
+    api('updateRoom', p).then(function () { toast('保存しました。', 1200); return SADO.reloadCur(); }, fail);
+  };
   SADO.sheetTools = function (b) {
     return '<div class="tools edtools"><div class="flabel">この建物を編集</div><div class="row"><button class="btn small primary" data-act="ed:addRooms" data-v="' + esc(b.buildingId) + '">＋ 部屋を追加</button><button class="btn small danger" data-act="ed:delB" data-v="' + esc(b.buildingId) + '">この建物を削除</button></div>' +
       '<div class="row" style="margin-top:8px"><span class="note">別の区域へ移す</span><select id="bArea">' + areaOptions(S.cur) + '</select><button class="btn small" data-act="ed:moveB" data-v="' + esc(b.buildingId) + '">移す</button></div></div>';

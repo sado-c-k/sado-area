@@ -616,3 +616,14 @@ html[data-theme="dark"] #home .card.tap.open,html[data-theme="dark"] #home .pgro
 #editBar .row.edmain>*{-webkit-flex:1 1 0;flex:1 1 0;margin-right:6px;padding-left:4px;padding-right:4px;white-space:nowrap}
 #editBar .row.edmain>*:last-child{margin-right:0}
 #editBar .row.edend #edUndoBtn{margin-right:auto;margin-left:0}
+#sheet .rn .rnm{width:62%;font-weight:800;font-size:.9em}
+#sheet .rn .rfl{width:30%;margin-left:4px;font-size:.9em}
+
+/* v75: 管理・編集メニューも、ほかのメニュー(区域・設定)と同じ大きさ・位置に */
+#admin{top:calc(64px + var(--safe-t));bottom:calc(var(--nav) + var(--safe-b) + 10px);width:min(640px,100%);border-radius:var(--radius-l)}
+@media (min-width:900px){#admin{bottom:calc(var(--nav) + 28px)}}
+html[data-ui="3"] #admin{top:0;bottom:0;width:min(460px,100%);border-radius:0}
+#admin .mhead{padding-top:14px}
+/* v75: 狭い画面でも、タイトルとユーザー名/グループ名を1行に(入りきらない分は…で省略) */
+@media (max-width:440px){.mhead{flex-wrap:nowrap}.mhead .t{flex:0 1 auto;white-space:nowrap;min-width:0}.mhead .mhuser{order:0;flex:1 1 0;min-width:0;margin:0;padding:0 2px 0 6px;font-size:.78em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}}
+#sheet .body{-webkit-flex:1 1 auto;flex:1 1 auto;min-height:0}

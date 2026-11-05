@@ -86,10 +86,10 @@
   function loadAreas(openId) {
     C.openArea = '';
     loadAd().then(function (d) {
-      var only = false; try { only = localStorage.getItem('adOnlyInUse') === '1'; } catch (e) {}
+      var only = true; try { var sv = localStorage.getItem('adOnlyInUse'); only = sv === null ? true : sv === '1'; } catch (e) {}
       C.only = only;
       var h = '<div class="card"><h3>区域管理</h3>' + SADO.progLegend() +
-        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域だけ表示</label><div id="apList" class="ptree"></div></div>' +
+        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域のみ表示</label><div id="apList" class="ptree"></div></div>' +
         '<details class="card" id="arMore"><summary><b>その他の操作</b></summary><div class="note" style="margin-top:8px">区域・建物・部屋の追加は「区域編集」、アカウント・グループ・担当者の追加は「アカウント」から行えます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">区域編集を開く</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウントを開く</button></div>' +
         '<div class="note" style="margin-top:10px">期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
         '<div class="row"><button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div></details>';
@@ -103,7 +103,7 @@
   function kidsOf(pid) { return C.ad.areas.filter(function (x) { return x.active && x.parentId === pid && !x.isParent; }); }
   function sumProg(list) { var P = C.prog || {}, t = { total: 0, visited: 0, buildings: 0, doneBuildings: 0, c: {} }; list.forEach(function (k) { var p = P[k.areaId]; if (p) { t.total += p.total; t.visited += p.visited; t.buildings += p.buildings; t.doneBuildings += p.doneBuildings; for (var q in (p.c || {})) t.c[q] = (t.c[q] || 0) + p.c[q]; } }); return t; }
   function progRow(a, p, extra, cls, kids, open) {
-    return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + '<span class="badge ' + (a.inUse ? 'use' : 'off') + '">' + (a.inUse ? '使用中' : (a.expired ? '期限切れ' : '未使用')) + '</span>' + (kids ? '<span class="badge mine">小さな区域 ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '%</div></div>' +
+    return '<div class="pgrp"><button type="button" class="prow grow' + (a.inUse ? ' use' : '') + (cls || '') + '" data-act="ad:areaOpen" data-v="' + esc(a.areaId) + '"><div class="ph"><div class="pn">' + esc(a.areaName) + (a.inUse ? '<span class="badge use">使用中</span>' : (a.expired ? '<span class="badge off">期限切れ</span>' : '')) + (kids ? '<span class="badge mine">子区域 ' + kids + '件</span>' : '') + '</div><div class="pp">' + pct(p.visited, p.total) + '%</div></div>' +
       SADO.progBar(p) + '<div class="pm"><span>訪問済み ' + p.visited + ' / ' + p.total + '件' + (a.category === 'アパート' ? ' ・ 完了 ' + p.doneBuildings + ' / ' + p.buildings + '棟' : '') + '</span><span>' + (a.inUse ? esc(SADO.fmtJa(a.useStartDate)) + '〜' + esc(SADO.fmtJa(a.expiry)) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</span></div>' +
       (a.inUse ? '<div class="pm"><span>' + (a.autoEnd ? '自動終了：オン' : '自動終了：オフ') + '</span><span>担当：' + esc(a.assigneeName) + '</span></div>' : '') + (extra || '') + '</button>' + (kids ? '<button type="button" class="btn small pexp" data-act="ad:parExp" data-v="' + esc(a.areaId) + '" aria-label="開閉">' + (open ? '▾' : '▸') + '</button>' : '') + '</div>';
   }
