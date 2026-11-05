@@ -96,7 +96,7 @@
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   }
   function getPrefs() { try { return JSON.parse(localStorage.getItem('sado-prefs') || '{}'); } catch (e) { return {}; } }
-  var SYNC_PREFS = { font: 1, theme: 1, ui: 1, input: 1, houseTap: 1 };
+  var SYNC_PREFS = { font: 1, theme: 1, ui: 1, input: 1, houseTap: 1, onlyMine: 1 };
   function setPref(k, v) {
     var p = getPrefs(); p[k] = v; try { localStorage.setItem('sado-prefs', JSON.stringify(p)); } catch (e) {} applyPrefs(p);
     if (SYNC_PREFS[k] && S.token && S.online) { var o = {}; o[k] = v; api('saveMyPrefs', { values: o }, true).then(null, function () {}); } // アカウントごとに保持する
@@ -335,7 +335,7 @@
   function parentOutline(withLabel, onlyId) {
     parentFrameList().forEach(function (f) {
       if (onlyId && f.areaId !== onlyId) return;
-      var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
+      var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && mapAreas().indexOf(a) >= 0; }); if (!kids.length) return;
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? '#188038' : '#1a73e8', weight: 4, fill: false, interactive: false });
       if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: lbCls(kids.some(function (k) { return k.inUse; })) + ' parent-label' });
       frameLayer.addLayer(poly);
@@ -349,7 +349,7 @@
       var pf = parentFrameList();
       if (pf.length) {
         pf.forEach(function (f) {
-          var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && visibleAreas().indexOf(a) >= 0; }); if (!kids.length) return;
+          var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && mapAreas().indexOf(a) >= 0; }); if (!kids.length) return;
           var inUse = kids.some(function (k) { return k.inUse; });
           var poly = L.polygon(geomToLatLngs(f.geometry), { color: inUse ? '#188038' : '#1a73e8', weight: 4, dashArray: inUse ? null : '6 4', fillOpacity: inUse ? 0.12 : 0.04 });
           if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: lbCls(inUse) });
@@ -374,7 +374,7 @@
       return;
     }
     frameFeatures().forEach(function (f) {
-      var id = f.areaId, a = areaById(id); if (!a || (visibleAreas().indexOf(a) < 0 && !(S.edit && canEditMode() && !a.isParent))) return; // 編集モードでは、編集者も全部の区域の枠を出す
+      var id = f.areaId, a = areaById(id); if (!a || mapAreas().indexOf(a) < 0) return; // 地図には全区域の枠を出す(設定で「担当の区域だけ」にできる)
       if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
       var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
@@ -472,7 +472,7 @@
   }
   // 大きな区域(親区域)を開く: 中の小さな区域を、すべていっしょに地図に出す
   function selectParent(pid, quiet) {
-    var pa = areaById(pid), kids = visibleAreas().filter(function (a) { return a.parentId === pid; });
+    var pa = areaById(pid), kids = mapAreas().filter(function (a) { return a.parentId === pid; });
     if (!kids.length) { toast('開ける小さな区域がありません。'); return Promise.resolve(); }
     var ml = null; // 読み込み中の表示は、通信の表示(全画面のくるくる)だけにする。二重に出さない
     return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet); })).then(function () {
@@ -506,7 +506,7 @@
   function hdrSearch() {
     var box = $('#hdrRes'), q = ($('#hdrQ').value || '').replace(/[\s　]/g, '').toLowerCase(); if (!box) return;
     if (!q || S.cur) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-    var list = visibleAreas().filter(function (x) { return x.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).slice(0, 40);
+    var list = mapAreas().filter(function (x) { return x.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; }).slice(0, 40);
     box.innerHTML = list.length ? list.map(function (x) { var pa = x.parentId && areaById(x.parentId); return '<button data-act="hdrPick" data-v="' + esc(x.areaId) + '">' + esc(x.areaName) + (x.isParent ? '<small>(大きな区域をまとめて開く)</small>' : (pa ? '<small>' + esc(pa.areaName) + '</small>' : '')) + '</button>'; }).join('') : '<div class="none">該当する区域がありません。</div>';
     box.classList.remove('hidden');
   }
@@ -842,6 +842,8 @@
   function showNav() { $('#navAdmin').classList.toggle('hidden', !isAdmin()); $('#navEdit').classList.toggle('hidden', !canEditMode()); }
   function inCat(a, cat) { return (a.category || '国仲') === cat; }
   // 区域係はすべて。奉仕者は、自分か所属グループ(会衆を含む)が担当の区域
+  // 地図に出す区域: 初期は全員が全区域。設定で「担当の区域だけ」にもできる
+  function mapAreas() { var om = getPrefs().onlyMine === '1'; return S.areas.filter(function (a) { return !a.isParent && (!om || a.mine); }); }
   function visibleAreas() {
     return S.areas.filter(function (a) { return !a.isParent && (isAdmin() || a.mine); }); // 親区域(大きな区域)は、まとめ用なので、地図で開く対象には入れない
   }
@@ -1089,11 +1091,12 @@
         '<div class="setrow"><div class="tt">テーマ</div>' + seg('prefUi', p.ui || '1', [['1', 'テーマ1'], ['2', 'テーマ2'], ['3', 'テーマ3']]) + '</div>' +
         '<div class="setrow"><div class="tt">入力スタイル</div>' + seg('prefInput', inputTheme(), [['3', 'ボタン一覧'], ['2', 'ボタン'], ['1', 'プルダウン']]) + '</div>' +
         '<div class="setrow"><div class="tt">一軒家の入力スタイル</div>' + seg('prefHouse', hm, [['direct', 'タップで記録'], ['sheet', 'ウィンドウで選ぶ']]) + '</div>' +
+        '<div class="setrow"><div class="tt">地図に表示する区域</div>' + seg('prefMine', p.onlyMine === '1' ? '1' : '0', [['0', 'すべての区域'], ['1', '担当の区域だけ']]) + '</div>' +
         '<div class="note" style="margin-top:6px">この設定は、アカウントごとに保存されます。最初は区域係が決めた設定になっています。</div></div>' +
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v78　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v79　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1213,6 +1216,7 @@
         var text = window.prompt('区域係への報告(内容)を入力してください'); if (text && text.trim()) { var bn = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === S.sheetBid; })[0]; enqueue({ type: 'report', areaId: (bn && bn.areaId) || S.cur, buildingId: S.sheetBid, roomName: bn ? bn.buildingName : '', text: text.trim(), label: '報告' }); toast('報告を保存しました。'); }
         break;
       case 'prefFont': setPref('font', v); renderMenuBody(); if (S.cur && SADO.drawBuildings) SADO.drawBuildings(); break;
+      case 'prefMine': setPref('onlyMine', v); renderMenuBody(); if (SADO.drawFrames) SADO.drawFrames(); break;
       case 'prefHouse': setPref('houseTap', v); renderMenuBody(); if (S.cur && SADO.drawBuildings) SADO.drawBuildings(); break;
       case 'rpCat': R.cat = v; R.area = ''; R.bld = ''; renderMenuBody(); break;
       case 'rpClear': R = { cat: '', area: '', bld: '', place: '', text: '' }; renderMenuBody(); break;
