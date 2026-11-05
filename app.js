@@ -297,9 +297,8 @@
     SADO.map = map;
   }
   function renderLegend() {
-    var dot = function (c, t, ring) { return '<b><i style="background:' + (ring ? '#fff' : c) + (ring ? ';border:3px solid ' + c : '') + '"></i>' + t + '</b>'; }, h = dot(cfg('mapProgressMode', 'simple') === 'circle' ? '#d1d5db' : '#1a73e8', '未訪問'), circle = cfg('mapProgressMode', 'simple') === 'circle';
-    statusList().forEach(function (x) { if (x.visited && !x.done) h += dot(stColor(x), esc(x.label)); }); // 留守(1回目)・留守(2回目)などを、それぞれ別の色で
-    if (circle) statusList().forEach(function (x) { if (x.done) h += dot(stColor(x), esc(x.label)); }); else h += dot('#188038', '訪問済み');
+    var dot = function (c, t, ring) { return '<b><i style="background:' + (ring ? '#fff' : c) + (ring ? ';border:3px solid ' + c : '') + '"></i>' + t + '</b>'; }, h = '';
+    if (cfg('mapProgressMode', 'simple') === 'off') h = dot('#1a73e8', '未訪問'); else statusList().forEach(function (x) { h += dot(stColor(x), esc(x.label)); }); // 動作設定の「訪問状況の選択肢」を、その順番と色で
     $('#legend').innerHTML = h + dot('#ca8a04', '注意', true) + dot('#b91c1c', '拒否', true);
   }
   function loadFrames() {
@@ -538,11 +537,13 @@
     });
     return c;
   }
+  function unvisCol() { var l = statusList(), x = null; for (var i = 0; i < l.length; i++) if (!l[i].visited && !l[i].done) { x = l[i]; break; } return stColor(x || l[0]); }
+  function topCol(c, pred, dflt) { var col = dflt, bn = 0; statusList().forEach(function (x) { var k = (c.by || {})[x.id] || 0; if (pred(x) && k > 0 && k > bn) { col = stColor(x); bn = k; } }); return col; }
   function buildingStyle(areaId, b) {
     var c = roomCounts(areaId, b), a = areaById(areaId) || (S.data[areaId] && S.data[areaId].area) || {}, thr = (Number(cfg('pinDoneThreshold', 100)) || 100) / 100, off = cfg('mapProgressMode', 'simple') === 'off';
     var editable = a.canEdit !== false, full = c.n && c.sdone / c.n >= thr - 1e-9; // 丸の色は、拒否・注意の印ではなく、実際の訪問状況で決める
-    var part = '#ef6c00'; if (c.visited > 0 || c.sdone > 0) { var bn = 0; statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (x.visited && !x.done && k > 0 && k >= bn) { part = stColor(x); bn = k; } }); } // 途中の色は、いちばん多い訪問状況(留守1・留守2など)の色
-    var fill = !editable ? '#9aa0a6' : (off ? '#1a73e8' : (full ? '#188038' : (c.visited > 0 || c.sdone > 0 ? part : '#1a73e8')));
+    // 丸の色は、動作設定の「訪問状況の選択肢」の色。何もしていない: 未訪問の色 / 完了の割合に達した: いちばん多い完了扱いの状況の色 / 途中: いちばん多い訪問済みの状況の色
+    var started = c.visited > 0 || c.sdone > 0, fill = !editable ? '#9aa0a6' : (off ? '#1a73e8' : (!started ? unvisCol() : (full ? topCol(c, function (x) { return x.done; }, '#188038') : topCol(c, function (x) { return x.visited && !x.done; }, topCol(c, function (x) { return x.visited || x.done; }, '#ef6c00')))));
     return { color: c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : fill), weight: c.rej || c.cau ? 8 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   // 部屋情報のある建物(部屋が2つ以上・アパート区域)だけがピン。名前だけある建物は丸のまま(名前は表示する)
@@ -554,7 +555,7 @@
   function pieIcon(b, color) {
     var c = roomCounts(b.areaId || S.cur, b), n = c.n || 1, stops = [], at = 0, rest = Math.max(0, c.n - c.sdone);
     statusList().forEach(function (x) { var k = c.by[x.id] || 0; if (!k || !(x.visited || x.done)) return; var w = k / n * 100; stops.push(stColor(x) + ' ' + at.toFixed(1) + '% ' + (at + w).toFixed(1) + '%'); at += w; });
-    stops.push('#d1d5db ' + at.toFixed(1) + '% 100%');
+    stops.push(unvisCol() + ' ' + at.toFixed(1) + '% 100%');
     var ring = c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : '#fff');
     return L.divIcon({ className: '', html: '<div class="pin-pie" style="background:conic-gradient(' + stops.join(',') + ');border-color:' + ring + ';border-width:' + (c.rej || c.cau ? 8 : 3) + 'px"><b>' + rest + '</b></div>', iconSize: [34, 34], iconAnchor: [17, 17] });
   }
@@ -948,7 +949,7 @@
       saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
     return '<div class="card' + (canExp(a) ? ' tap' : '') + (a.inUse ? ' inuse' : '') + (canExp(a) && S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '"' + (canExp(a) ? ' data-act="areaExp" data-v="' + esc(a.areaId) + '"' : '') + '><div class="row"><div class="grow"><b>' + esc(a.areaName) + '</b>' + (a.inUse ? '<span class="badge use">使用中</span>' : '<span class="badge off">未使用</span>') + (a.mine ? '<span class="badge mine">担当</span>' : '') + (a.inUse && !a.canEdit ? '<span class="badge off">見るだけ</span>' : '') + '<div class="note">' +
       (a.inUse ? esc(a.assigneeName) : (a.lastDoneDate ? '前回完了 ' + esc(a.lastDoneDate) : '')) + '</div></div>' +
-      dlBtn(a.areaId) + saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
+      saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + (a.inUse ? progHtml(a) : '') + tileBar(a.areaId) + bldListHtml(a) + '</div>';
   }
   function onlyUseBox() { return '<span class="onlyuse" data-act="toggleOnly" style="display:inline-flex;align-items:center;gap:6px;margin:0 10px 0 0;cursor:pointer;white-space:nowrap;font-size:.9em"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;margin:0"' + (S.onlyUse ? ' checked' : '') + '><span>使用中の区域のみ表示</span></span>'; }
   var CLOUD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H17"/><path d="M12 11v9"/><path d="m9 17 3 3 3-3"/></svg>';
@@ -960,7 +961,7 @@
     if (j) return '<button class="btn small" disabled aria-label="地図を保存中" style="padding:6px 9px">' + SPIN + '</button>';
     var dls = (act === 'saveTiles' || act === 'saveTilesParent') && S.settings && S.settings.hasDownloads; // 区域カードの雲は、「オフラインで使う/PDF/画像」の三択
     if (tileDone()[id] && !dls) return ''; // 保存が終わったら、雲のマークは出さない
-    if (dls) return '<button class="btn small" data-act="cloudPick" data-v="' + esc(id) + '" title="地図の保存・ダウンロード" aria-label="地図の保存・ダウンロード" style="padding:6px 9px">' + CLOUD + '</button>';
+    if (dls) return '<button class="btn small" data-act="cloudPick" data-v="' + esc(id) + '" title="地図の保存・ダウンロード" aria-label="地図の保存・ダウンロード" style="padding:6px 9px">' + (tileDone()[id] ? DOCI : CLOUD) + '</button>'; // 端末への保存が終わったら、雲ではなく「書類+下向き矢印」のマークにする
     return '<button class="btn small" data-act="' + act + '" data-v="' + esc(id) + '" title="地図を端末に保存" aria-label="地図を端末に保存" style="padding:6px 9px">' + CLOUD + '</button>';
   }
   var TILE_KB = 15; // 地図1枚のおよその大きさ(KB)。端末からは正確な容量がわからないので、目安として出す
@@ -1110,7 +1111,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v81　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v87　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
