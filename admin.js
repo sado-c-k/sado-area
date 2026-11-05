@@ -206,7 +206,7 @@
     }, fail);
   }
   function loadEditBody() {
-    api('getDataEdit', { areaId: C.editArea }).then(function (d) { C.edit = d; renderEdit(); }, fail);
+    api('getDataEdit', { areaId: C.editArea }).then(function (d) { C.edit = d; busy(false); renderEdit(); }, fail);
   }
   function renderEdit() {
     var d = C.edit, el = document.getElementById('edBody'); if (!el) return;
