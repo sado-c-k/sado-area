@@ -52,11 +52,15 @@
   function fail(e) { busy(false); toast(e.message || String(e), 6000); }
   function opts(list, valKey, labKey, sel, blank) { return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(function (x) { return '<option value="' + esc(x[valKey]) + '"' + (String(x[valKey]) === String(sel) ? ' selected' : '') + '>' + esc(x[labKey]) + '</option>'; }).join(''); }
   // 小さな区域の選択肢を、大きな区域ごとにまとめて出す(親区域そのものは含めない)
-  function areaOpts(list, sel, blank) {
+  function areaOpts(list, sel, blank, withPar) {
     var kids = list.filter(function (a) { return !a.isParent; }), pn = {}; list.forEach(function (a) { if (a.isParent) pn[a.areaId] = a.areaName; });
     var by = {}, order = [], loose = [];
     kids.forEach(function (a) { if (a.parentId && pn[a.parentId]) { if (!by[a.parentId]) { by[a.parentId] = []; order.push(a.parentId); } by[a.parentId].push(a); } else loose.push(a); });
     var o = function (a) { return '<option value="' + esc(a.areaId) + '"' + (String(a.areaId) === String(sel) ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; };
+    if (withPar) { // 区域編集用: 親区域そのものも選べる(子区域がなくなった親も出す)
+      var po = function (a) { return '<option value="' + esc(a.areaId) + '"' + (String(a.areaId) === String(sel) ? ' selected' : '') + '>' + esc(a.areaName) + '(親区域)</option>'; };
+      return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + loose.map(o).join('') + list.filter(function (a) { return a.isParent; }).map(function (p) { return po(p) + (by[p.areaId] || []).map(function (k) { return o(k).replace('>', '>　'); }).join(''); }).join('');
+    }
     return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + loose.map(o).join('') + order.map(function (id) { return '<optgroup label="' + esc(pn[id]) + '">' + by[id].map(o).join('') + '</optgroup>'; }).join('');
   }
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
@@ -200,7 +204,7 @@
       if (isMaint()) { var okIds = {}; (SADO.S.areas || []).forEach(function (x) { if (x.canEdit) okIds[x.areaId] = 1; }); d = C.ad = { areas: d.areas.filter(function (x) { return okIds[x.areaId] || x.isParent; }) }; }
       var ed = SADO.editOn && SADO.editOn(), h = '<div class="card"><h3>地図で編集する</h3><div class="note">地図を見ながら、建物の追加・移動、' + (isMaint() ? '' : '区域の追加・枠の修正を') + 'します。編集モードにしてから、地図の区域の枠をタップして編集する区域を選べます。</div><div class="row"><button class="btn primary" data-act="ad:editMode">' + (ed ? '編集モードを終了する' : '編集モードにする(地図へ)') + '</button></div></div><div class="card"><h3>一覧で編集する</h3><div class="note">名前の変更、部屋の追加、非表示など、細かい編集はここから。区分を選び、区域を選んでください。</div>' +
         '<div class="seg" id="edCats">' + cats.map(function (c) { return '<button class="chip' + (C.editCat === c ? ' on' : '') + '" data-act="ad:edCat" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>' +
-        '<div class="row"><select id="edArea" class="grow">' + areaOpts(list, C.editArea, '区域を選んでください') + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div>' +
+        '<div class="row"><select id="edArea" class="grow">' + areaOpts(list, C.editArea, '区域を選んでください', !isMaint()) + '</select><label><input type="checkbox" id="edHidden"' + (C.showHidden ? ' checked' : '') + '> 非表示も表示</label></div>' +
         (isMaint() ? '' : '<div class="row" style="margin-top:6px"><input id="newAreaName" class="grow" placeholder="新しい区域の名前(例: 1-4)"><button class="btn primary small" data-act="ad:addArea">＋ 区域を追加</button></div>') + '</div><div id="edBody"></div>';
       body(h); if (C.editArea) loadEditBody();
     }, fail);
@@ -235,6 +239,7 @@
       });
       h += '<div class="row"><textarea rows="1" class="grow" id="ar-' + esc(b.buildingId) + '" placeholder="部屋を追加(1行に1つ)"></textarea><button class="btn small" data-act="ad:addRooms" data-v="' + esc(b.buildingId) + '">追加</button></div></div></details>';
     });
+    if (ar && ar.isParent) h = h.slice(0, h.indexOf('<div class="card"><h3>建物を追加')) + '<div class="note">親区域には建物はありません。建物は、中の子区域で編集します。</div>';
     el.innerHTML = h; var mv = document.getElementById('mvList'); if (mv) mv.innerHTML = mvHtml;
   }
   function fields(attr, id) { var o = {}, els = document.querySelectorAll('[data-' + attr + '="' + id + '"]'); for (var i = 0; i < els.length; i++) o[els[i].getAttribute('data-f')] = els[i].value; return o; }
