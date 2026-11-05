@@ -1116,7 +1116,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v89　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v90　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1266,7 +1266,6 @@
         m.innerHTML = '<div class="mb"><h3>' + esc(nm) + '</h3><div class="cloudopts">' +
           '<button class="btn primary" data-act="' + (isPar ? 'saveTilesParent' : 'saveTiles') + '" data-v="' + esc(v) + '">オフラインでも使用' + (done ? '(保存済み・更新)' : '') + '</button>' +
           '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDFをダウンロード</button>' +
-          (/^\d+-\d+$/.test(nm) ? '' : '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="duplex">両面印刷用PDFをダウンロード</button>') +
           '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">画像をダウンロード</button>' +
           '<button class="btn" id="dlNo">キャンセル</button></div><div class="note">PDF・画像のダウンロードは、電波が必要です。</div></div>';
         document.body.appendChild(m);
@@ -1277,7 +1276,7 @@
         var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
         var nm = (S.areas.filter(function (x) { return x.areaId === v; })[0] || {}).areaName || '';
         m = document.createElement('div'); m.id = 'modal';
-        m.innerHTML = '<div class="mb"><h3>印刷用の地図</h3><div class="note">「' + esc(nm) + '」をダウンロードします。形式を選んでください(電波が必要です)。</div><div class="fxact"><button class="btn" id="dlNo">キャンセル</button><button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDF</button>' + (/^\d+-\d+$/.test(nm) ? '' : '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="duplex">両面印刷用PDF</button>') + '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">PNG</button></div></div>';
+        m.innerHTML = '<div class="mb"><h3>印刷用の地図</h3><div class="note">「' + esc(nm) + '」をダウンロードします。形式を選んでください(電波が必要です)。</div><div class="fxact"><button class="btn" id="dlNo">キャンセル</button><button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDF</button><button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">PNG</button></div></div>';
         document.body.appendChild(m);
         var cl = function () { if (m.parentNode) m.parentNode.removeChild(m); };
         m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { if (e.target === m || e.target.getAttribute('data-act') === 'dlFile') setTimeout(cl, 0); });
