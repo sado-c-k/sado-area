@@ -40,7 +40,7 @@
   SADO.onEnter = function (can) { if (!can && E.on) toggle(true); };
   SADO.editOn = function () { return E.on; };
   var HINT = {
-    none: '建物の印をタップ → 部屋・区域・削除の編集\n印をドラッグ → 位置を動かす(あとで「保存」)',
+    none: '',
     apt: '集合住宅を置く場所を、地図でタップしてください',
     house: '一軒家を置く場所を、地図でタップ(何軒でも)。\n置き終わったら「確定」を押します。',
     area: '新しい区域の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。',
@@ -59,9 +59,8 @@
     else if (E.mode === 'bound') { $('#edToolInfo').textContent = E.bd ? '「' + E.bd.name + '」の枠' : ''; $('#edToolOk').textContent = '枠を保存'; $('#edToolOk').disabled = !(E.bd && E.bd.undo.length); }
     var canUndo = E.mode === 'house' ? E.pts.length : E.mode === 'area' ? E.av.length : E.mode === 'bound' ? (E.bd && E.bd.undo.length) : E.undo.length;
     $('#edUndoBtn').disabled = !canUndo;
-    $('#edSaveBtn').textContent = '保存' + (count() ? '（' + count() + '）' : '');
-    $('#edSaveBtn').disabled = !count();
-    $('#editHint').textContent = HINT[E.mode || 'none'];
+    $('#edSaveBtn').textContent = '保存して終了' + (count() ? '（' + count() + '）' : '');
+    $('#editHint').textContent = HINT[E.mode || 'none']; $('#editHint').classList.toggle('hidden', !HINT[E.mode || 'none']);
   }
   function redraw() { SADO.drawFrames(); if (S.cur) { SADO.drawBuildings(false); SADO.renderSheet(); } }
   SADO.hideFrame = function (id) { return !!(E.bd && E.bd.areaId === id); };
@@ -104,11 +103,12 @@
     if (!u.had) delete E.pend[u.bid];
     paint(); redraw(); toast('「' + (u.name || '') + '」の位置をひとつ前に戻しました。', 1500);
   }
-  function save() {
-    var ids = Object.keys(E.pend); if (!ids.length) return;
+  function save(thenQuit) {
+    if (thenQuit && (E.pts.length || E.av.length || (E.bd && E.bd.undo.length)) && !window.confirm('作業中の追加・枠の変更は保存されません。このまま終了しますか？')) return;
+    var ids = Object.keys(E.pend); if (!ids.length) { if (thenQuit) toggle(true); return; }
     $('#edSaveBtn').disabled = true;
     ids.reduce(function (p, id) { return p.then(function () { return api('updateBuilding', { buildingId: id, lat: E.pend[id].lat, lng: E.pend[id].lng }); }); }, Promise.resolve())
-      .then(function () { toast(ids.length + '件の位置を保存しました。'); E.pend = {}; E.undo = []; paint(); return SADO.reloadCur(); }, function (e) { paint(); fail(e); });
+      .then(function () { toast(ids.length + '件の位置を保存しました。'); E.pend = {}; E.undo = []; if (thenQuit) { toggle(true); return; } paint(); return reflect(); }, function (e) { paint(); fail(e); });
   }
 
   // ---------- 小さなダイアログ ----------
@@ -327,6 +327,7 @@
       case 'toolOk': if (E.mode === 'house') houseDialog(); else if (E.mode === 'area') areaDialog(); else if (E.mode === 'bound') saveBound(); break;
       case 'undo': undo(); break;
       case 'save': save(); break;
+      case 'saveQuit': save(true); break;
       case 'addRooms': addRoomsDialog(v); break;
       case 'delRoom':
         var r = S.data[S.cur].rooms.filter(function (x) { return x.roomId === v; })[0];

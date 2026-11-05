@@ -611,3 +611,4 @@ html[data-theme="dark"] #home .card.tap.open,html[data-theme="dark"] #home .pgro
 
 /* v66: 一覧が長いタブ(会衆)で、見出しやタブが縮んで高さが変わらないように固定 */
 #home .mhead,#home>.tabs,#menu .mhead,#menu>.tabs,#admin .mhead,#admin>.tabs{-webkit-flex:0 0 auto;flex:0 0 auto}
+#editBar .row.edend{justify-content:flex-end}#editBar .row.edend>*{margin-right:0;margin-left:6px}
