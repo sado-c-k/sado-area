@@ -77,7 +77,7 @@
     if (S.online !== v) {
       S.online = v; updateBadge(); if (v) flush();
       // 圏外のときは、端末に保存できる地図(地理院タイル)に自動で切り替える。電波が戻ったら元の地図へ
-      try { if (typeof tileLayer !== 'undefined' && tileLayer && tileLayer.setUrl && S.settings) setTile(tileDef(v ? effSrc() : 'gsi')); } catch (e) {}
+      try { if (typeof tileLayer !== 'undefined' && tileLayer && tileLayer.setUrl && S.settings) setTile(tileDef(v ? effSrc() : 'gsipale')); } catch (e) {}
     }
   }
   var toastTimer;
@@ -238,8 +238,8 @@
   function statusOf(id) { var l = statusList(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return l[0]; }
 
   // ---------- 地図 ----------
-  function effSrc() { return S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsi'; }
-  var TILE_LIST = [['osm', 'OpenStreetMap'], ['gsiphoto', '航空写真'], ['gsi', '国土地理院'], ['gsipale', '国土地理院（淡色）']];
+  function effSrc() { var v = S.tileOverride || (S.settings && S.settings.mapTileSource) || 'gsipale'; return v === 'gsi' ? 'gsipale' : v; } // 標準の地理院地図はやめて、淡色を「国土地理院」として使う(古い設定の 'gsi' は淡色として扱う)
+  var TILE_LIST = [['osm', 'OpenStreetMap'], ['gsiphoto', '航空写真'], ['gsipale', '国土地理院']];
   var TILE_SW = {"osm": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f4f1ea\"/><path d=\"M0 0h26c-4 12 6 18 2 30S10 44 0 46Z\" fill=\"#a9dcf5\"/><path d=\"M40 0h24v26c-8 2-16-4-18-12S42 6 40 0Z\" fill=\"#b8e0c0\"/><path d=\"M0 64 64 20\" stroke=\"#fff\" stroke-width=\"9\"/><path d=\"M0 64 64 20\" stroke=\"#e5b858\" stroke-width=\"3\"/><path d=\"M30 0 38 64\" stroke=\"#fff\" stroke-width=\"5\"/></svg>", "gsiphoto": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#58694a\"/><path d=\"M0 0h30L0 34Z\" fill=\"#6f7f5c\"/><path d=\"M64 64H28l36-34Z\" fill=\"#43523a\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#9c9a92\" stroke-width=\"9\" fill=\"none\"/><path d=\"M0 52C20 46 40 30 64 14\" stroke=\"#d8d6cf\" stroke-width=\"1.5\" stroke-dasharray=\"5 4\" fill=\"none\"/></svg>", "gsi": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#f6f2e4\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e9f0d4\"/><path d=\"M0 46 64 22\" stroke=\"#f4b04a\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d9d2bd\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#d9a89a\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#d9a89a\"/></svg>", "gsipale": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#eceff2\"/><rect x=\"0\" y=\"0\" width=\"22\" height=\"64\" fill=\"#e2e8ec\"/><path d=\"M0 46 64 22\" stroke=\"#cfd6dc\" stroke-width=\"6\"/><path d=\"M32 0 40 64\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 18h64\" stroke=\"#d5dbe0\" stroke-width=\"2\"/><rect x=\"42\" y=\"30\" width=\"9\" height=\"7\" fill=\"#cdd3d8\"/><rect x=\"48\" y=\"44\" width=\"8\" height=\"7\" fill=\"#cdd3d8\"/></svg>", "custom": "<svg viewBox=\"0 0 64 64\" aria-hidden=\"true\"><rect width=\"64\" height=\"64\" fill=\"#e8e0f0\"/><path d=\"M0 46 64 22\" stroke=\"#fff\" stroke-width=\"6\"/><circle cx=\"32\" cy=\"30\" r=\"7\" fill=\"#a58bc8\"/></svg>"};
   function openLayerPicker() {
     var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
@@ -265,8 +265,7 @@
     var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 19, maxNativeZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; };
     if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap contributors' } };
     if (src === 'gsiphoto') return G('seamlessphoto', 18, '地理院タイル(航空写真)');
-    if (src === 'gsipale') return G('pale', 18, '地理院タイル(淡色)');
-    return G('std', 18, '地理院タイル');
+    return G('pale', 18, '地理院タイル(淡色)'); // 国土地理院 = 淡色
   }
   function initMap() {
     if (S.mapReady) return;
@@ -1094,7 +1093,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v77　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v78　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1152,7 +1151,7 @@
       for (z = 14; z <= 18; z++) {
         var x0 = lonToX(w, z), x1 = lonToX(e, z), y0 = latToY(n, z), y1 = latToY(s, z), cnt = (x1 - x0 + 1) * (y1 - y0 + 1);
         if (urls.length + cnt > cap) break;
-        for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) urls.push('https://cyberjapandata.gsi.go.jp/xyz/std/' + z + '/' + x + '/' + y + '.png');
+        for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) urls.push('https://cyberjapandata.gsi.go.jp/xyz/pale/' + z + '/' + x + '/' + y + '.png');
       }
       S.tile[key].total = urls.length; renderHome();
       return caches.open('tiles-v1').then(function (cache) {

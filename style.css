@@ -630,3 +630,10 @@ html[data-ui="3"] #admin{top:0;bottom:0;width:min(460px,100%);border-radius:0}
 
 /* v77: 文字の大きさを旧GASと同じ6段階(2〜7)に。本文は 15・16・18・20・22・24px */
 html[data-font="1"],html[data-font="2"]{--fs:15px}html[data-font="3"]{--fs:16px}html[data-font="4"]{--fs:18px}html[data-font="5"]{--fs:20px}html[data-font="6"]{--fs:22px}html[data-font="7"]{--fs:24px}
+
+/* v78: アカウントのグループタブは、幅に収まらないときは2段に折り返す(文字を省略しない) */
+#acTabs.tabs.fill{-webkit-flex-wrap:wrap;flex-wrap:wrap}
+#acTabs.tabs.fill .tab{-webkit-flex:1 1 auto;flex:1 1 auto;min-width:4.2em;padding:7px 10px;overflow:visible;text-overflow:clip;white-space:nowrap}
+/* v78: テーマ3の「‹ メニュー」が縦に崩れるのを直す */
+html[data-ui="3"] #menu .mhead .menu-back{width:auto;height:auto;border-radius:8px;white-space:nowrap;-webkit-flex:0 0 auto;flex:0 0 auto;margin:0 6px 0 -4px;padding:6px 8px;font-size:.95em;line-height:1.2}
+html[data-ui="3"] #menu .mhead .t{white-space:nowrap}
