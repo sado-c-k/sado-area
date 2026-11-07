@@ -425,10 +425,25 @@
   function boxToggle() { E.box = !E.box; if (E.box) boxOn(); else boxOff(); paint(); }
   function selAll() { ((S.data[S.cur] || {}).buildings || []).forEach(function (x) { if (x.lat != null && x.lat !== '' && isFinite(x.lat)) setSel(x.buildingId, true); }); paint(); }
   function selNone() { selIds().forEach(function (k) { setSel(k, false); }); E.sel = {}; paint(); }
+  function restoreDialog() {
+    if (!S.cur) return; var area = S.cur;
+    toast('削除した建物を探しています…', 20000);
+    api('getDataEdit', { areaId: area }).then(function (r) {
+      toast('', 1);
+      var gone = (r.buildings || []).filter(function (b) { return b.active === false || /^false$/i.test(String(b.active)); });
+      if (!gone.length) { toast('この区域に、削除した建物はありません。', 2500); return; }
+      var rows = gone.map(function (b, i) { return '<label class="chk" style="display:flex;align-items:center;gap:8px;padding:5px 0"><input type="checkbox" data-rs="' + esc(b.buildingId) + '" checked><span>' + esc(b.buildingName || '(名前なし)') + '</span></label>'; }).join('');
+      modal('削除した建物を戻す', '<div class="note">戻す建物にチェックを入れてください(' + gone.length + '件)。部屋もいっしょに戻ります。</div><div style="max-height:44vh;overflow:auto">' + rows + '</div>', '戻す', function () {
+        var ids = [].slice.call(document.querySelectorAll('[data-rs]')).filter(function (e) { return e.checked; }).map(function (e) { return e.getAttribute('data-rs'); });
+        if (!ids.length) throw new Error('戻す建物を選んでください。');
+        return api('setActiveMany', { kind: 'building', ids: ids, active: true }).then(function () { toast(ids.length + '件の建物を戻しました。'); return SADO.reloadCur().then(function () { paint(); }, fail); });
+      });
+    }, function (e) { toast('', 1); fail(e); });
+  }
   function delSel() {
     var ids = selIds(); if (!ids.length) return;
     var d = S.data[S.cur], names = ids.map(function (id) { var b = d.buildings.filter(function (x) { return x.buildingId === id; })[0]; return b ? (b.buildingName || '(名前なし)') : ''; }).filter(Boolean);
-    modal('選んだ建物を削除', '<div>' + ids.length + '件の建物を削除します。地図と一覧に表示されなくなります(中の部屋もまとめて非表示になります。あとからスプレッドシートで元に戻せます)。</div><div class="note" style="margin-top:6px;max-height:30vh;overflow:auto">' + names.slice(0, 30).map(esc).join('、') + (names.length > 30 ? ' ほか' + (names.length - 30) + '件' : '') + '</div>', '削除する', function () {
+    modal('選んだ建物を削除', '<div>' + ids.length + '件の建物を削除します。地図と一覧に表示されなくなります(中の部屋もまとめて非表示になります)。あとから「削除済みを戻す」で元に戻せます。</div><div class="note" style="margin-top:6px;max-height:30vh;overflow:auto">' + names.slice(0, 30).map(esc).join('、') + (names.length > 30 ? ' ほか' + (names.length - 30) + '件' : '') + '</div>', '削除する', function () {
       return api('setActiveMany', { kind: 'building', ids: ids, active: false }).then(function (n) {
         var gone = {}; ids.forEach(function (id) { gone[id] = 1; delete E.pend[id]; });
         d.buildings = d.buildings.filter(function (x) { return !gone[x.buildingId]; }); d.rooms = d.rooms.filter(function (x) { return !gone[x.buildingId]; });
@@ -452,6 +467,7 @@
       case 'selAll': selAll(); break;
       case 'selNone': selNone(); break;
       case 'delSel': delSel(); break;
+      case 'restore': restoreDialog(); break;
       case 'toolOk': if (E.mode === 'house') houseDialog(); else if (E.mode === 'area') areaDialog(); else if (E.mode === 'bound') saveBound(); break;
       case 'undo': undo(); break;
       case 'save': save(); break;

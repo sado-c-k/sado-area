@@ -695,3 +695,13 @@ html[data-ui="3"] #home .mhead .t,html[data-ui="3"] #admin .mhead .t{-webkit-fle
 html[data-ui="2"] #locBtn{bottom:calc(var(--nav) + var(--safe-b) + 30px)}
 html[data-ui="2"] #searchFab{bottom:calc(var(--nav) + var(--safe-b) + 86px)}
 html[data-ui="2"] #frameSw{bottom:calc(var(--nav) + var(--safe-b) + 142px)}
+
+/* v103: 画面レイアウト3 */
+html[data-ui="3"] #locBtn,html[data-ui="3"] #areaClearBtn{z-index:1002}
+html[data-ui="3"] #sheet{left:0!important;right:auto!important;margin:0!important;top:calc(56px + var(--safe-t))!important;bottom:0!important;width:min(460px,100%)!important;height:auto!important;max-height:none!important;border-radius:0!important;border-left:0;border-right:1px solid var(--border);box-shadow:2px 0 10px rgba(0,0,0,.18);-webkit-animation:sheetLeft .18s ease-out;animation:sheetLeft .18s ease-out}
+html[data-ui="3"] #sheet .grip{display:none}
+@-webkit-keyframes sheetLeft{from{opacity:.4;-webkit-transform:translateX(-28px)}to{opacity:1;-webkit-transform:none}}@keyframes sheetLeft{from{opacity:.4;transform:translateX(-28px)}to{opacity:1;transform:none}}
+/* 画面レイアウト2: 地図の種類ボタンを出す */
+html[data-ui="2"] #layerBtn{display:-webkit-flex!important;display:flex!important;left:10px;bottom:calc(var(--nav) + var(--safe-b) + 78px)!important}
+html[data-ui="2"] #legend{bottom:calc(var(--nav) + var(--safe-b) + 130px)}
+html[data-ui="3"] #home:not(.hidden),html[data-ui="3"] #menu:not(.hidden),html[data-ui="3"] #admin:not(.hidden){-webkit-animation:sheetLeft .2s ease-out;animation:sheetLeft .2s ease-out}
