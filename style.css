@@ -418,7 +418,7 @@ html[data-ui="2"] body.detail-open #locBtn{display:none}
 html[data-ui="2"] .leaflet-control-zoom{display:-webkit-flex!important;display:flex!important;-webkit-flex-direction:row;flex-direction:row}
 html[data-ui="2"] .leaflet-control-zoom a{border-bottom:0!important}
 html[data-ui="2"] .leaflet-control-zoom a+a{border-left:1px solid var(--border)!important}
-html[data-ui="2"] #legend{left:10px;right:auto;bottom:calc(var(--nav) + var(--safe-b) + 66px)}
+html[data-ui="2"] #legend{left:10px;right:auto;bottom:calc(var(--nav) + var(--safe-b) + 78px)}
 html[data-ui="2"] #layerBtn{left:10px;bottom:calc(var(--nav) + var(--safe-b) + 66px + 0px);display:none}
 html[data-ui="2"] #hdrRes{right:10px}
 /* テーマ3: 上に幅いっぱいのバー。メニューは左から出るタイル型。下のバーなし */
@@ -575,7 +575,7 @@ html[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,33,32,.8
 /* v52: 著作権表示は旧GASと同じ位置(下のバーのすぐ上。横長の画面では下から14px) / 凡例は著作権表示と重ならない */
 .leaflet-bottom.leaflet-right{margin-bottom:calc(var(--nav) + var(--safe-b))}
 @media (min-width:900px){.leaflet-bottom.leaflet-right{margin-bottom:14px}}
-#legend{bottom:calc(var(--nav) + var(--safe-b) + 28px)}
+#legend{bottom:calc(var(--nav) + var(--safe-b) + 40px)}
 
 /* v61: 親区域を開いたときの見た目を、アパートを開いたときと同じにする(1つの枠・中の子区域は薄い色のカード) */
 #home .pgroup{border:1px solid var(--primary);box-shadow:0 0 0 2px var(--primary-soft,rgba(46,125,50,.18));border-radius:var(--radius);padding:14px;margin:0 0 12px;background:var(--surface)}
@@ -662,7 +662,7 @@ html[data-theme="dark"][data-sat="1"] .leaflet-tile-pane{-webkit-filter:none!imp
 #edBody{margin-top:8px}
 
 /* v98: 地図の枠の表示スイッチ(右下)・ダークモードの読み込み中 */
-#frameSw{position:absolute;right:10px;bottom:calc(var(--nav) + var(--safe-b) + 28px);z-index:900;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:6px;align-items:stretch}
+#frameSw{position:absolute;right:10px;bottom:calc(var(--nav) + var(--safe-b) + 40px);z-index:900;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:6px;align-items:stretch}
 body.area-chosen #frameSw,body.editing #frameSw{display:none!important}
 #frameSw button{background:var(--surface);color:var(--text-2);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:.78em;font-weight:700;box-shadow:var(--shadow-1);white-space:nowrap;text-align:left;opacity:.75}
 #frameSw button.on{opacity:1;color:var(--text);border-color:var(--primary)}
