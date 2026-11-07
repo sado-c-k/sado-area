@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, toast = SADO.toast;
-  var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
+  var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['record', '記録'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
   var MODE = 'admin'; // 'admin'=管理メニュー(区域編集を除く) / 'edit'=編集メニュー(区域編集だけ)
   function isMaint() { return !!(SADO.S && SADO.S.user && SADO.S.user.role === 'maintainer'); }
   function tabsNow() { return MODE === 'edit' ? TABS.filter(function (t) { return t[0] === 'edit'; }) : TABS.filter(function (t) { return t[0] !== 'edit'; }); }
@@ -46,8 +46,8 @@
   }
   function body(h) { var b = $('#adBody'); if (b) b.innerHTML = h; busy(false); }
   // 項目名と配置だけ先に出す(中身は読み込めたら入る)
-  var SKEL = { areas: ['区域管理', '1件ずつ追加する', '自動終了と記録ドキュメント'], bulk: ['一括クリア', '元に戻す'], reports: ['届いた報告'], edit: ['区域を選ぶ'], accounts: ['ユーザーを追加', 'ユーザー', 'グループ'], settings: ['動作設定'], logs: ['区域の使用記録', '更新履歴'], analysis: ['分析'], io: ['取り込み', '書き出し'], guide: ['利用ガイド'] };
-  function skeleton(t) { return (SKEL[t] || ['']).map(function (n) { return '<div class="card"><h3>' + esc(n) + '</h3><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div>'; }).join(''); }
+  var SKEL = { areas: 2, bulk: 2, reports: 1, edit: 2, accounts: 2, settings: 2, logs: 2, record: 1, analysis: 1, io: 4, guide: 6 }; // 見出しの文字は出さない(実際の画面と食い違わないように)。枠の数だけ先に出す
+  function skeleton(t) { var n = SKEL[t] || 1, h = ''; for (var k = 0; k < n; k++) h += '<div class="card"><div class="sk short" style="height:18px;width:38%;margin-bottom:12px"></div><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div>'; return h; }
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
   function fail(e) { busy(false); toast(e.message || String(e), 6000); }
   function opts(list, valKey, labKey, sel, blank) { return (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(function (x) { return '<option value="' + esc(x[valKey]) + '"' + (String(x[valKey]) === String(sel) ? ' selected' : '') + '>' + esc(x[labKey]) + '</option>'; }).join(''); }
@@ -74,11 +74,15 @@
     go(tab);
   }
   function close() { $('#admin').classList.add('hidden'); if (SADO.activeNav) SADO.activeNav('map'); SADO.refreshBootstrap(); }
+  // ---------- 記録(年度ごとの記録ドキュメント) ----------
+  function loadRecord() {
+    body('<div class="card"><h3>新しい年度のファイル</h3><div class="note">今の記録ドキュメントをコピーして、新しい年度のファイルを作ります。各区域の「前回完了した日付」が転記されます。(この機能は、これから育てていく予定です)</div><div class="row"><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div></div>');
+  }
   function go(t) {
     tab = t; TABS.forEach(function (x) { var b = $('#adt-' + x[0]); if (b) b.classList.toggle('on', x[0] === t); });
     C.seq++; var warm = Object.keys(CACHE).some(function (k) { return /^(getAdminAreas|getReports|getUsers|getSettings)\|/.test(k) && ({ areas: 'getAdminAreas', edit: 'getAdminAreas', reports: 'getReports', accounts: 'getUsers', settings: 'getSettings' }[t] === k.split('|')[0]); });
     if (!warm) { body(skeleton(t)); busy(true); }
-    var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, analysis: loadAnalysis, io: loadIO, guide: loadGuide }[t];
+    var f = { areas: loadAreas, edit: loadEdit, reports: loadReports, logs: loadLogs, bulk: loadBulk, accounts: loadAccounts, settings: loadSettings, record: loadRecord, analysis: loadAnalysis, io: loadIO, guide: loadGuide }[t];
     f();
   }
   // 区域の一覧は、直前に読んだものがあれば、そのまま使う(1分以内。変更したときは作り直す)
@@ -94,9 +98,9 @@
       C.only = only;
       var h = '<div class="card"><h3>区域管理</h3>' + SADO.progLegend() +
         '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域のみ表示</label><div id="apList" class="ptree"></div></div>' +
-        '<details class="card" id="arMore"><summary><b>その他の操作</b></summary><div class="note" style="margin-top:8px">区域・建物・部屋の追加は「区域編集」、アカウント・グループ・担当者の追加は「アカウント」から行えます。</div><div class="row"><button class="btn small" data-act="ad:tab" data-v="edit">区域編集を開く</button><button class="btn small" data-act="ad:tab" data-v="accounts">アカウントを開く</button></div>' +
+        '<details class="card" id="arMore"><summary><b>その他の操作</b></summary>' +
         '<div class="note" style="margin-top:10px">期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
-        '<div class="row"><button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button><button class="btn small" data-act="ad:newYear">新しい年度のファイルを作る</button></div></details>';
+        '<div class="row"><button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button></div></details>';
       body('<div id="arIndex">' + h + '</div><div id="arDetail" class="hidden"></div>');
       drawAreaList(); if (typeof openId === 'string' && openId) renderAreaDetail(openId);
       SADO.api('getProgress', {}, true).then(function (p) { C.prog = p; drawAreaList(); }, function () { var e = document.getElementById('apSum'); if (e) e.textContent = ''; });
@@ -504,6 +508,7 @@
       ['アカウント', 'ログイン用のユーザー(奉仕者・区域係)、グループを管理(担当者とアカウントは同じデータです。「会衆」は全員が入る特別なグループ)します。グループの責任者は、そのグループに所属するアカウントから選びます。'],
       ['動作設定', 'アプリの名前、地図の最初の位置、自動終了までの月数、記録用ドキュメントや印刷用ファイルのフォルダを設定します。'],
       ['履歴・ログ', '区域の使用記録と、データの更新履歴を見られます(閲覧のみ)。'],
+      ['記録', '新しい年度の記録ドキュメントを作ります。'],
       ['分析', '次に訪問する区域の目安(おすすめ度・残り・再訪候補)を表で見られます。'],
       ['取込・書出', 'QGISなどで作ったCSVを取り込みます。建物・部屋の記録を、uuid2つきのCSVで書き出して、QGISに戻せます。']];
     body(items.map(function (x) { return '<div class="card"><h3>' + esc(x[0]) + '</h3>' + esc(x[1]) + '</div>'; }).join(''));

@@ -138,9 +138,17 @@
   function boot() {
     applyPrefs(getPrefs());
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')['catch'](function () {});
-    window.addEventListener('online', function () { setOnline(true); });
+    window.addEventListener('online', function () { setOnline(true); probe(); });
+    // 電波が戻ったのに「オフライン」のままになるのを防ぐ: オフラインの間は、数秒おきに、サーバーへ軽い問い合わせをして、通じたら自動で復帰する
+    var probing = false;
+    function probe() {
+      if (S.online || probing || !CFG.apiUrl) return; probing = true;
+      fetch(CFG.apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'getPublicInfo' }) })
+        .then(function (r) { return r.json(); }).then(function () { probing = false; setOnline(true); }, function () { probing = false; });
+    }
+    setInterval(probe, 5000);
     window.addEventListener('offline', function () { setOnline(false); });
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) flush(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { probe(); flush(); } });
     setInterval(function () { if (S.token) flush(); }, 30000);
     document.addEventListener('click', onClick);
     idb.open().then(function () { return Promise.all([idb.get('kv', 'session'), idb.get('kv', 'bootstrap'), idb.get('kv', 'pub'), idb.get('kv', 'frames')]); }).then(function (r) {
@@ -251,8 +259,10 @@
   }
   // 地図の種類を切り替えるとき、URLだけでなく、拡大の上限(maxZoom・maxNativeZoom)も合わせる。
   // 合わせないと、地理院の地図(実際のタイルは18まで)なのに19のタイルを取りに行き、最大に拡大すると地図が消える
+  function markSat(td) { try { document.documentElement.setAttribute('data-sat', td && /seamlessphoto|satellite|photo|ortho/i.test(td.url) ? '1' : '0'); } catch (e) {} }
   function setTile(td) {
     if (!tileLayer || !td) return;
+    markSat(td);
     try {
       tileLayer.options.maxZoom = td.opt.maxZoom; tileLayer.options.maxNativeZoom = td.opt.maxNativeZoom;
       tileLayer.setUrl(td.url);
@@ -291,7 +301,7 @@
     map.on('dragstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     map.on('zoomstart', function () { if (loc.follow) { loc.follow = false; locUi(); } });
     try { if (SADO.MapRot) SADO.MapRot.init(); } catch (e) { console.warn('rot init', e); }
-    var td = tileDef(effSrc()); tileLayer = L.tileLayer(td.url, td.opt).addTo(map);
+    var td = tileDef(effSrc()); markSat(td); tileLayer = L.tileLayer(td.url, td.opt).addTo(map);
     try { if (L.control && L.control.zoom) L.control.zoom({ position: 'bottomleft', zoomInTitle: '拡大', zoomOutTitle: '縮小' }).addTo(map); } catch (e) {}
     frameLayer = L.layerGroup().addTo(map); bLayer = L.layerGroup().addTo(map);
     SADO.map = map;
@@ -473,9 +483,11 @@
       if (!b) { var bs = []; Object.keys(bShapes).forEach(function (k) { var sh = bShapes[k]; add(sh.getBounds ? sh.getBounds() : L.latLngBounds([sh.getLatLng()])); }); }
       if (!b || !b.isValid()) return;
       map.invalidateSize();
-      var z = Math.min(19, map.getBoundsZoom(b, false, L.point(30, 30))); // 回転する地図でも確実に動くよう、中心と拡大率を直接決める
-      map.setView(b.getCenter(), z, { animate: false });
-    } catch (e) { try { map.fitBounds(b, { padding: [30, 30], maxZoom: 19, animate: false }); } catch (e2) {} }
+      var z = Math.min(19, map.getBoundsZoom(b, false, L.point(8, 8))); // 回転する地図でも確実に動くよう、中心と拡大率を直接決める(余白は小さく)
+      var cz = map.getZoom(), vb = map.getBounds();
+      if (cz >= z && vb.intersects(b)) return; // すでに、その区域が収まる以上に拡大していて、区域が見えているなら、地図は動かさない
+      map.setView(b.getCenter(), cz > z ? cz : z, { animate: false });
+    } catch (e) { try { map.fitBounds(b, { padding: [8, 8], maxZoom: 19, animate: false }); } catch (e2) {} }
   }
   function selectArea(areaId, bid) {
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
@@ -555,6 +567,7 @@
   function hasRoomInfo(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1; }
   // 詳細ウィンドウで記録する建物: 部屋が複数ある建物(アパート区分を含む)。これ以外(一軒家など)は動作設定しだいで、地図を直接タップして記録する
   function isApt(areaId, b) { return hasRoomInfo(areaId, b); } // 詳細ウィンドウで記録するかは、部屋が複数あるか(またはアパート区分)だけで決める。名前の有無は見ない
+  SADO.isApt = function (b) { return isApt(b.areaId || S.cur, b); };
   // 旧GAS(佐渡アパートGAS)と同じ見た目: 拡大したときは、しずく形のピン+建物名の札。縮小したときは、小さな丸だけ
   var PIN_DOT_BELOW_ZOOM = 16;
   function pieIcon(b, color) {
@@ -1116,7 +1129,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v92　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v93　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }

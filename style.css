@@ -641,3 +641,23 @@ html[data-ui="3"] #menu .mhead .t{white-space:nowrap}
 /* v83 読み込み中(操作を受け付けない間)は、画面全体を薄く白くする */
 #loading{background:rgba(255,255,255,.62)!important;-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px)}
 #loading .spin{border-color:rgba(0,0,0,.12);border-top-color:var(--primary)}
+
+/* v93: 区域を選んでいないあいだは凡例を出さない / ダークモードでも衛星写真は色を変えない */
+body:not(.area-chosen) #legend{display:none!important}
+html[data-theme="dark"][data-sat="1"] .leaflet-tile-pane{-webkit-filter:none!important;filter:none!important}
+
+/* v93: 「読み込み中...」の文字とくるくるは、どの場面でも、同じ組み合わせ・同じ大きさ(旧GASと同じ: 文字が上、輪は56px、ロゴ画像は92px) */
+.loadbox,.bootbox{display:-webkit-flex!important;display:flex!important;-webkit-flex-direction:column!important;flex-direction:column!important;-webkit-align-items:center!important;align-items:center!important;gap:14px!important;padding:0!important;text-align:center}
+.loadbox .note,.bootbox .bootmsg{font-weight:800!important;color:var(--text-2)!important;font-size:1em!important;margin:0!important;-webkit-order:-1;order:-1}
+.spin,#loading .spin,.loadbox .spin,.bootbox .spin{width:56px!important;height:56px!important;box-sizing:border-box;border-radius:50%;border:5px solid var(--border)!important;border-top-color:var(--primary)!important;margin:0!important;-webkit-animation:spin .9s linear infinite!important;animation:spin .9s linear infinite!important}
+.bootimg,#loading .bootimg,.loadbox .bootimg,.bootbox .bootimg{width:92px!important;height:92px!important;margin:0!important}
+#loading .loadbox{background:var(--bg);border-radius:16px;padding:20px 28px!important;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#mapLoading .loadbox{padding:20px 28px!important}
+.loadbox{padding:20px 0!important}
+
+/* v93: 編集モードの建物マーク。集合住宅=青い四角+ビル / 一軒家=オレンジの丸+家 / 名前は下に表示 */
+.edpin2{width:28px;height:28px;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);box-sizing:border-box}
+.edpin2.house{border-radius:50%;background:#ef6c00}
+.edpin2.apt{border-radius:6px;background:#1a73e8}
+.leaflet-tooltip.edlabel{background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.25);color:#202124;font-weight:700;font-size:.78em;padding:1px 5px;box-shadow:none;white-space:nowrap}
+.leaflet-tooltip-bottom.edlabel:before{display:none}

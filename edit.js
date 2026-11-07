@@ -5,7 +5,7 @@
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, api = SADO.api, toast = SADO.toast, S = SADO.S;
   // mode: null / 'apt'(集合住宅の位置を選ぶ) / 'house'(一軒家を何軒か置く) / 'area'(新しい区域の枠を描く) / 'bound'(枠の形を直す)
-  var E = { on: false, pend: {}, undo: [], mode: null, tmp: null, pts: [], av: [], avLayers: [], bd: null };
+  var E = { on: false, pend: {}, undo: [], mode: null, areaKind: '', tmp: null, pts: [], av: [], avLayers: [], bd: null };
 
   function map() { return SADO.map; }
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
@@ -46,12 +46,17 @@
     area: '新しい区域の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。',
     bound: '白い点をドラッグ → 角を動かす / 点をタップ → 角を消す\n辺の中央の小さい点をタップ → 角を増やす。直したら「枠を保存」'
   };
+  function curCat() { var a = S.cur && SADO.areaById(S.cur); if (!a) return ''; if (a.category) return a.category; var p = a.parentId && SADO.areaById(a.parentId); return p ? (p.category || '') : ''; }
   function paint() {
-    var adm = isAdmin(); $('#edAreaBtn').classList.toggle('hidden', !adm); $('#edBoundBtn').classList.toggle('hidden', !adm);
+    var adm = isAdmin(); $('#edRow1').classList.toggle('hidden', !adm);
     $('#editFrame').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('adding', !!E.mode); document.body.classList.toggle('editing', E.on);
-    [['edAddBtn', 'apt'], ['edHouseBtn', 'house'], ['edAreaBtn', 'area'], ['edBoundBtn', 'bound']].forEach(function (x) { $('#' + x[0]).classList.toggle('on', E.mode === x[1]); });
+    // 2行目: 国仲・遠方の区域を選んでいるとき「一軒家」「集合住宅」/ アパートの区域を選んでいるとき「アパート」
+    var cat = curCat(), apt = cat === 'アパート', r2 = !!(S.cur && cat);
+    $('#edRow2').classList.toggle('hidden', !r2); $('#edHouseBtn').classList.toggle('hidden', apt); $('#edAddBtn').textContent = apt ? '＋アパート' : '＋集合住宅';
+    $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
+    $('#edParBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'P'); $('#edKidBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'K'); $('#edAptAreaBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'A');
     var tool = $('#edToolRow'), n;
     tool.classList.toggle('hidden', !(E.mode === 'house' || E.mode === 'area' || E.mode === 'bound'));
     if (E.mode === 'house') { n = E.pts.length; $('#edToolInfo').textContent = '一軒家 ' + n + '軒'; $('#edToolOk').textContent = '確定'; $('#edToolOk').disabled = !n; }
@@ -60,7 +65,7 @@
     var canUndo = E.mode === 'house' ? E.pts.length : E.mode === 'area' ? E.av.length : E.mode === 'bound' ? (E.bd && E.bd.undo.length) : E.undo.length;
     $('#edUndoBtn').disabled = !canUndo;
     $('#edSaveBtn').textContent = '保存して終了' + (count() ? '（' + count() + '）' : '');
-    var hint = HINT[E.mode || 'none'] || (E.on && !E.mode && !S.cur ? '地図の区域の枠(オレンジの点線)の中をタップすると、その区域を選べます' : ''); $('#editHint').textContent = hint; $('#editHint').classList.toggle('hidden', !hint);
+    var hint = (E.mode === 'area' ? ({ P: '親区域(大きな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', K: '子区域(小さな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', A: 'アパート区域の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。' }[E.areaKind]) : '') || HINT[E.mode || 'none'] || (E.on && !E.mode && !S.cur ? '地図の区域の枠(オレンジの点線)の中をタップすると、その区域を選べます' : ''); $('#editHint').textContent = hint; $('#editHint').classList.toggle('hidden', !hint);
   }
   function redraw() { SADO.drawFrames(); if (S.cur) { SADO.drawBuildings(false); SADO.renderSheet(); } }
   SADO.hideFrame = function (id) { return !!(E.bd && E.bd.areaId === id); };
@@ -79,15 +84,17 @@
     if (!force && (count() || E.pts.length || E.av.length || (E.bd && E.bd.undo.length)) && !window.confirm('保存していない変更があります。捨てて終了しますか？')) return;
     endMode(); map().off('click', onMap); var had = count() > 0; E.on = false; S.edit = false; try { if (SADO.MapRot) SADO.MapRot.syncEditLock(); } catch (x) {} E.pend = {}; E.undo = [];
     paint(); redraw();
-    if (had) SADO.reloadCur()['catch'](fail);
+    if (had && S.cur) SADO.reloadCur().then(function () { SADO.clearArea(); paint(); }, fail); else { SADO.clearArea(); paint(); } // 編集を終えたら、選ばれていた区域を解除する
   }
   SADO.editToggle = function () { toggle(); };
   SADO.onAreaChange = function () { if (E.on) { E.pend = {}; E.undo = []; endMode(); paint(); } };
 
   // ---------- ピン(点の建物)をドラッグで動かす ----------
-  SADO.editMarker = function (b) {
-    var m = L.marker([b.lat, b.lng], { draggable: true, icon: L.divIcon({ className: '', html: '<div class="edpin"></div>', iconSize: [22, 22], iconAnchor: [11, 22] }) });
-    m.bindTooltip(b.buildingName || '', { direction: 'top', offset: [0, -22] });
+  var GLYPH_H = '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>', GLYPH_A = '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M4 21V3h11v6h5v12h-6v-4h-3v4zM7 6v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zm9 1v2h2v-2zm0-4v2h2v-2z"/></svg>';
+  SADO.editMarker = function (b) { // 集合住宅(青い四角+ビル)と一軒家(オレンジの丸+家)で、形と色を変える。名前があれば、下に出す
+    var apt = SADO.isApt ? SADO.isApt(b) : false, nm = String(b.buildingName || '').trim();
+    var m = L.marker([b.lat, b.lng], { draggable: true, icon: L.divIcon({ className: '', html: '<div class="edpin2 ' + (apt ? 'apt' : 'house') + '">' + (apt ? GLYPH_A : GLYPH_H) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) });
+    if (nm) m.bindTooltip(nm, { permanent: true, direction: 'bottom', offset: [0, 12], className: 'edlabel' });
     m.on('dragend', function (e) {
       var p = e.target.getLatLng(), cur = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === b.buildingId; })[0]; if (!cur) return;
       E.undo.push({ bid: b.buildingId, prev: { lat: cur.lat, lng: cur.lng }, had: !!E.pend[b.buildingId], name: cur.buildingName });
@@ -126,7 +133,24 @@
     return close;
   }
   function kids() { return S.areas.filter(function (a) { return !a.isParent; }); }
-  function areaOptions(sel) { return kids().map(function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === sel ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; }).join(''); }
+  var CATS = ['国仲', '遠方', 'アパート'];
+  function nat(x, y) { return String(x).localeCompare(String(y), 'ja', { numeric: true }); }
+  // 区域の選択肢: 区分 → 大きな区域ごとにまとめ、名前順(数字は大きさ順)に並べる。選ばれている区域は、いちばん上にも出す
+  function areaOptions(sel, onlyIds) {
+    var list = kids().filter(function (a) { return !onlyIds || onlyIds.indexOf(a.areaId) >= 0; }), pn = {};
+    S.areas.forEach(function (a) { if (a.isParent) pn[a.areaId] = a; });
+    var groups = {}, keys = [];
+    list.forEach(function (a) {
+      var par = a.parentId && pn[a.parentId], cat = a.category || (par && par.category) || '', label = (cat ? cat + ' / ' : '') + (par ? par.areaName : (cat === 'アパート' ? 'アパート' : 'その他'));
+      if (!groups[label]) { groups[label] = { label: label, cat: cat, name: par ? par.areaName : '', items: [] }; keys.push(label); }
+      groups[label].items.push(a);
+    });
+    keys.sort(function (x, y) { var gx = groups[x], gy = groups[y], cx = CATS.indexOf(gx.cat), cy = CATS.indexOf(gy.cat); return (cx - cy) || nat(gx.name, gy.name); });
+    var o = function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === sel ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; };
+    var top = sel && list.filter(function (a) { return a.areaId === sel; })[0];
+    return (top ? '<optgroup label="いま選ばれている区域"><option value="' + esc(top.areaId) + '" selected>' + esc(top.areaName) + '</option></optgroup>' : '') +
+      keys.map(function (k) { var g = groups[k]; g.items.sort(function (a, b) { return nat(a.areaName, b.areaName); }); return '<optgroup label="' + esc(k) + '">' + g.items.map(function (a) { return o(a).replace(' selected', ''); }).join('') + '</optgroup>'; }).join('');
+  }
   function parentsList() { return S.areas.filter(function (a) { return a.isParent; }); }
   function areaName(id) { var a = SADO.areaById(id); return a ? a.areaName : ''; }
   function num(id, def, lo, hi) { var v = parseInt((document.getElementById(id) || {}).value, 10); return isNaN(v) ? def : Math.max(lo, Math.min(hi, v)); }
@@ -137,12 +161,12 @@
     if (map()) {
       if (E.tmp) rm(E.tmp); E.pts.forEach(function (p) { rm(p.m); }); clearAv(); clearBd();
     }
-    E.tmp = null; E.pts = []; E.av = []; E.bd = null; E.mode = null;
+    E.tmp = null; E.pts = []; E.av = []; E.bd = null; E.mode = null; E.areaKind = '';
   }
-  function setMode(m) {
-    if (E.mode === m) { endMode(); paint(); redraw(); return; }
+  function setMode(m, kind) {
+    if (E.mode === m && (m !== 'area' || E.areaKind === kind)) { endMode(); paint(); redraw(); return; }
     if (E.mode && ((E.mode === 'house' && E.pts.length) || (E.mode === 'area' && E.av.length) || (E.mode === 'bound' && E.bd && E.bd.undo.length)) && !window.confirm('今の作業を捨てて、切り替えますか？')) return;
-    endMode(); E.mode = m; paint(); redraw();
+    endMode(); E.mode = m; E.areaKind = m === 'area' ? kind : ''; paint(); redraw();
     if (m === 'bound') pickBoundArea();
   }
   function onMap(ev) {
@@ -216,13 +240,13 @@
     if (!E.pts.length) return;
     var rows = E.pts.map(function (p, i) {
       var a = areaAt(p.lat, p.lng) || S.cur || '';
-      return '<div class="hrow"><b>' + (i + 1) + '</b><input data-hn="' + i + '" maxlength="60" placeholder="一軒家 ' + (i + 1) + '(名前は空でもOK)"><select data-ha="' + i + '">' + (a ? '' : '<option value="">区域を選ぶ</option>') + areaOptions(a) + '</select></div>' + (areaAt(p.lat, p.lng) ? '' : '<div class="note" style="margin:-4px 0 6px 28px">枠の外です。区域を確認してください。</div>');
+      return '<div class="hrow"><b>' + (i + 1) + '</b><input data-hn="' + i + '" maxlength="60" placeholder="名前(空のままでもOK)"><select data-ha="' + i + '">' + (a ? '' : '<option value="">区域を選ぶ</option>') + areaOptions(a) + '</select></div>' + (areaAt(p.lat, p.lng) ? '' : '<div class="note" style="margin:-4px 0 6px 28px">枠の外です。区域を確認してください。</div>');
     }).join('');
-    modal('一軒家を' + E.pts.length + '軒追加', '<div class="note">それぞれの区域は、地図上でどの区域の枠の中にあるかで自動的に決めました(違うときは変えられます)。名前を空にすると「一軒家 番号」になります。</div><div style="max-height:46vh;overflow:auto">' + rows + '</div>', '追加する', function () {
+    modal('一軒家を' + E.pts.length + '軒追加', '<div class="note">それぞれの区域は、地図上でどの区域の枠の中にあるかで自動的に決めました(違うときは変えられます)。名前は空のままでも登録できます。</div><div style="max-height:46vh;overflow:auto">' + rows + '</div>', '追加する', function () {
       var items = E.pts.map(function (p, i) {
         var nm = (document.querySelector('[data-hn="' + i + '"]').value || '').trim(), ar = document.querySelector('[data-ha="' + i + '"]').value;
         if (!ar) throw new Error((i + 1) + '軒目の区域を選んでください。');
-        return { areaId: ar, buildingName: nm || '一軒家 ' + (i + 1), lat: p.lat, lng: p.lng };
+        return { areaId: ar, buildingName: nm, lat: p.lat, lng: p.lng };
       });
       return api('createBuildings', { items: items }).then(function () {
         var areas = items.map(function (x) { return x.areaId; }); endMode(); paint(); toast(items.length + '軒の一軒家を追加しました。');
@@ -246,9 +270,17 @@
   function ringGeom(pts) { var r = pts.map(function (p) { return [p.lng, p.lat]; }); r.push(r[0].slice()); return { type: 'Polygon', coordinates: [r] }; }
   function areaDialog() {
     if (E.av.length < 3) { toast('3点以上置いてください。'); return; }
-    modal('新しい区域を追加', '<label>区域名</label><input id="naN" maxlength="30" placeholder="例: 1-4">' + (parentsList().length ? '<label>所属する大きな区域</label><select id="naP"><option value="">なし(区分を自分で選ぶ)</option>' + parentsList().map(function (p) { return '<option value="' + esc(p.areaId) + '">' + esc(p.areaName) + '(' + esc(p.category) + ')</option>'; }).join('') + '</select>' : '') + '<label>区分(大きな区域を選ぶと、その区分になります)</label><select id="naC"><option value="国仲">国仲</option><option value="遠方">遠方</option><option value="アパート">アパート</option></select><div class="note">描いた枠(' + E.av.length + '点)がこの区域の境界線になります。建物は、このあと「＋集合住宅」「＋一軒家」で追加できます。</div>', '追加する', function () {
+    var kind = E.areaKind || 'K', ttl = { P: '親区域を追加', K: '子区域を追加', A: 'アパート区域を追加' }[kind], pars = parentsList().slice().sort(function (a, b) { return (CATS.indexOf(a.category) - CATS.indexOf(b.category)) || nat(a.areaName, b.areaName); }), h = '<label>区域名</label><input id="naN" maxlength="30" placeholder="' + (kind === 'P' ? '例: 007 羽吉' : kind === 'K' ? '例: 007-1' : '例: A01 両津') + '">';
+    if (kind === 'P') h += '<label>区分</label><select id="naC"><option value="国仲">国仲</option><option value="遠方">遠方</option></select>';
+    else if (kind === 'K') h += '<label>所属する親区域</label><select id="naP"><option value="">親区域を選んでください</option>' + pars.filter(function (p) { return p.category !== 'アパート'; }).map(function (p) { return '<option value="' + esc(p.areaId) + '">' + esc(p.category) + ' / ' + esc(p.areaName) + '</option>'; }).join('') + '</select><div class="note">区分は、親区域と同じになります。</div>';
+    else h += '<div class="note">区分は「アパート」になります。</div>';
+    modal(ttl, h + '<div class="note">描いた枠(' + E.av.length + '点)がこの区域の境界線になります。建物は、区域を選んでから「＋一軒家」「＋集合住宅」で追加できます。</div>', '追加する', function () {
       var name = ($('#naN').value || '').trim(); if (!name) throw new Error('区域名を入力してください。');
-      return api('addArea', { areaName: name, category: $('#naC').value, parentId: ($('#naP') || {}).value || '', boundary: ringGeom(E.av) }).then(function () {
+      var body = { areaName: name, boundary: ringGeom(E.av) };
+      if (kind === 'P') { body.category = $('#naC').value; body.asParent = true; }
+      else if (kind === 'K') { body.parentId = $('#naP').value; if (!body.parentId) throw new Error('所属する親区域を選んでください。'); body.category = '国仲'; }
+      else { body.category = 'アパート'; }
+      return api('addArea', body).then(function () {
         endMode(); paint(); toast('区域「' + name + '」を追加しました。'); return SADO.refreshBootstrap().then(redraw);
       });
     });
@@ -332,7 +364,9 @@
       case 'toggle': toggle(); break;
       case 'addB': setMode('apt'); break;
       case 'addH': setMode('house'); break;
-      case 'addA': setMode('area'); break;
+      case 'addP': setMode('area', 'P'); break;
+      case 'addK': setMode('area', 'K'); break;
+      case 'addAA': setMode('area', 'A'); break;
       case 'bound': setMode('bound'); break;
       case 'toolOk': if (E.mode === 'house') houseDialog(); else if (E.mode === 'area') areaDialog(); else if (E.mode === 'bound') saveBound(); break;
       case 'undo': undo(); break;
