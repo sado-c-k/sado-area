@@ -307,7 +307,7 @@
     frameLayer = L.layerGroup().addTo(map); bLayer = L.layerGroup().addTo(map);
     SADO.map = map;
   }
-  function renderLegend() {
+  function renderLegend() { renderFrameSw();
     var dot = function (c, t, ring) { return '<b><i style="background:' + (ring ? '#fff' : c) + (ring ? ';border:3px solid ' + c : '') + '"></i>' + t + '</b>'; }, h = '';
     if (cfg('mapProgressMode', 'simple') === 'off') h = dot('#1a73e8', '未訪問'); else statusList().forEach(function (x) { h += dot(stColor(x), esc(x.label)); }); // 動作設定の「訪問状況の選択肢」を、その順番と色で
     $('#legend').innerHTML = h + dot('#ca8a04', '注意', true) + dot('#b91c1c', '拒否', true);
@@ -355,12 +355,21 @@
   }
   SADO.frameFeatures = frameFeatures;
   // 小さな区域の枠を出しているときも、大きな区域の太い枠(と名前)を重ねる。名前は withLabel のときだけ
+  function frameKind(a) { var c = a.category || (a.parentId && areaById(a.parentId) && areaById(a.parentId).category) || ''; return c === 'アパート' ? 'A' : 'K'; } // 枠の色の区分: アパート(A)/国仲・遠方(K)
+  function fpct(k, d) { var v = Number(cfg(k, d)); return (isFinite(v) ? Math.max(0, Math.min(60, v)) : d) / 100; }
+  function frameStyle(a) { // 動作設定の「区域の枠の色と透過率」を使う
+    var k = frameKind(a);
+    if (a.inUse) return { color: a.assigned ? cfg('frameColorUse', '#188038') : '#80868b', fillOpacity: fpct('frameFillUse', 12), dashArray: null };
+    return { color: cfg('frameColor' + k, k === 'A' ? '#8e24aa' : '#1a73e8'), fillOpacity: fpct('frameFill' + k, k === 'A' ? 6 : 4), dashArray: '6 4' };
+  }
+  function frameShown(a) { var p = getPrefs(); return !(frameKind(a) === 'A' ? p.frameA === '0' : p.frameK === '0'); } // 右下のスイッチ(地図だけ)
+  function renderFrameSw() { var p = getPrefs(), el = $('#frameSw'); if (!el) return; el.innerHTML = '<button class="' + (p.frameK === '0' ? '' : 'on') + '" data-act="frameSw" data-v="K"><i style="background:' + cfg('frameColorK', '#1a73e8') + '"></i>国仲・遠方</button><button class="' + (p.frameA === '0' ? '' : 'on') + '" data-act="frameSw" data-v="A"><i style="background:' + cfg('frameColorA', '#8e24aa') + '"></i>アパート</button>'; }
   function lbCls(inUse, assigned) { return 'area-label' + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); }
   function parentOutline(withLabel, onlyId) {
     parentFrameList().forEach(function (f) {
       if (onlyId && f.areaId !== onlyId) return;
       var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && mapAreas().indexOf(a) >= 0; }); if (!kids.length) return;
-      var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? '#188038' : '#1a73e8', weight: 4, fill: false, interactive: false });
+      var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? cfg('frameColorUse', '#188038') : cfg('frameColor' + frameKind(p || {}), '#1a73e8'), weight: 4, fill: false, interactive: false });
       if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: lbCls(kids.some(function (k) { return k.inUse; })) + ' parent-label' });
       frameLayer.addLayer(poly);
     });
@@ -375,7 +384,7 @@
         pf.forEach(function (f) {
           var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && mapAreas().indexOf(a) >= 0; }); if (!kids.length) return;
           var inUse = kids.some(function (k) { return k.inUse; });
-          var poly = L.polygon(geomToLatLngs(f.geometry), { color: inUse ? '#188038' : '#1a73e8', weight: 4, dashArray: inUse ? null : '6 4', fillOpacity: inUse ? 0.12 : 0.04 });
+          if (p && !frameShown(p)) return; var fs = frameStyle({ inUse: inUse, assigned: true, category: p && p.category }), poly = L.polygon(geomToLatLngs(f.geometry), { color: fs.color, weight: 4, dashArray: fs.dashArray, fillOpacity: fs.fillOpacity });
           if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: lbCls(inUse) });
           poly.on('click', function () { selectParent(f.areaId); }); frameLayer.addLayer(poly);
         });
@@ -386,7 +395,7 @@
       if (S.merged) { // 大きな区域: 中の小さな区域の枠を出し、押した区域を選ぶ(選んだ区域は濃く、ほかは薄く)
         frameFeatures().forEach(function (f) {
           if ((S.kids || []).indexOf(f.areaId) < 0) return; var sel = f.areaId === S.sub, k = areaById(f.areaId), id = f.areaId;
-          var kuse = !!(k && k.inUse), poly = L.polygon(geomToLatLngs(f.geometry), { color: kuse ? '#188038' : '#1a73e8', weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
+          var kfs = frameStyle(k || {}), poly = L.polygon(geomToLatLngs(f.geometry), { color: kfs.color, weight: sel ? 3 : 2, dashArray: sel ? null : '6 5', fillOpacity: sel ? 0.02 : 0.08, opacity: sel ? 1 : 0.7 });
           if (k && !sel && map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(k.areaName, { permanent: true, direction: 'center', className: lbCls(k.inUse, k.assigned) });
           poly.on('click', function () { selectKid(id); }); frameLayer.addLayer(poly);
         });
@@ -400,8 +409,8 @@
     frameFeatures().forEach(function (f) {
       var id = f.areaId, a = areaById(id); if (!a || mapAreas().indexOf(a) < 0) return; // 地図には全区域の枠を出す(設定で「担当の区域だけ」にできる)
       if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
-      var color = a.inUse ? (a.assigned ? '#188038' : '#80868b') : '#1a73e8';
-      var poly = L.polygon(geomToLatLngs(f.geometry), { color: color, weight: 2, dashArray: a.inUse ? null : '6 4', fillOpacity: a.inUse ? 0.12 : 0.04 });
+      if (!frameShown(a)) return; var fs = frameStyle(a);
+      var poly = L.polygon(geomToLatLngs(f.geometry), { color: fs.color, weight: 2, dashArray: fs.dashArray, fillOpacity: fs.fillOpacity });
       if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: lbCls(a.inUse, a.assigned) });
       poly.on('click', function () { var pa0 = a.parentId && areaById(a.parentId); if (pa0 && pa0.isParent) selectParent(a.parentId); else selectArea(id); }); // 何も選んでいないときは、まず大きな区域を選ぶ
       frameLayer.addLayer(poly);
@@ -1130,7 +1139,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v97　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v98　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1239,6 +1248,7 @@
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
       case 'locate': if (t.id !== 'locBtn') locate(); break; // 右上の◎はコンパス部品が処理する(二重に動かさない)
+      case 'frameSw': { var pk = v === 'A' ? 'frameA' : 'frameK'; setPref(pk, getPrefs()[pk] === '0' ? '1' : '0'); renderFrameSw(); drawFrames(); break; }
       case 'clearArea': if (S.edit && SADO.editBeforeClear && !SADO.editBeforeClear()) break; clearArea(); break;
       case 'closeSheet': closeSheet(); break;
       case 'setStatus': setStatusUi(t.getAttribute('data-room'), v); break;

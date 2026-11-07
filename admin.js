@@ -447,7 +447,7 @@
   }
   function loadSettings() {
     api('getSettings').then(function (s) {
-      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', showMarkMemo: 'false', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
+      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', showMarkMemo: 'false', frameColorK: '#1a73e8', frameFillK: '4', frameColorA: '#8e24aa', frameFillA: '6', frameColorUse: '#188038', frameFillUse: '12', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
       for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
       ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled', 'showMarkMemo'].forEach(function (k) { s[k] = String(s[k]); });
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
@@ -472,6 +472,7 @@
         stRow('更新の間隔', '間隔を短くするほど、アクセスが増えて重くなります。人数が多いときは15秒以上をおすすめします。', sel('autoRefreshIntervalSec', [['5', '5秒'], ['10', '10秒'], ['15', '15秒'], ['30', '30秒'], ['60', '60秒']])) +
         stSw('onboardingHelpEnabled', 'サイトを開いたときにヘルプを表示', 'はじめて開いた端末に、ヘルプ(使い方)を表示します。') +
         stSw('showMarkMemo', '拒否と注意のメモを全員に表示', 'オフのときは、拒否・注意の部屋のメモは区域係だけが見られます。オンにすると、奉仕者・編集者にも表示します(編集は区域係だけです)。') +
+        stRow('区域の枠の色と透過率', '地図の区域の枠の色と、枠の中の色の濃さ(0〜60%)です。国仲・遠方、アパート、使用中を、それぞれ決められます。「設定を保存」で反映します。', [['K', '国仲・遠方'], ['A', 'アパート'], ['Use', '使用中']].map(function (f) { return '<div class="row" style="margin-top:6px"><span style="min-width:6.5em">' + f[1] + '</span><input type="color" id="st-frameColor' + f[0] + '" value="' + esc(s['frameColor' + f[0]]) + '"> <span class="note">濃さ</span><input type="number" min="0" max="60" style="width:64px" id="st-frameFill' + f[0] + '" value="' + esc(s['frameFill' + f[0]]) + '"><span class="note">%</span></div>'; }).join('')) +
         stSw('menuTitleEnabled', 'メニューのタイトル', '各メニューの上に、アプリの名前(例: 佐渡区域)を表示します。オフにすると表示しません。') +
         stSw('mapRotationEnabled', 'マップの回転', '2本指で地図を回したり、現在地の向きに合わせて地図を回したりする機能です。') +
         stSw('pinShadowEnabled', 'ピンの影', '地図のピンに影をつけます。オフにすると、地図の拡大・縮小が軽くなります。') +
@@ -482,7 +483,7 @@
   }
   function saveSettingsNow() {
     vsSync();
-    var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec'];
+    var vals = {}, ids = ['appTitle', 'mapTileSource', 'mapTileUrl', 'mapTileAttribution', 'mapLat', 'mapLng', 'mapZoom', 'autoEndMonths', 'fiscalStartMonth', 'logDocId', 'downloadFolderId', 'pinDoneThreshold', 'autoRefreshIntervalSec', 'frameColorK', 'frameFillK', 'frameColorA', 'frameFillA', 'frameColorUse', 'frameFillUse'];
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
     vals.logoImage = ST.logoImage || '';
     ['logoMode', 'mapInitMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });

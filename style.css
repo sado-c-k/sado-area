@@ -666,3 +666,13 @@ html[data-theme="dark"][data-sat="1"] .leaflet-tile-pane{-webkit-filter:none!imp
 .sub{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
 .sub h4{margin:0 0 6px;font-size:.95em;font-weight:900;color:var(--text-2)}
 #edBody{margin-top:8px}
+
+/* v98: 地図の枠の表示スイッチ(右下)・ダークモードの読み込み中 */
+#frameSw{position:absolute;right:10px;bottom:calc(var(--nav) + var(--safe-b) + 28px);z-index:900;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:6px;align-items:stretch}
+body.area-chosen #frameSw,body.editing #frameSw{display:none!important}
+#frameSw button{background:var(--surface);color:var(--text-2);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:.78em;font-weight:700;box-shadow:var(--shadow-1);white-space:nowrap;text-align:left;opacity:.75}
+#frameSw button.on{opacity:1;color:var(--text);border-color:var(--primary)}
+#frameSw button i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+#frameSw button:not(.on) i{opacity:.35}
+html[data-theme="dark"] #loading{background:rgba(0,0,0,.72)!important}
+html[data-theme="dark"] #loading .spin{border-color:rgba(255,255,255,.18)!important;border-top-color:var(--primary)!important}
