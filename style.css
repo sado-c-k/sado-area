@@ -676,3 +676,13 @@ body.area-chosen #frameSw,body.editing #frameSw{display:none!important}
 #frameSw button:not(.on) i{opacity:.35}
 html[data-theme="dark"] #loading{background:rgba(0,0,0,.72)!important}
 html[data-theme="dark"] #loading .spin{border-color:rgba(255,255,255,.18)!important;border-top-color:var(--primary)!important}
+
+/* v99: 区域名ラベルの色を、動作設定の枠の色に合わせる */
+.area-label{color:var(--lbK,#1a73e8)}
+.area-label.lb-a{color:var(--lbA,#8e24aa)}
+.area-label.lb-use{color:var(--lbUse,#188038)}
+.area-label.lb-gray{color:#5f6368}
+.area-label.parent-label{background:var(--lbK,#1a73e8);color:#fff}
+.area-label.parent-label.lb-a{background:var(--lbA,#8e24aa)}
+.area-label.parent-label.lb-use{background:var(--lbUse,#188038)}
+.area-label.parent-label.lb-gray{background:#5f6368}
