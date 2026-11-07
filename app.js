@@ -493,7 +493,7 @@
     var a = areaById(areaId); toast((a ? a.areaName : '') + ' を読み込み中…', 1500);
     return loadAreaData(areaId).then(function () {
       if (SADO.onAreaChange) SADO.onAreaChange();
-      S.cur = areaId; S.merged = false; S.sub = null; closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); closePanels();
+      S.cur = areaId; S.merged = false; S.sub = null; closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); closePanels(); if (SADO.onAreaShown) SADO.onAreaShown();
       var d = S.data[areaId]; if (d && d.area) { var i = S.areas.map(function (x) { return x.areaId; }).indexOf(areaId); if (i >= 0) S.areas[i] = d.area; }
       if (!bid) { fitArea([areaId]); setTimeout(function () { if (S.cur === areaId) fitArea([areaId]); }, 250); }
       if (bid) { var bq = S.data[areaId] && S.data[areaId].buildings.filter(function (x) { return x.buildingId === bid; })[0]; if (bq && bq.lat != null && map) { map.setView([bq.lat, bq.lng], Math.max(map.getZoom(), 17)); } openBuilding(bid); }
@@ -524,7 +524,7 @@
     if (!S.merged || S.sub === id) return; var k = areaById(id); S.sub = id; closeSheet(true); drawFrames(); drawBuildings(false); updateTitle(); fitArea([id]);
     if (k) toast(k.areaName + ' を選びました。' + (k.canEdit ? '' : '(見るだけ)'), 2500);
   }
-  function clearArea() { S.merged = false; S.sub = null; S.cur = null; closeSheet(true); if (bLayer) bLayer.clearLayers(); drawFrames(); updateTitle(); }
+  function clearArea() { S.merged = false; S.sub = null; S.cur = null; closeSheet(true); if (bLayer) bLayer.clearLayers(); drawFrames(); updateTitle(); if (SADO.onAreaShown) SADO.onAreaShown(); }
   SADO.clearArea = clearArea;
   function updateTitle() {
     document.body.classList.toggle('area-chosen', !!S.cur); if (S.cur) document.body.classList.remove('search-open');
@@ -693,7 +693,7 @@
         h += '<div class="room st-' + esc(cur) + (r.mark ? ' mk-' + esc(r.mark) : '') + (long ? ' long' : '') + (S.draft && S.draft[r.roomId] !== undefined ? ' picked' : '') + '" data-room="' + esc(r.roomId) + '"><div class="rhead">' + (edm ? '<div class="rn"><input class="rnm" data-room="' + esc(r.roomId) + '" placeholder="部屋名" value="' + esc(r.roomName) + '"><input class="rfl" data-room="' + esc(r.roomId) + '" placeholder="階" value="' + esc(r.floor) + '">' : '<div class="rn">' + esc(nm)) + (!ed && !edm && r.mark ? '<div class="mkb">' + (r.mark === 'reject' ? '<span class="badge rej">拒否</span>' : '<span class="badge cau">注意</span>') + '</div>' : '') + '</div>' + (ed ? '<select class="rmark" data-room="' + esc(r.roomId) + '"><option value="">区分なし</option><option value="caution"' + (r.mark === 'caution' ? ' selected' : '') + '>注意</option><option value="reject"' + (r.mark === 'reject' ? ' selected' : '') + '>拒否</option></select>' : '') + (edm ? '<button class="btn small danger" style="margin-left:auto" data-act="ed:delRoom" data-v="' + esc(r.roomId) + '">削除</button>' : '') + '</div>';
         h += '<div class="rrow pick"><div class="rlabel"></div><div class="rval">' + pickerHtml(r, can, cur) + '</div></div>';
         if (can && isAdmin()) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval"><input class="memo" data-room="' + esc(r.roomId) + '" placeholder="メモ" value="' + esc(r.memo) + '"></div></div>';
-        else if (r.memo && !r.mark) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
+        else if (r.memo && (!r.mark || cfg('showMarkMemo', false))) h += '<div class="rrow"><div class="rlabel">メモ:</div><div class="rval memotxt">' + esc(r.memo) + '</div></div>';
         if (r.tenant) h += '<div class="upd">' + esc(r.tenant) + '</div>';
         if (r.updatedAt) h += '<div class="upd">更新: ' + esc(fmtLocal(r.updatedAt)) + (r.updatedBy ? ' ' + esc(r.updatedBy) : '') + '</div>';
         h += '</div>';
@@ -1129,7 +1129,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v93　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v94　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
