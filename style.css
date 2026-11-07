@@ -685,3 +685,13 @@ html[data-theme="dark"] #loading .spin{border-color:rgba(255,255,255,.18)!import
 html[data-ui="2"] #frameSw{bottom:calc(var(--nav) + var(--safe-b) + 124px)}
 html[data-ui="3"] #home .mhead,html[data-ui="3"] #admin .mhead{padding-top:calc(10px + var(--safe-t))}
 html[data-ui="3"] #home .mhead .t,html[data-ui="3"] #admin .mhead .t{-webkit-flex:1;flex:1;white-space:nowrap}
+
+/* v102: 複数選択 */
+.edpin2.sel{outline:3px solid #d93025;outline-offset:2px;box-shadow:0 0 0 5px rgba(217,48,37,.28)}
+.edbox{position:absolute;z-index:850;border:2px dashed #d93025;background:rgba(217,48,37,.12);pointer-events:none}
+.leaflet-container.boxing{cursor:crosshair}
+#edMultiRow{-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center}
+#edMultiRow #edMultiInfo{-webkit-flex:1 1 100%;flex:1 1 100%;font-weight:700}
+html[data-ui="2"] #locBtn{bottom:calc(var(--nav) + var(--safe-b) + 30px)}
+html[data-ui="2"] #searchFab{bottom:calc(var(--nav) + var(--safe-b) + 86px)}
+html[data-ui="2"] #frameSw{bottom:calc(var(--nav) + var(--safe-b) + 142px)}

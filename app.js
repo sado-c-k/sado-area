@@ -390,6 +390,12 @@
           if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p ? p.areaName : '', { permanent: true, direction: 'center', className: lbCls(inUse, true, p) });
           poly.on('click', function () { selectParent(f.areaId); }); frameLayer.addLayer(poly);
         });
+        frameFeatures().forEach(function (f) { // アパート区域(親区域を持たない)も、引いて見ているときから枠を出す(親区域と同じ太さ)
+          var a = areaById(f.areaId); if (!a || a.isParent || a.parentId || frameKind(a) !== 'A' || mapAreas().indexOf(a) < 0 || !frameShown(a)) return;
+          var fs = frameStyle(a), poly = L.polygon(geomToLatLngs(f.geometry), { color: fs.color, weight: 4, dashArray: fs.dashArray, fillOpacity: fs.fillOpacity }), id = f.areaId;
+          if (map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', className: lbCls(a.inUse, a.assigned, a) });
+          poly.on('click', function () { selectArea(id); }); frameLayer.addLayer(poly);
+        });
         return;
       }
     }
@@ -646,7 +652,7 @@
       if (!shape) return;
       var live = !S.merged || ed || b.areaId === S.sub; // 大きな区域を開いているときは、小さな区域を選ぶまで記録できない(押すと、その建物の小さな区域が選ばれる)
       var simple = !apt && !ed && direct && live;
-      var act = function () { if (!live) selectKid(b.areaId); else if (simple) quickRecord(b.buildingId); else openBuilding(b.buildingId); };
+      var act = function () { if (S.edit && SADO.multiTap && SADO.multiTap(b.buildingId)) return; if (!live) selectKid(b.areaId); else if (simple) quickRecord(b.buildingId); else openBuilding(b.buildingId); };
       shape.on('click', act); if (simple) shape.on('contextmenu', function () { openBuilding(b.buildingId); });
       bLayer.addLayer(shape); bShapes[b.buildingId] = shape;
       if (!pin && !ed && shape.getBounds) { // 小さな丸でも押しやすいよう、見えない大きめの押す範囲を重ねる(拡大率によらず約9px)
@@ -1141,7 +1147,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v101　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v102　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }

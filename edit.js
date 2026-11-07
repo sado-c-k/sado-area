@@ -5,7 +5,7 @@
   'use strict';
   var SADO = window.SADO, esc = SADO.esc, $ = SADO.$, api = SADO.api, toast = SADO.toast, S = SADO.S;
   // mode: null / 'apt'(集合住宅の位置を選ぶ) / 'house'(一軒家を何軒か置く) / 'area'(新しい区域の枠を描く) / 'bound'(枠の形を直す)
-  var E = { on: false, pend: {}, undo: [], mode: null, areaKind: '', tmp: null, pts: [], av: [], avLayers: [], bd: null };
+  var E = { on: false, pend: {}, undo: [], mode: null, areaKind: '', tmp: null, pts: [], av: [], avLayers: [], bd: null, sel: {}, box: false, mk: {} };
 
   function map() { return SADO.map; }
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
@@ -52,6 +52,7 @@
     apt: '集合住宅を置く場所を、地図でタップしてください',
     house: '一軒家を置く場所を、地図でタップ(何軒でも)。\n置き終わったら「確定」を押します。',
     area: '新しい区域の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。',
+    multi: '建物をタップすると、選択に加わります(もう一度タップで外れます)。\n「四角で選ぶ」をオンにして地図をなぞると、囲んだ範囲の建物をまとめて選べます(オンの間は地図を動かせません)。',
     bound: '白い点をドラッグ → 角を動かす / 点をタップ → 角を消す\n辺の中央の小さい点をタップ → 角を増やす。直したら「枠を保存」'
   };
   function curCat() { var a = S.cur && SADO.areaById(S.cur); if (!a) return ''; if (a.category) return a.category; var p = a.parentId && SADO.areaById(a.parentId); return p ? (p.category || '') : ''; }
@@ -63,7 +64,7 @@
     // 2行目: 国仲・遠方の区域を選んでいるとき「一軒家」「集合住宅」/ アパートの区域を選んでいるとき「アパート」
     var cat = curCat(), apt = cat === 'アパート', r2 = !!(S.cur && cat);
     $('#edRow2').classList.toggle('hidden', !r2); $('#edHouseBtn').classList.toggle('hidden', apt); $('#edAddBtn').textContent = apt ? '＋アパート' : '＋集合住宅';
-    $('#edBoundBtn').classList.toggle('hidden', !adm); $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
+    $('#edBoundBtn').classList.toggle('hidden', !adm); $('#edMultiBtn').classList.toggle('on', E.mode === 'multi'); $('#edMultiRow').classList.toggle('hidden', E.mode !== 'multi'); if (E.mode === 'multi') { var sn = selIds().length; $('#edMultiInfo').textContent = '選択 ' + sn + '件'; $('#edDelSelBtn').disabled = !sn; $('#edDelSelBtn').textContent = '削除' + (sn ? '(' + sn + ')' : ''); $('#edBoxBtn').classList.toggle('on', E.box); $('#edBoxBtn').textContent = E.box ? '四角で選ぶ:オン' : '四角で選ぶ'; } $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
     $('#edParBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'P'); $('#edKidBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'K'); $('#edAptAreaBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'A');
     var tool = $('#edToolRow'), n;
     tool.classList.toggle('hidden', !(E.mode === 'house' || E.mode === 'area' || E.mode === 'bound'));
@@ -106,8 +107,9 @@
   var GLYPH_H = '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>', GLYPH_A = '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M4 21V3h11v6h5v12h-6v-4h-3v4zM7 6v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zm9 1v2h2v-2zm0-4v2h2v-2z"/></svg>';
   SADO.editMarker = function (b) { // 集合住宅(青い四角+ビル)と一軒家(オレンジの丸+家)で、形と色を変える。名前があれば、下に出す
     var apt = SADO.isApt ? SADO.isApt(b) : false, nm = String(b.buildingName || '').trim();
-    var m = L.marker([b.lat, b.lng], { draggable: true, icon: L.divIcon({ className: '', html: '<div class="edpin2 ' + (apt ? 'apt' : 'house') + '">' + (apt ? GLYPH_A : GLYPH_H) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) });
+    var m = L.marker([b.lat, b.lng], { draggable: E.mode !== 'multi', icon: L.divIcon({ className: '', html: '<div class="edpin2 ' + (apt ? 'apt' : 'house') + (E.sel[b.buildingId] ? ' sel' : '') + '">' + (apt ? GLYPH_A : GLYPH_H) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) });
     if (nm) m.bindTooltip(nm, { permanent: true, direction: 'bottom', offset: [0, 12], className: 'edlabel' });
+    E.mk[b.buildingId] = m;
     m.on('dragend', function (e) {
       var p = e.target.getLatLng(), cur = S.data[S.cur].buildings.filter(function (x) { return x.buildingId === b.buildingId; })[0]; if (!cur) return;
       E.undo.push({ bid: b.buildingId, prev: { lat: cur.lat, lng: cur.lng }, had: !!E.pend[b.buildingId], name: cur.buildingName });
@@ -182,7 +184,7 @@
     if (map()) {
       if (E.tmp) rm(E.tmp); E.pts.forEach(function (p) { rm(p.m); }); clearAv(); clearBd();
     }
-    E.tmp = null; E.pts = []; E.av = []; E.bd = null; E.mode = null; E.areaKind = '';
+    E.tmp = null; E.pts = []; E.av = []; E.bd = null; E.mode = null; E.areaKind = ''; E.sel = {}; boxOff(); E.box = false;
   }
   function setMode(m, kind) {
     if (E.mode === m && (m !== 'area' || E.areaKind === kind)) { if (((m === 'house' && E.pts.length) || (m === 'area' && E.av.length) || (m === 'bound' && E.bd && E.bd.undo.length)) && !window.confirm('今の作業を捨てて、閉じますか？')) return; endMode(); paint(); redraw(); return; }
@@ -384,6 +386,57 @@
     $('#arN').oninput = function () { var ns = parseRoomNames(this.value); $('#arPrev').textContent = ns.length ? ns.length + '部屋: ' + ns.slice(0, 12).join(', ') + (ns.length > 12 ? ' …' : '') : ''; };
   }
 
+  // ---------- 複数選択(建物をまとめて選んで、まとめて削除) ----------
+  function selIds() { return Object.keys(E.sel).filter(function (k) { return E.sel[k]; }); }
+  function setSel(bid, on) {
+    if (on) E.sel[bid] = true; else delete E.sel[bid];
+    var m = E.mk[bid], el = m && m.getElement && m.getElement(), pin = el && el.querySelector('.edpin2'); if (pin) pin.classList.toggle('sel', !!on);
+  }
+  SADO.multiTap = function (bid) { // 建物の丸・ピンを押したとき、複数選択中なら選択を切り替える(trueを返すと、建物詳細は開かない)
+    if (!E.on || E.mode !== 'multi') return false;
+    setSel(bid, !E.sel[bid]); paint(); return true;
+  };
+  var bx = null;
+  function boxDown(ev) {
+    if (!E.box || E.mode !== 'multi' || (ev.button !== undefined && ev.button > 0)) return;
+    var c = map().getContainer(); if (ev.target.closest && ev.target.closest('.leaflet-control,.leaflet-control-container')) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var r = c.getBoundingClientRect(), el = document.createElement('div'); el.className = 'edbox'; c.appendChild(el);
+    bx = { x0: ev.clientX - r.left, y0: ev.clientY - r.top, x1: ev.clientX - r.left, y1: ev.clientY - r.top, el: el, id: ev.pointerId, r: r };
+    try { c.setPointerCapture(ev.pointerId); } catch (x) {}
+    boxDraw();
+  }
+  function boxDraw() { if (!bx) return; var l = Math.min(bx.x0, bx.x1), t = Math.min(bx.y0, bx.y1); bx.el.style.cssText = 'left:' + l + 'px;top:' + t + 'px;width:' + Math.abs(bx.x1 - bx.x0) + 'px;height:' + Math.abs(bx.y1 - bx.y0) + 'px'; }
+  function boxMove(ev) { if (!bx || ev.pointerId !== bx.id) return; ev.preventDefault(); bx.x1 = ev.clientX - bx.r.left; bx.y1 = ev.clientY - bx.r.top; boxDraw(); }
+  function boxUp(ev) {
+    if (!bx || ev.pointerId !== bx.id) return; ev.preventDefault();
+    var b = bx; bx = null; if (b.el.parentNode) b.el.parentNode.removeChild(b.el);
+    var l = Math.min(b.x0, b.x1), r = Math.max(b.x0, b.x1), t = Math.min(b.y0, b.y1), btm = Math.max(b.y0, b.y1), n = 0;
+    if (r - l < 6 && btm - t < 6) return; // ただのタップ(なぞっていない)は無視
+    ((S.data[S.cur] || {}).buildings || []).forEach(function (x) {
+      if (x.lat == null || x.lat === '' || x.lng == null || !isFinite(x.lat) || !isFinite(x.lng)) return;
+      var p = map().latLngToContainerPoint([+x.lat, +x.lng]);
+      if (p.x >= l && p.x <= r && p.y >= t && p.y <= btm && !E.sel[x.buildingId]) { setSel(x.buildingId, true); n++; }
+    });
+    paint(); toast(n ? n + '件を選択に加えました。' : '囲んだ範囲に、新しく選べる建物はありません。', 1500);
+  }
+  function boxOn() { var c = map() && map().getContainer && map().getContainer(); if (!c) return; map().dragging.disable(); c.style.touchAction = 'none'; c.classList.add('boxing'); c.addEventListener('pointerdown', boxDown, true); c.addEventListener('pointermove', boxMove, true); c.addEventListener('pointerup', boxUp, true); c.addEventListener('pointercancel', boxUp, true); }
+  function boxOff() { var c = map() && map().getContainer && map().getContainer(); if (!c) return; if (bx && bx.el.parentNode) bx.el.parentNode.removeChild(bx.el); bx = null; try { map().dragging.enable(); } catch (x) {} c.style.touchAction = ''; c.classList.remove('boxing'); c.removeEventListener('pointerdown', boxDown, true); c.removeEventListener('pointermove', boxMove, true); c.removeEventListener('pointerup', boxUp, true); c.removeEventListener('pointercancel', boxUp, true); }
+  function boxToggle() { E.box = !E.box; if (E.box) boxOn(); else boxOff(); paint(); }
+  function selAll() { ((S.data[S.cur] || {}).buildings || []).forEach(function (x) { if (x.lat != null && x.lat !== '' && isFinite(x.lat)) setSel(x.buildingId, true); }); paint(); }
+  function selNone() { selIds().forEach(function (k) { setSel(k, false); }); E.sel = {}; paint(); }
+  function delSel() {
+    var ids = selIds(); if (!ids.length) return;
+    var d = S.data[S.cur], names = ids.map(function (id) { var b = d.buildings.filter(function (x) { return x.buildingId === id; })[0]; return b ? (b.buildingName || '(名前なし)') : ''; }).filter(Boolean);
+    modal('選んだ建物を削除', '<div>' + ids.length + '件の建物を削除します。地図と一覧に表示されなくなります(中の部屋もまとめて非表示になります。あとからスプレッドシートで元に戻せます)。</div><div class="note" style="margin-top:6px;max-height:30vh;overflow:auto">' + names.slice(0, 30).map(esc).join('、') + (names.length > 30 ? ' ほか' + (names.length - 30) + '件' : '') + '</div>', '削除する', function () {
+      return api('setActiveMany', { kind: 'building', ids: ids, active: false }).then(function (n) {
+        var gone = {}; ids.forEach(function (id) { gone[id] = 1; delete E.pend[id]; });
+        d.buildings = d.buildings.filter(function (x) { return !gone[x.buildingId]; }); d.rooms = d.rooms.filter(function (x) { return !gone[x.buildingId]; });
+        E.undo = E.undo.filter(function (u) { return !gone[u.bid]; }); E.sel = {}; stash(); toast(ids.length + '件の建物を削除しました。'); redraw(); paint();
+      });
+    }, true);
+  }
+
   SADO.onEditClick = function (act, t, v) {
     if (act.indexOf('ed:') !== 0) return;
     switch (act.slice(3)) {
@@ -394,6 +447,11 @@
       case 'addK': setMode('area', 'K'); break;
       case 'addAA': setMode('area', 'A'); break;
       case 'bound': setMode('bound'); break;
+      case 'multi': setMode('multi'); break;
+      case 'box': boxToggle(); break;
+      case 'selAll': selAll(); break;
+      case 'selNone': selNone(); break;
+      case 'delSel': delSel(); break;
       case 'toolOk': if (E.mode === 'house') houseDialog(); else if (E.mode === 'area') areaDialog(); else if (E.mode === 'bound') saveBound(); break;
       case 'undo': undo(); break;
       case 'save': save(); break;
