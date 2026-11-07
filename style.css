@@ -661,3 +661,8 @@ html[data-theme="dark"][data-sat="1"] .leaflet-tile-pane{-webkit-filter:none!imp
 .edpin2.apt{border-radius:6px;background:#1a73e8}
 .leaflet-tooltip.edlabel{background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.25);color:#202124;font-weight:700;font-size:.78em;padding:1px 5px;box-shadow:none;white-space:nowrap}
 .leaflet-tooltip-bottom.edlabel:before{display:none}
+
+/* v96: メニュー内で編集する(カードの中の小区画) */
+.sub{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.sub h4{margin:0 0 6px;font-size:.95em;font-weight:900;color:var(--text-2)}
+#edBody{margin-top:8px}

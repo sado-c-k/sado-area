@@ -52,6 +52,7 @@
   var loadN = 0, loadT = null, QUIET = { sync: 1, getProgress: 1, getBootstrap: 1 };
   function loadingOn() { loadN++; if (loadN === 1) { clearTimeout(loadT); loadT = setTimeout(function () { var e = $('#loading'); if (e && loadN > 0 && !document.getElementById('adMask')) { applyLogo($('#loadLogo')); e.classList.remove('hidden'); } }, 250); } }
   function loadingOff() { loadN = Math.max(0, loadN - 1); if (!loadN) { clearTimeout(loadT); var e = $('#loading'); if (e) e.classList.add('hidden'); } }
+  SADO.applyLogo = function (el) { applyLogo(el); };
   function applyLogo(el) {
     if (!el) return; var lg = S.settings || {}, m = lg.logoMode, im = lg.logoImage;
     if (!m) { try { var L = JSON.parse(localStorage.getItem('sado-logo') || '{}'); m = L.m; im = L.i; } catch (e) {} }
@@ -583,7 +584,7 @@
     return L.divIcon({ className: '', html: '<svg class="pin-sh" viewBox="0 0 25 41" width="20" height="33" style="display:block"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="' + color + '" stroke="rgba(0,0,0,.28)" stroke-width="1"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>', iconSize: [20, 33], iconAnchor: [10, 33] });
   }
   function labelIcon(b, below) {
-    return L.divIcon({ className: '', html: '<div style="position:absolute;left:0;top:0;transform:translate(-50%,' + (below || 6) + 'px);white-space:nowrap;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none">' + esc(b.buildingName || '') + '</div>', iconSize: [0, 0], iconAnchor: [0, 0] });
+    return L.divIcon({ className: 'rot-with-map', html: '<div style="position:absolute;left:0;top:0;transform:translate(-50%,' + (below || 6) + 'px);white-space:nowrap;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none">' + esc(b.buildingName || '') + '</div>', iconSize: [0, 0], iconAnchor: [0, 0] });
   }
   function syncLabels() {
     if (!bLayer || !map) return; var show = map.getZoom() >= PIN_DOT_BELOW_ZOOM && !S.edit, d = S.data[S.cur]; if (!d) return;
@@ -1129,7 +1130,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v94　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v96　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1238,7 +1239,7 @@
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
       case 'locate': if (t.id !== 'locBtn') locate(); break; // 右上の◎はコンパス部品が処理する(二重に動かさない)
-      case 'clearArea': if (S.edit) { toast('編集モードを終了してから戻ってください。'); break; } clearArea(); break;
+      case 'clearArea': if (S.edit && SADO.editBeforeClear && !SADO.editBeforeClear()) break; clearArea(); break;
       case 'closeSheet': closeSheet(); break;
       case 'setStatus': setStatusUi(t.getAttribute('data-room'), v); break;
       case 'saveDraft': saveDraft(); break;
