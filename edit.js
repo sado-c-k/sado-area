@@ -56,14 +56,14 @@
   };
   function curCat() { var a = S.cur && SADO.areaById(S.cur); if (!a) return ''; if (a.category) return a.category; var p = a.parentId && SADO.areaById(a.parentId); return p ? (p.category || '') : ''; }
   function paint() {
-    var adm = isAdmin(); $('#edRow1').classList.toggle('hidden', !adm || !!(S.cur && E.mode !== 'area' && E.mode !== 'bound'));
+    var adm = isAdmin(); $('#edRow1').classList.toggle('hidden', !adm || !!(S.cur && E.mode !== 'area'));
     $('#editFrame').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('adding', !!E.mode); document.body.classList.toggle('editing', E.on);
     // 2行目: 国仲・遠方の区域を選んでいるとき「一軒家」「集合住宅」/ アパートの区域を選んでいるとき「アパート」
     var cat = curCat(), apt = cat === 'アパート', r2 = !!(S.cur && cat);
     $('#edRow2').classList.toggle('hidden', !r2); $('#edHouseBtn').classList.toggle('hidden', apt); $('#edAddBtn').textContent = apt ? '＋アパート' : '＋集合住宅';
-    $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
+    $('#edBoundBtn').classList.toggle('hidden', !adm); $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
     $('#edParBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'P'); $('#edKidBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'K'); $('#edAptAreaBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'A');
     var tool = $('#edToolRow'), n;
     tool.classList.toggle('hidden', !(E.mode === 'house' || E.mode === 'area' || E.mode === 'bound'));
@@ -123,13 +123,20 @@
     if (!u.had) delete E.pend[u.bid];
     paint(); redraw(); toast('「' + (u.name || '') + '」の位置をひとつ前に戻しました。', 1500);
   }
-  function save(thenQuit) {
-    if (thenQuit && (E.pts.length || E.av.length || (E.bd && E.bd.undo.length)) && !window.confirm('作業中の追加・枠の変更は保存されません。このまま終了しますか？')) return;
-    var ids = Object.keys(E.pend); if (!ids.length) { if (thenQuit) toggle(true); return; }
+  function save(thenQuit) { // 位置の変更と、枠の変更を、まとめて保存する
+    if (E.pts.length || E.av.length) { toast('追加の途中です。「確定」を押して完了するか、「戻す」で取り消してください。', 3500); return; }
+    var ids = Object.keys(E.pend), hasB = !!(E.bd && E.bd.undo.length);
+    if (!ids.length && !hasB) { if (thenQuit) toggle(true); return; }
     $('#edSaveBtn').disabled = true;
-    // 動かした建物は、1回の通信でまとめて保存する(1軒ずつ送らない)
-    api('updateBuildingPositions', { items: ids.map(function (id) { return { buildingId: id, lat: E.pend[id].lat, lng: E.pend[id].lng }; }) })
-      .then(function (r) { var mv = r && r.to ? Object.keys(r.to) : []; toast(ids.length + '件の位置を保存しました。' + (mv.length ? mv.length + '件は、入った枠にあわせて区域を自動で変えました。' : ''), mv.length ? 3500 : 2000); if (mv.length && S.cur) { try { SADO.refreshBootstrap().then(function () { return SADO.reloadCur(); }).then(redraw); } catch (x) {} } stash(); E.pend = {}; E.undo = []; $('#edSaveBtn').disabled = false; if (thenQuit) { toggle(true); return; } paint(); }, function (e) { $('#edSaveBtn').disabled = false; paint(); fail(e); });
+    var p = Promise.resolve();
+    if (ids.length) p = api('updateBuildingPositions', { items: ids.map(function (id) { return { buildingId: id, lat: E.pend[id].lat, lng: E.pend[id].lng }; }) }) // 動かした建物は、1回の通信でまとめて保存する
+      .then(function (r) {
+        var mv = r && r.to ? Object.keys(r.to) : []; toast(ids.length + '件の位置を保存しました。' + (mv.length ? mv.length + '件は、入った枠にあわせて区域を自動で変えました。' : ''), mv.length ? 3500 : 2000);
+        stash(); E.pend = {}; E.undo = [];
+        if (mv.length && S.cur) return SADO.refreshBootstrap().then(function () { return SADO.reloadCur(); });
+      });
+    if (hasB) p = p.then(function () { return saveBoundCore(); });
+    p.then(function () { $('#edSaveBtn').disabled = false; if (thenQuit) { toggle(true); return; } paint(); redraw(); }, function (e) { $('#edSaveBtn').disabled = false; paint(); fail(e); });
   }
 
   // ---------- 小さなダイアログ ----------
@@ -178,10 +185,10 @@
     E.tmp = null; E.pts = []; E.av = []; E.bd = null; E.mode = null; E.areaKind = '';
   }
   function setMode(m, kind) {
-    if (E.mode === m && (m !== 'area' || E.areaKind === kind)) { endMode(); paint(); redraw(); return; }
+    if (E.mode === m && (m !== 'area' || E.areaKind === kind)) { if (((m === 'house' && E.pts.length) || (m === 'area' && E.av.length) || (m === 'bound' && E.bd && E.bd.undo.length)) && !window.confirm('今の作業を捨てて、閉じますか？')) return; endMode(); paint(); redraw(); return; }
     if (E.mode && ((E.mode === 'house' && E.pts.length) || (E.mode === 'area' && E.av.length) || (E.mode === 'bound' && E.bd && E.bd.undo.length)) && !window.confirm('今の作業を捨てて、切り替えますか？')) return;
     endMode(); E.mode = m; E.areaKind = m === 'area' ? kind : ''; paint(); redraw();
-    if (m === 'bound') pickBoundArea();
+    if (m === 'bound') { try { startBound(S.cur); } catch (e) { endMode(); paint(); redraw(); fail(e); } }
   }
   function onMap(ev) {
     var ll = ev.latlng; if (!ll) return;
@@ -303,18 +310,17 @@
 
   // ---------- 境界線を直す ----------
   function clearBd() { if (E.bd) { (E.bd.layers || []).forEach(rm); E.bd.layers = []; } }
-  function pickBoundArea() {
-    var withFrame = kids().filter(function (a) { return SADO.frameFeatures().some(function (f) { return f.areaId === a.areaId; }); });
-    if (!withFrame.length) { toast('枠のある区域がありません。先に「＋区域」で枠を描いてください。'); endMode(); paint(); return; }
-    var def = withFrame.some(function (a) { return a.areaId === S.cur; }) ? S.cur : withFrame[0].areaId;
-    modal('境界線を直す区域', '<label>区域</label><select id="bdA">' + areaOptions(def, withFrame.map(function (a) { return a.areaId; })) + '</select>', '枠を表示する', function () { startBound($('#bdA').value); });
-    modal.onCancel = function () { endMode(); paint(); redraw(); };
-  }
   function startBound(areaId) {
-    var f = SADO.frameFeatures().filter(function (x) { return x.areaId === areaId; })[0]; if (!f) throw new Error('この区域の枠が見つかりません。');
-    var g = JSON.parse(JSON.stringify(f.geometry)), polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+    if (!areaId) throw new Error('先に区域を選んでください。');
+    var f = SADO.frameFeatures().filter(function (x) { return x.areaId === areaId; })[0], geom = f && f.geometry;
+    if (!geom) { // まだ枠がない区域(アパートなど): 建物の位置のまわりに四角い枠を置いて、そこから直す
+      var bs = ((S.data[areaId] || {}).buildings || []).filter(function (b) { return b.lat !== '' && b.lat != null && isFinite(b.lat) && isFinite(b.lng); }), la = bs.map(function (b) { return +b.lat; }), ln = bs.map(function (b) { return +b.lng; }), c = map().getCenter(), m = 0.0004;
+      var y0 = (la.length ? Math.min.apply(null, la) : c.lat) - m, y1 = (la.length ? Math.max.apply(null, la) : c.lat) + m, x0 = (ln.length ? Math.min.apply(null, ln) : c.lng) - m, x1 = (ln.length ? Math.max.apply(null, ln) : c.lng) + m;
+      geom = { type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] }; E.bd0 = true;
+    }
+    var g = JSON.parse(JSON.stringify(geom)), polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
     var rings = polys.map(function (p) { var r = p[0].map(function (c) { return { lat: c[1], lng: c[0] }; }); r.pop(); return r; });
-    E.bd = { areaId: areaId, name: areaName(areaId), geom: g, rings: rings, undo: [], layers: [] }; E.bd.last = JSON.stringify(rings);
+    E.bd = { areaId: areaId, name: areaName(areaId), geom: g, rings: rings, undo: E.bd0 ? [JSON.stringify(rings)] : [], layers: [] }; E.bd0 = false; E.bd.last = JSON.stringify(rings);
     SADO.drawFrames(); drawBd(); paint();
     try { var b = L.latLngBounds(rings[0].map(function (p) { return [p.lat, p.lng]; })); map().fitBounds(b, { padding: [40, 40] }); } catch (e) {}
   }
@@ -334,14 +340,19 @@
       });
     });
   }
+  function saveBoundCore() { // 枠の保存(通信)。成功したら、枠の編集を終えて地図を描き直す
+    var g = E.bd.geom, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates, nm = E.bd.name;
+    E.bd.rings.forEach(function (ring, k) { var r = ring.map(function (p) { return [p.lng, p.lat]; }); r.push(r[0].slice()); polys[k][0] = r; });
+    return api('saveAreaBoundary', { areaId: E.bd.areaId, geometry: g }).then(function (r) {
+      var mv = r && r.moved || 0; endMode();
+      toast('「' + nm + '」の境界線を保存しました。' + (mv ? mv + '件の建物の区域を、枠にあわせて自動で変えました。' : ''), mv ? 4000 : 2000);
+      return SADO.refreshBootstrap().then(function () { return mv && S.cur ? SADO.reloadCur() : 0; });
+    });
+  }
   function saveBound() {
     if (!E.bd || !E.bd.undo.length) return;
-    var g = E.bd.geom, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
-    E.bd.rings.forEach(function (ring, k) { var r = ring.map(function (p) { return [p.lng, p.lat]; }); r.push(r[0].slice()); polys[k][0] = r; });
     $('#edToolOk').disabled = true;
-    api('saveAreaBoundary', { areaId: E.bd.areaId, geometry: g }).then(function (r) {
-      var nm = E.bd.name, mv = r && r.moved || 0; endMode(); paint(); toast('「' + nm + '」の境界線を保存しました。' + (mv ? mv + '件の建物の区域を、枠にあわせて自動で変えました。' : ''), mv ? 4000 : 2000); SADO.refreshBootstrap().then(function () { return mv && S.cur ? SADO.reloadCur() : 0; }).then(redraw);
-    }, function (e) { paint(); fail(e); });
+    saveBoundCore().then(function () { paint(); redraw(); }, function (e) { paint(); fail(e); });
   }
 
   // ---------- 戻す・確定 ----------
