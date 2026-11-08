@@ -355,23 +355,40 @@
   }
   SADO.frameFeatures = frameFeatures;
   // 小さな区域の枠を出しているときも、大きな区域の太い枠(と名前)を重ねる。名前は withLabel のときだけ
-  function frameKind(a) { var c = a.category || (a.parentId && areaById(a.parentId) && areaById(a.parentId).category) || ''; return c === 'アパート' ? 'A' : 'K'; } // 枠の色の区分: アパート(A)/国仲・遠方(K)
+  // ---------- 区域の分類(区分)。動作設定の「区域の分類と色と透過」で、名前の変更・追加・削除ができる ----------
+  // kind: K=国仲・遠方と同じ(親区域・子区域) / A=アパートと同じ(区域を開くと建物の一覧・部屋ごとに記録)
+  var CAT_DEF = [{ name: '国仲', kind: 'K', color: '#1a73e8', fill: 4 }, { name: '遠方', kind: 'K', color: '#1a73e8', fill: 4 }, { name: 'アパート', kind: 'A', color: '#8e24aa', fill: 6 }];
+  function cats() { var l = S.settings && S.settings.categories; return Array.isArray(l) && l.length ? l : CAT_DEF; }
+  function catNames() { return cats().map(function (c) { return c.name; }); }
+  function catPairs() { return cats().map(function (c) { return [c.name, c.name]; }); }
+  function catInfo(n) { return cats().filter(function (c) { return c.name === n; })[0] || null; }
+  function catName(a) { if (!a) return catNames()[0]; var c = a.category || (a.parentId && areaById(a.parentId) && areaById(a.parentId).category) || ''; return catInfo(c) ? c : catNames()[0]; } // 区域の分類名(子区域は親の分類。わからないときは最初の分類)
+  function isAptName(n) { var c = catInfo(n); return !!(c && c.kind === 'A'); }
+  function catIdx(a) { return Math.max(0, catNames().indexOf(catName(a))); }
+  SADO.cats = cats; SADO.catNames = catNames; SADO.catName = catName; SADO.isAptName = isAptName;
+  function frameKind(a) { return isAptName(catName(a)) ? 'A' : 'K'; } // 分類の種類: アパートと同じ(A)/国仲・遠方と同じ(K)
   function fpct(k, d) { var v = Number(cfg(k, d)); return (isFinite(v) ? Math.max(0, Math.min(60, v)) : d) / 100; }
-  function frameStyle(a) { // 動作設定の「区域の枠の色と透過率」を使う
-    var k = frameKind(a);
+  function catColor(a) { var c = catInfo(catName(a)); return (c && c.color) || (frameKind(a) === 'A' ? '#8e24aa' : '#1a73e8'); }
+  function frameStyle(a) { // 動作設定の「区域の分類と色と透過」を使う
     if (a.inUse) return { color: a.assigned ? cfg('frameColorUse', '#188038') : '#80868b', fillOpacity: fpct('frameFillUse', 12), dashArray: null };
-    return { color: cfg('frameColor' + k, k === 'A' ? '#8e24aa' : '#1a73e8'), fillOpacity: fpct('frameFill' + k, k === 'A' ? 6 : 4), dashArray: '6 4' };
+    var c = catInfo(catName(a)), f = c ? Number(c.fill) : 4;
+    return { color: catColor(a), fillOpacity: (isFinite(f) ? Math.max(0, Math.min(60, f)) : 4) / 100, dashArray: '6 4' };
   }
-  function frameShown(a) { var p = getPrefs(); return !(frameKind(a) === 'A' ? p.frameA === '0' : p.frameK === '0'); } // 右下のスイッチ(地図だけ)
-  function renderFrameSw() { var p = getPrefs(), el = $('#frameSw'); if (!el) return; el.innerHTML = '<button class="' + (p.frameK === '0' ? '' : 'on') + '" data-act="frameSw" data-v="K"><i style="background:' + cfg('frameColorK', '#1a73e8') + '"></i>国仲・遠方</button><button class="' + (p.frameA === '0' ? '' : 'on') + '" data-act="frameSw" data-v="A"><i style="background:' + cfg('frameColorA', '#8e24aa') + '"></i>アパート</button>'; }
-  function lbCls(inUse, assigned, ar) { return 'area-label' + (ar && frameKind(ar) === 'A' ? ' lb-a' : '') + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); } // 色は動作設定の「区域の枠の色」(アパートは lb-a)
-  function applyFrameVars() { var st = document.documentElement.style; st.setProperty('--lbK', cfg('frameColorK', '#1a73e8')); st.setProperty('--lbA', cfg('frameColorA', '#8e24aa')); st.setProperty('--lbUse', cfg('frameColorUse', '#188038')); }
+  function frameShown(a) { return getPrefs()['frc_' + catName(a)] !== '0'; } // 右下のスイッチ(地図だけ・分類ごと)
+  function renderFrameSw() { var p = getPrefs(), el = $('#frameSw'); if (!el) return; el.innerHTML = cats().map(function (c) { return '<button class="' + (p['frc_' + c.name] === '0' ? '' : 'on') + '" data-act="frameSw" data-v="' + esc(c.name) + '"><i style="background:' + esc(c.color) + '"></i>' + esc(c.name) + '</button>'; }).join(''); }
+  function lbCls(inUse, assigned, ar) { return 'area-label lb-c' + (ar ? catIdx(ar) : 0) + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); } // 名前の色は、分類の色(使用中は使用中の色)
+  function applyFrameVars() {
+    var st = document.documentElement.style; st.setProperty('--lbK', (cats()[0] || {}).color || '#1a73e8'); st.setProperty('--lbUse', cfg('frameColorUse', '#188038'));
+    var css = cats().map(function (c, i) { var col = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#1a73e8'; return '.area-label.lb-c' + i + '{color:' + col + '}.area-label.parent-label.lb-c' + i + '{background:' + col + ';color:#fff}'; }).join('') +
+      '.area-label.lb-use{color:var(--lbUse,#188038)}.area-label.parent-label.lb-use{background:var(--lbUse,#188038);color:#fff}.area-label.lb-gray{color:#5f6368}.area-label.parent-label.lb-gray{background:#5f6368;color:#fff}';
+    var el = document.getElementById('catStyle'); if (!el) { el = document.createElement('style'); el.id = 'catStyle'; document.head.appendChild(el); } el.textContent = css;
+  }
   function parentOutline(withLabel, onlyId) {
     parentFrameList().forEach(function (f) {
       if (onlyId && f.areaId !== onlyId) return;
       var p = areaById(f.areaId), kids = S.areas.filter(function (a) { return !a.isParent && a.parentId === f.areaId && mapAreas().indexOf(a) >= 0; }); if (!kids.length) return;
       if (!onlyId && !S.edit && p && !frameShown(p)) return; // 右下のスイッチで消した種類の、大きな区域の枠も消す
-      var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? cfg('frameColorUse', '#188038') : cfg('frameColor' + frameKind(p || {}), '#1a73e8'), weight: 4, fill: false, interactive: false });
+      var poly = L.polygon(geomToLatLngs(f.geometry), { color: kids.some(function (k) { return k.inUse; }) ? cfg('frameColorUse', '#188038') : catColor(p || {}), weight: 4, fill: false, interactive: false });
       if (withLabel && p && map.getZoom() >= FRAME_PARENT_LABEL) poly.bindTooltip(p.areaName, { permanent: true, direction: 'center', offset: [0, -16], className: lbCls(kids.some(function (k) { return k.inUse; }), true, p) + ' parent-label' });
       frameLayer.addLayer(poly);
     });
@@ -582,7 +599,7 @@
     return { color: c.rej ? '#b91c1c' : (c.cau ? '#ca8a04' : fill), weight: c.rej || c.cau ? 8 : 1.5, fillColor: fill, fillOpacity: 0.6 };
   }
   // 部屋情報のある建物(部屋が2つ以上・アパート区域)だけがピン。名前だけある建物は丸のまま(名前は表示する)
-  function hasRoomInfo(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return a.category === 'アパート' || roomsOf(areaId, b.buildingId).length > 1; }
+  function hasRoomInfo(areaId, b) { var d = S.data[areaId], a = (d && d.area) || areaById(areaId) || {}; return isAptName(catName(a)) || roomsOf(areaId, b.buildingId).length > 1; }
   // 詳細ウィンドウで記録する建物: 部屋が複数ある建物(アパート区分を含む)。これ以外(一軒家など)は動作設定しだいで、地図を直接タップして記録する
   function isApt(areaId, b) { return hasRoomInfo(areaId, b); } // 詳細ウィンドウで記録するかは、部屋が複数あるか(またはアパート区分)だけで決める。名前の有無は見ない
   SADO.isApt = function (b) { return isApt(b.areaId || S.cur, b); };
@@ -837,10 +854,22 @@
       ar.style.transform = 'rotate(' + (h - sg * b).toFixed(0) + 'deg)';
     } catch (e) {}
   }
+  // 端末の向き(方位)を、傾きを考慮して求める。端末をほぼ水平に持っているときは「画面の上」の向き、立てて持っている
+  // (歩きながら画面を見ている)ときは「背面が向いている方向=進む方向」。立てて横向き(折りたたみ端末など)でも向きがずれない
+  SADO.headingFrom = function (e, angOverride) {
+    var ang = angOverride != null ? angOverride : (window.screen && screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle : 0);
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) return (e.webkitCompassHeading + ang + 360) % 360;
+    if (e.alpha == null || !(e.absolute === true || e.type === 'deviceorientationabsolute')) return null;
+    var d = Math.PI / 180, a = e.alpha * d, b = (e.beta || 0) * d, g = (e.gamma || 0) * d, cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
+    var zx = cA * sG + sA * sB * cG, zy = sA * sG - cA * sB * cG, zz = cB * cG; // 画面から手前へ向かう軸(東・北・上)
+    var h;
+    if (Math.abs(zz) < 0.7) h = Math.atan2(-zx, -zy) / d; // 立てて持っている: 背面が向く方向
+    else h = Math.atan2(-sA * cB, cA * cB) / d + ang; // 水平に近い: 画面の上の向き(画面の回転分を足す)
+    return (h % 360 + 360) % 360;
+  };
   function locOrient(e) {
-    var h = null; if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading; else if (e.alpha != null && (e.absolute === true || e.type === 'deviceorientationabsolute')) h = 360 - e.alpha;
-    if (h == null) return; var ang = window.screen && screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle : 0;
-    loc.sensor = (h + ang + 360) % 360; locArrow();
+    var h = SADO.headingFrom(e); if (h == null) return;
+    loc.sensor = h; locArrow();
   }
   function locShow(ll, acc, heading) {
     if (!map) return;
@@ -885,13 +914,12 @@
   SADO.getMap = function () { return map; };
 
   // ---------- ホーム(国仲・遠方を選び、区域の一覧から地図へ) ----------
-  var CATS = [['国仲', '国仲'], ['遠方', '遠方'], ['アパート', 'アパート']];
   function isAdmin() { return !!(S.user && S.user.role === 'admin'); }
   function isMaint() { return !!(S.user && S.user.role === 'maintainer'); } // 編集者: 奉仕者の権限+建物・部屋の編集
   function canEditMode() { return isAdmin() || isMaint(); }
   function roleLabel() { return isAdmin() ? '区域係' : (isMaint() ? '編集者' : '奉仕者'); }
   function showNav() { $('#navAdmin').classList.toggle('hidden', !isAdmin()); $('#navEdit').classList.toggle('hidden', !canEditMode()); }
-  function inCat(a, cat) { return (a.category || '国仲') === cat; }
+  function inCat(a, cat) { return catName(a) === cat; }
   // 区域係はすべて。奉仕者は、自分か所属グループ(会衆を含む)が担当の区域
   // 地図に出す区域: 初期は全員が全区域。設定で「担当の区域だけ」にもできる
   function mapAreas() { var om = getPrefs().onlyMine === '1'; return S.areas.filter(function (a) { return !a.isParent && (!om || a.mine); }); }
@@ -956,7 +984,7 @@
   function progLegend() { return '<div class="plegend">' + statusList().filter(function (x) { return x.visited || x.done; }).map(function (x) { return '<span><i style="background:' + stColor(x) + '"></i>' + esc(x.label) + '</span>'; }).join('') + '<span><i style="background:var(--surface-3);border:1px solid var(--border)"></i>未訪問</span></div>'; }
   function fmtJa(d) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[1] + '年' + m[2] + '月' + m[3] + '日' : String(d || ''); }
   function periodHtml(a) { return a.inUse && a.useStartDate ? '<div class="pmeta">' + esc(fmtJa(a.useStartDate)) + '〜' + esc(fmtJa(a.expiry)) + '</div>' : ''; }
-  function isAptCat(a) { return (a.category || '国仲') === 'アパート'; }
+  function isAptCat(a) { return isAptName(catName(a)); }
   // 訪問済みの件数(左)と、使用期間(右下)を同じ行に。幅がせまいと、期間は次の行へ。親区域単位で使用を決めた場合、期間は親のカードにだけ出す
   function metaRow(a, p) {
     var per = a.inUse && a.useStartDate && a.via !== 'parent' ? esc(fmtJa(a.useStartDate)) + '〜' + esc(fmtJa(a.expiry)) : '';
@@ -979,7 +1007,7 @@
     return bs.map(function (b) { var p = by[b.buildingId] || { total: 0, visited: 0, c: {} }; return '<div class="bld" data-act="pickBuilding" data-a="' + esc(a.areaId) + '" data-v="' + esc(b.buildingId) + '"><b>' + esc(b.buildingName || '(名前なしの建物)') + '</b>' + (p.total ? progBar(p) + '<div class="pmeta">訪問済み ' + p.visited + ' / ' + p.total + '件(' + pctOf(p.visited, p.total) + '%)</div>' : '<div class="pmeta">部屋の登録なし</div>') + '</div>'; }).join('') || '<div class="note" style="margin:6px 0 0 14px">建物がありません。</div>';
   }
   function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
-  function canExp(a) { return inCat(a, 'アパート'); } // 建物の一覧を出せるのは、アパートだけ(国仲・遠方は、小さな区域まで)
+  function canExp(a) { return isAptCat(a); } // 建物の一覧を出せるのは、アパートだけ(国仲・遠方は、小さな区域まで)
   function areaCard(a, plain) {
     if (!plain) return '<div class="card' + (canExp(a) ? ' tap' : '') + (a.inUse ? ' inuse' : '') + (canExp(a) && S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '"' + (canExp(a) ? ' data-act="areaExp" data-v="' + esc(a.areaId) + '"' : '') + '><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
       saveBtn('saveTiles', a.areaId) + '<button class="btn primary small" data-act="pickArea" data-v="' + esc(a.areaId) + '">開く</button></div>' + progHtml(a) + tileBar(a.areaId) + bldListHtml(a) + '</div>';
@@ -1035,7 +1063,7 @@
       if (!S.areas.length) h += '<div class="note">区域のデータを読み込めていません。電波のあるところで、一度開いてください。</div>';
     } else if (tab !== 'list') {
       var kids = mineOf(tab);
-      CATS.forEach(function (c) {
+      catPairs().forEach(function (c) {
         var inC = kids.filter(function (a) { return inCat(a, c[0]); }); if (!inC.length) return;
         var by = {}, loose = [];
         inC.forEach(function (k) { var p = k.parentId && areaById(k.parentId); if (p) (by[p.areaId] = by[p.areaId] || []).push(k); else loose.push(k); });
@@ -1049,8 +1077,8 @@
       });
       if (!kids.length) h += '<div class="note" style="padding:14px 4px">使用できる区域はありません。</div>';
     } else {
-      cat = S.homeCat = cat || CATS[0][0];
-      h += '<div class="tabs fill sub">' + CATS.map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>';
+      cat = S.homeCat = cat && catNames().indexOf(cat) >= 0 ? cat : catPairs()[0][0];
+      h += '<div class="tabs fill sub">' + catPairs().map(function (c) { return '<button class="tab' + (cat === c[0] ? ' on' : '') + '" data-act="homeCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>';
       var list = catAreas(cat), par = S.homeParent ? areaById(S.homeParent) : null; if (S.onlyUse) list = list.filter(function (a) { return a.inUse; });
       if (par) { list = list.filter(function (a) { return a.parentId === par.areaId; }); h += '<div class="pgroup"><div class="note"><button class="btn small" data-act="homeParentBack">‹ 大きな区域一覧へ</button>　<b>' + esc(par.areaName) + '</b>' + (par.inUse ? '<span class="badge use">使用中</span>' : '') + '</div><div class="pkids">'; }
       else if (parentsOf(cat).length) { h += parentListHtml(cat); setHomeHtml(el, h + '</div>'); bindHomeQ(); return; }
@@ -1115,7 +1143,7 @@
     if (d) blds = d.buildings.slice().sort(function (x, y) { return String(x.buildingName).localeCompare(String(y.buildingName), 'ja', { numeric: true }); });
     var sel = function (id, list, cur, blank, vk, lk) { return '<select id="' + id + '"><option value="">' + blank + '</option>' + list.map(function (x) { return '<option value="' + esc(x[vk]) + '"' + (x[vk] === cur ? ' selected' : '') + '>' + esc(x[lk] || '(名前なし)') + '</option>'; }).join('') + '</select>'; };
     el.innerHTML = '<div class="card"><h3>気づいたことを報告</h3><div class="note">建物や部屋で気づいたことを区域係に送れます。場所はわかる範囲でかまいません。</div>' +
-      '<div class="subcard"><div class="fl">場所</div><div class="segrow">' + CATS.map(function (c) { return '<button class="' + (R.cat === c[0] ? 'on' : '') + '" data-act="rpCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="subcard"><div class="fl">場所</div><div class="segrow">' + catPairs().map(function (c) { return '<button class="' + (R.cat === c[0] ? 'on' : '') + '" data-act="rpCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
       (R.cat ? '<div class="fl">区域</div>' + sel('rpArea', areas, R.area, '未選択', 'areaId', 'areaName') + (R.area ? '<div class="fl">建物</div>' + sel('rpBld', blds, R.bld, d ? '未選択' : '読み込み中…', 'buildingId', 'buildingName') + '<div class="fl">部屋番号・場所</div><input id="rpPlace" placeholder="例: 101号室 / 1F廊下 / エントランス" value="' + esc(R.place) + '">' : '') : '<div class="note" style="margin-top:6px">まず、場所の区分を選んでください。</div>') + '</div>' +
       '<div class="subcard"><div class="fl">内容 <span class="req">必須</span></div><textarea id="rpText" rows="5" placeholder="例: 建物がなくなっていました。">' + esc(R.text) + '</textarea><div class="note" style="text-align:right" id="rpCnt">' + R.text.length + '文字</div></div>' +
       '<div class="row"><button class="btn secondary grow" data-act="rpClear">クリア</button><button class="btn primary grow" data-act="rpSend">報告を送信</button></div></div>';
@@ -1147,7 +1175,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v103　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v105　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1256,7 +1284,7 @@
       case 'homeParentBack': S.homeParent = null; renderHome(); break;
       case 'pickArea': selectArea(v); break;
       case 'locate': if (t.id !== 'locBtn') locate(); break; // 右上の◎はコンパス部品が処理する(二重に動かさない)
-      case 'frameSw': { var pk = v === 'A' ? 'frameA' : 'frameK'; setPref(pk, getPrefs()[pk] === '0' ? '1' : '0'); renderFrameSw(); drawFrames(); break; }
+      case 'frameSw': { var pk = 'frc_' + v; setPref(pk, getPrefs()[pk] === '0' ? '1' : '0'); renderFrameSw(); drawFrames(); break; }
       case 'clearArea': if (S.edit && SADO.editBeforeClear && !SADO.editBeforeClear()) break; clearArea(); break;
       case 'closeSheet': closeSheet(); break;
       case 'setStatus': setStatusUi(t.getAttribute('data-room'), v); break;

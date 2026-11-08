@@ -705,3 +705,9 @@ html[data-ui="3"] #sheet .grip{display:none}
 html[data-ui="2"] #layerBtn{display:-webkit-flex!important;display:flex!important;left:10px;bottom:calc(var(--nav) + var(--safe-b) + 78px)!important}
 html[data-ui="2"] #legend{bottom:calc(var(--nav) + var(--safe-b) + 130px)}
 html[data-ui="3"] #home:not(.hidden),html[data-ui="3"] #menu:not(.hidden),html[data-ui="3"] #admin:not(.hidden){-webkit-animation:sheetLeft .2s ease-out;animation:sheetLeft .2s ease-out}
+/* v105: 区域の分類の編集 */
+.ctrow{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;border:1px solid var(--border);border-radius:12px;padding:8px;margin-bottom:8px;background:var(--surface-2)}
+.ctrow>*{margin:3px 6px 3px 0}
+.ctrow input[type=text]{width:8.5em}
+.ctrow input[type=color]{width:38px;height:34px;padding:2px}
+.ctrow select{max-width:15em}

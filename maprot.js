@@ -148,14 +148,8 @@
 
       function onOrientation(e) {
         let h = null;
-        if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
-          h = e.webkitCompassHeading;                       /* iPhone：北から時計回りの向き */
-        } else if (e.alpha != null && (e.absolute === true || e.type === 'deviceorientationabsolute')) {
-          h = 360 - e.alpha;                                /* Android：alpha は北から反時計回り */
-        }
+        try { h = SADO.headingFrom(e); } catch (x) { h = null; }
         if (h == null) return;
-        const ang = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
-        h = norm(h + ang);
         gotSensor = true;
         if (!following || editOn()) return;
         if (curHeading == null) curHeading = h;

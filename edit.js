@@ -55,15 +55,18 @@
     multi: '建物をタップすると、選択に加わります(もう一度タップで外れます)。\n「四角で選ぶ」をオンにして地図をなぞると、囲んだ範囲の建物をまとめて選べます(オンの間は地図を動かせません)。',
     bound: '白い点をドラッグ → 角を動かす / 点をタップ → 角を消す\n辺の中央の小さい点をタップ → 角を増やす。直したら「枠を保存」'
   };
-  function curCat() { var a = S.cur && SADO.areaById(S.cur); if (!a) return ''; if (a.category) return a.category; var p = a.parentId && SADO.areaById(a.parentId); return p ? (p.category || '') : ''; }
+  function curCat() { var a = S.cur && SADO.areaById(S.cur); return a ? SADO.catName(a) : ''; }
+  function aptCats() { return SADO.cats().filter(function (c) { return c.kind === 'A'; }); }
+  function kCats() { return SADO.cats().filter(function (c) { return c.kind !== 'A'; }); }
   function paint() {
     var adm = isAdmin(); $('#edRow1').classList.toggle('hidden', !adm || !!(S.cur && E.mode !== 'area'));
     $('#editFrame').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('hidden', !E.on);
     $('#editBar').classList.toggle('adding', !!E.mode); document.body.classList.toggle('editing', E.on);
     // 2行目: 国仲・遠方の区域を選んでいるとき「一軒家」「集合住宅」/ アパートの区域を選んでいるとき「アパート」
-    var cat = curCat(), apt = cat === 'アパート', r2 = !!(S.cur && cat);
-    $('#edRow2').classList.toggle('hidden', !r2); $('#edHouseBtn').classList.toggle('hidden', apt); $('#edAddBtn').textContent = apt ? '＋アパート' : '＋集合住宅';
+    var cat = curCat(), apt = SADO.isAptName(cat), r2 = !!(S.cur && cat);
+    $('#edRow2').classList.toggle('hidden', !r2); $('#edHouseBtn').classList.toggle('hidden', apt); $('#edAddBtn').textContent = apt ? '＋' + cat : '＋集合住宅';
+    var ac = aptCats(); $('#edAptAreaBtn').textContent = '＋' + (ac.length === 1 ? ac[0].name : 'アパート') + '区域'; $('#edAptAreaBtn').classList.toggle('hidden', !ac.length); $('#edParBtn').classList.toggle('hidden', !kCats().length); $('#edKidBtn').classList.toggle('hidden', !kCats().length);
     $('#edBoundBtn').classList.toggle('hidden', !adm); $('#edMultiBtn').classList.toggle('on', E.mode === 'multi'); $('#edMultiRow').classList.toggle('hidden', E.mode !== 'multi'); if (E.mode === 'multi') { var sn = selIds().length; $('#edMultiInfo').textContent = '選択 ' + sn + '件'; $('#edDelSelBtn').disabled = !sn; $('#edDelSelBtn').textContent = '削除' + (sn ? '(' + sn + ')' : ''); $('#edBoxBtn').classList.toggle('on', E.box); $('#edBoxBtn').textContent = E.box ? '四角で選ぶ:オン' : '四角で選ぶ'; } $('#edAddBtn').classList.toggle('on', E.mode === 'apt'); $('#edHouseBtn').classList.toggle('on', E.mode === 'house'); $('#edBoundBtn').classList.toggle('on', E.mode === 'bound');
     $('#edParBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'P'); $('#edKidBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'K'); $('#edAptAreaBtn').classList.toggle('on', E.mode === 'area' && E.areaKind === 'A');
     var tool = $('#edToolRow'), n;
@@ -76,7 +79,7 @@
     var dirty = !!(count() || E.pts.length || E.av.length || (E.bd && E.bd.undo.length)); // 何も編集していないときは「終了」だけ
     $('#edSaveBtn').classList.toggle('hidden', !dirty); $('#edQuitBtn').textContent = dirty ? '保存せずに終了' : '終了';
     $('#edSaveBtn').textContent = '保存して終了' + (count() ? '（' + count() + '）' : '');
-    var hint = (E.mode === 'area' ? ({ P: '親区域(大きな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', K: '子区域(小さな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', A: 'アパート区域の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。' }[E.areaKind]) : '') || HINT[E.mode || 'none'] || (E.on && !E.mode && !S.cur ? '地図の区域の枠(オレンジの点線)の中をタップすると、その区域を選べます' : ''); $('#editHint').textContent = hint; $('#editHint').classList.toggle('hidden', !hint);
+    var hint = (E.mode === 'area' ? ({ P: '親区域(大きな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', K: '子区域(小さな区域)の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。', A: (aptCats().length === 1 ? aptCats()[0].name : 'アパート') + '区域の枠の角を、地図で順番にタップ(3点以上)。\n置き終わったら「確定」を押します。' }[E.areaKind]) : '') || HINT[E.mode || 'none'] || (E.on && !E.mode && !S.cur ? '地図の区域の枠(オレンジの点線)の中をタップすると、その区域を選べます' : ''); $('#editHint').textContent = hint; $('#editHint').classList.toggle('hidden', !hint);
   }
   function redraw() { SADO.drawFrames(); if (S.cur) { SADO.drawBuildings(false); SADO.renderSheet(); } }
   SADO.hideFrame = function (id) { return !!(E.bd && E.bd.areaId === id); };
@@ -156,7 +159,6 @@
     return close;
   }
   function kids() { return S.areas.filter(function (a) { return !a.isParent; }); }
-  var CATS = ['国仲', '遠方', 'アパート'];
   function nat(x, y) { return String(x).localeCompare(String(y), 'ja', { numeric: true }); }
   // 区域の選択肢: 区分 → 大きな区域ごとにまとめ、名前順(数字は大きさ順)に並べる。選ばれている区域は、いちばん上にも出す
   function areaOptions(sel, onlyIds) {
@@ -164,11 +166,11 @@
     S.areas.forEach(function (a) { if (a.isParent) pn[a.areaId] = a; });
     var groups = {}, keys = [];
     list.forEach(function (a) {
-      var par = a.parentId && pn[a.parentId], cat = a.category || (par && par.category) || '', pre = par ? par.areaName : (cat === 'アパート' ? 'アパート' : (String(a.areaName).split('-')[0] || 'その他')), label = (cat && cat !== 'アパート' ? cat + ' / ' : '') + pre; // 親区域の記録がないときは、区域名の頭の番号(007-1 なら 007)でまとめる
+      var par = a.parentId && pn[a.parentId], cat = SADO.catName(a), pre = par ? par.areaName : (SADO.isAptName(cat) ? cat : (String(a.areaName).split('-')[0] || 'その他')), label = (cat && !SADO.isAptName(cat) ? cat + ' / ' : '') + pre; // 親区域の記録がないときは、区域名の頭の番号(007-1 なら 007)でまとめる
       if (!groups[label]) { groups[label] = { label: label, cat: cat, name: pre, items: [] }; keys.push(label); }
       groups[label].items.push(a);
     });
-    keys.sort(function (x, y) { var gx = groups[x], gy = groups[y], cx = CATS.indexOf(gx.cat), cy = CATS.indexOf(gy.cat); return (cx - cy) || nat(gx.name, gy.name); });
+    keys.sort(function (x, y) { var gx = groups[x], gy = groups[y], CNs = SADO.catNames(), cx = CNs.indexOf(gx.cat), cy = CNs.indexOf(gy.cat); return (cx - cy) || nat(gx.name, gy.name); });
     var o = function (a) { return '<option value="' + esc(a.areaId) + '"' + (a.areaId === sel ? ' selected' : '') + '>' + esc(a.areaName) + '</option>'; };
     var top = sel && list.filter(function (a) { return a.areaId === sel; })[0];
     return (top ? '<optgroup label="いま選ばれている区域"><option value="' + esc(top.areaId) + '" selected>' + esc(top.areaName) + '</option></optgroup>' : '') +
@@ -294,16 +296,16 @@
   function ringGeom(pts) { var r = pts.map(function (p) { return [p.lng, p.lat]; }); r.push(r[0].slice()); return { type: 'Polygon', coordinates: [r] }; }
   function areaDialog() {
     if (E.av.length < 3) { toast('3点以上置いてください。'); return; }
-    var kind = E.areaKind || 'K', ttl = { P: '親区域を追加', K: '子区域を追加', A: 'アパート区域を追加' }[kind], pars = parentsList().slice().sort(function (a, b) { return (CATS.indexOf(a.category) - CATS.indexOf(b.category)) || nat(a.areaName, b.areaName); }), h = '<label>区域名</label><input id="naN" maxlength="30" placeholder="' + (kind === 'P' ? '例: 007 羽吉' : kind === 'K' ? '例: 007-1' : '例: A01 両津') + '">';
-    if (kind === 'P') h += '<label>区分</label><select id="naC"><option value="国仲">国仲</option><option value="遠方">遠方</option></select>';
-    else if (kind === 'K') h += '<label>所属する親区域</label><select id="naP"><option value="">親区域を選んでください</option>' + pars.filter(function (p) { return p.category !== 'アパート'; }).map(function (p) { return '<option value="' + esc(p.areaId) + '">' + esc(p.category) + ' / ' + esc(p.areaName) + '</option>'; }).join('') + '</select><div class="note">区分は、親区域と同じになります。</div>';
-    else h += '<div class="note">区分は「アパート」になります。</div>';
+    var kind = E.areaKind || 'K', ac = aptCats(), ttl = { P: '親区域を追加', K: '子区域を追加', A: (ac.length === 1 ? ac[0].name : 'アパート') + '区域を追加' }[kind], CN = SADO.catNames(), pars = parentsList().slice().sort(function (a, b) { return (CN.indexOf(SADO.catName(a)) - CN.indexOf(SADO.catName(b))) || nat(a.areaName, b.areaName); }), h = '<label>区域名</label><input id="naN" maxlength="30" placeholder="' + (kind === 'P' ? '例: 007 羽吉' : kind === 'K' ? '例: 007-1' : '例: A01 両津') + '">';
+    if (kind === 'P') h += '<label>区分</label><select id="naC">' + kCats().map(function (c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('') + '</select>';
+    else if (kind === 'K') h += '<label>所属する親区域</label><select id="naP"><option value="">親区域を選んでください</option>' + pars.filter(function (p) { return !SADO.isAptName(SADO.catName(p)); }).map(function (p) { return '<option value="' + esc(p.areaId) + '">' + esc(SADO.catName(p)) + ' / ' + esc(p.areaName) + '</option>'; }).join('') + '</select><div class="note">区分は、親区域と同じになります。</div>';
+    else h += ac.length > 1 ? '<label>区分</label><select id="naA">' + ac.map(function (c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('') + '</select>' : '<div class="note">区分は「' + esc((ac[0] || { name: 'アパート' }).name) + '」になります。</div>';
     modal(ttl, h + '<div class="note">描いた枠(' + E.av.length + '点)がこの区域の境界線になります。建物は、区域を選んでから「＋一軒家」「＋集合住宅」で追加できます。</div>', '追加する', function () {
       var name = ($('#naN').value || '').trim(); if (!name) throw new Error('区域名を入力してください。');
       var body = { areaName: name, boundary: ringGeom(E.av) };
       if (kind === 'P') { body.category = $('#naC').value; body.asParent = true; }
-      else if (kind === 'K') { body.parentId = $('#naP').value; if (!body.parentId) throw new Error('所属する親区域を選んでください。'); body.category = '国仲'; }
-      else { body.category = 'アパート'; }
+      else if (kind === 'K') { body.parentId = $('#naP').value; if (!body.parentId) throw new Error('所属する親区域を選んでください。'); var pp = SADO.areaById(body.parentId); body.category = pp ? SADO.catName(pp) : (kCats()[0] || {}).name; }
+      else { body.category = $('#naA') ? $('#naA').value : (ac[0] || { name: 'アパート' }).name; }
       return api('addArea', body).then(function () {
         endMode(); paint(); toast('区域「' + name + '」を追加しました。'); SADO.refreshBootstrap().then(redraw);
       });
