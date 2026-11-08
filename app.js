@@ -1141,19 +1141,19 @@
   // ---------- 報告(気づいたことを区域係へ。場所は「区分→区域→建物」の順に選ぶ) ----------
   var R = { cat: '', area: '', bld: '', place: '', text: '' };
   function renderReport(el) {
-    var nc = function (x, y) { return String(x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); };
+    var nc = function (x, y) { return String(x.areaName == null ? '' : x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); };
     var areas = [], all = R.cat ? catAreas(R.cat) : [], ra = R.area && areaById(R.area), isPar = !!(ra && ra.isParent), d = R.area && !isPar && S.data[R.area], blds = [];
     if (R.cat) { // 親区域(全体)のすぐ下に、その子区域を番号順に並べる
       var used = {};
-      all.filter(function (a) { return a.isParent; }).sort(nc).forEach(function (p) {
+      S.areas.filter(function (a) { return a.isParent && inCat(a, R.cat); }).sort(nc).forEach(function (p) {
         var kids = all.filter(function (a) { return !a.isParent && a.parentId === p.areaId; }).sort(nc);
-        areas.push({ areaId: p.areaId, areaName: p.areaName + (kids.length ? '(全体)' : '') }); used[p.areaId] = 1;
+        if (!kids.length) return; areas.push({ areaId: p.areaId, areaName: p.areaName + '(全体)' }); used[p.areaId] = 1;
         kids.forEach(function (k) { areas.push({ areaId: k.areaId, areaName: '　' + k.areaName }); used[k.areaId] = 1; });
       });
       all.filter(function (a) { return !used[a.areaId] && !a.isParent; }).sort(nc).forEach(function (a) { areas.push({ areaId: a.areaId, areaName: a.areaName }); });
     }
     if (d) blds = d.buildings.slice().sort(function (x, y) { return String(x.buildingName).localeCompare(String(y.buildingName), 'ja', { numeric: true }); });
-    var sel = function (id, list, cur, blank, vk, lk) { return '<select id="' + id + '"><option value="">' + blank + '</option>' + list.map(function (x) { return '<option value="' + esc(x[vk]) + '"' + (x[vk] === cur ? ' selected' : '') + '>' + esc(x[lk] || '(名前なし)') + '</option>'; }).join('') + '</select>'; };
+    var sel = function (id, list, cur, blank, vk, lk) { return '<select id="' + id + '"><option value="">' + blank + '</option>' + list.map(function (x) { return '<option value="' + esc(x[vk]) + '"' + (x[vk] === cur ? ' selected' : '') + '>' + esc(x[lk] === 0 || x[lk] ? String(x[lk]) : '(名前なし)') + '</option>'; }).join('') + '</select>'; };
     el.innerHTML = '<div class="card"><h3>気づいたことを報告</h3><div class="note">建物や部屋で気づいたことを区域係に送れます。場所はわかる範囲でかまいません。</div>' +
       '<div class="subcard"><div class="fl">場所</div><div class="segrow">' + catPairs().map(function (c) { return '<button class="' + (R.cat === c[0] ? 'on' : '') + '" data-act="rpCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
       (R.cat ? '<div class="fl">区域</div>' + sel('rpArea', areas, R.area, '未選択', 'areaId', 'areaName') + (R.area ? (isPar ? '<div class="note">建物を選ぶときは、子区域を選んでください。</div>' : '<div class="fl">建物</div>' + sel('rpBld', blds, R.bld, d ? '未選択' : '読み込み中…', 'buildingId', 'buildingName')) + '<div class="fl">部屋番号・場所</div><input id="rpPlace" placeholder="例: 101号室 / 1F廊下 / エントランス" value="' + esc(R.place) + '">' : '') : '<div class="note" style="margin-top:6px">まず、場所の区分を選んでください。</div>') + '</div>' +
@@ -1187,7 +1187,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v108　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v109　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
