@@ -711,3 +711,6 @@ html[data-ui="3"] #home:not(.hidden),html[data-ui="3"] #menu:not(.hidden),html[d
 .ctrow input[type=text]{width:8.5em}
 .ctrow input[type=color]{width:38px;height:34px;padding:2px}
 .ctrow select{max-width:15em}
+#admin input[type=color]{width:46px;height:40px;padding:3px;border-radius:8px;cursor:pointer;vertical-align:middle}
+.ctrow .ctcol{display:-webkit-inline-flex;display:inline-flex;-webkit-align-items:center;align-items:center;gap:6px;white-space:nowrap}
+.ctgap{margin:18px 0 8px;padding-top:12px;border-top:1px dashed var(--border)}

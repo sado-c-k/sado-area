@@ -443,18 +443,22 @@
   // 区域の分類(区分): 名前・種類・枠の色・濃さ。old は元の名前(名前を変えたとき、区域の区分もまとめて書き換えるため)
   function ctSync() {
     var rows = document.querySelectorAll('.ctrow'); if (!rows.length) return;
-    CT = [].slice.call(rows).map(function (r) { var i = +r.getAttribute('data-i'), o = CT[i] || {}, k = r.querySelector('.ck'); return { name: r.querySelector('.cn').value.trim(), old: o.old || '', kind: k ? k.value : o.kind, color: r.querySelector('.cc').value, fill: r.querySelector('.cf').value }; });
+    CT = [].slice.call(rows).map(function (r) { var i = +r.getAttribute('data-i'), o = CT[i] || {}; return { name: r.querySelector('.cn').value.trim(), old: o.old || '', kind: o.kind, color: r.querySelector('.cc').value, fill: r.querySelector('.cf').value }; });
   }
   function ctList() { return CT.map(function (c) { var f = Number(c.fill); return { name: String(c.name || '').trim(), old: c.old || '', kind: c.kind === 'A' ? 'A' : 'K', color: String(c.color || '').toLowerCase(), fill: isFinite(f) ? f : 4 }; }); }
-  function ctDraw() {
+  function ctDraw() { // 国仲・遠方の仲間(親区域・子区域)を上に、アパートの仲間(建物の一覧を開く)を下に、間をあけて並べる
     var box = document.getElementById('ctBox'); if (!box) return;
-    var cnt = {}; ((SADO.S && SADO.S.areas) || []).forEach(function (a) { if (a.isParent || !a.parentId) { var n = SADO.catName(a); cnt[n] = (cnt[n] || 0) + 1; } });
-    box.innerHTML = CT.map(function (x, i) {
-      var kd = x.old ? '<span class="note" style="min-width:8.5em">' + (x.kind === 'A' ? '種類: 建物の一覧を開く' : '種類: 親区域・子区域') + '</span>' : '<select class="ck"><option value="K"' + (x.kind === 'A' ? '' : ' selected') + '>種類: 親区域・子区域</option><option value="A"' + (x.kind === 'A' ? ' selected' : '') + '>種類: 建物の一覧を開く</option></select>';
-      return '<div class="ctrow" data-i="' + i + '"><input class="cn" type="text" maxlength="20" placeholder="分類名" value="' + esc(x.name) + '">' + kd + '<input class="cc" type="color" value="' + esc(x.color || '#1a73e8') + '"><span class="note">濃さ</span><input class="cf" type="number" min="0" max="60" style="width:60px" value="' + esc(x.fill) + '"><span class="note">%</span>' +
-        '<button type="button" class="btn small" data-act="ad:ctUp" data-v="' + i + '"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="btn small" data-act="ad:ctDn" data-v="' + i + '"' + (i < CT.length - 1 ? '' : ' disabled') + '>↓</button>' +
+    var cnt = {}; ((SADO.S && SADO.S.areas) || []).forEach(function (a) { var n = SADO.catName(a); cnt[n] = (cnt[n] || 0) + 1; });
+    var row = function (x, i) {
+      var same = function (j) { return CT[j] && (CT[j].kind === 'A') === (x.kind === 'A'); };
+      return '<div class="ctrow" data-i="' + i + '"><input class="cn" type="text" maxlength="20" placeholder="区分名" value="' + esc(x.name) + '"><span class="ctcol"><input class="cc" type="color" value="' + esc(x.color || '#1a73e8') + '"><span class="note">濃さ</span><input class="cf" type="number" min="0" max="60" style="width:64px" value="' + esc(x.fill) + '"><span class="note">%</span></span>' +
+        '<button type="button" class="btn small" data-act="ad:ctUp" data-v="' + i + '"' + (same(i - 1) ? '' : ' disabled') + '>↑</button><button type="button" class="btn small" data-act="ad:ctDn" data-v="' + i + '"' + (same(i + 1) ? '' : ' disabled') + '>↓</button>' +
         '<button type="button" class="btn small danger" data-act="ad:ctDel" data-v="' + i + '"' + (CT.length > 1 ? '' : ' disabled') + '>削除</button>' + (x.old && cnt[x.old] ? '<span class="note">区域 ' + cnt[x.old] + '件</span>' : '') + '</div>';
-    }).join('');
+    };
+    var hk = '', ha = '';
+    CT.forEach(function (x, i) { if (x.kind === 'A') ha += row(x, i); else hk += row(x, i); });
+    box.innerHTML = hk + '<div class="row"><button type="button" class="btn small" data-act="ad:ctAdd" data-v="K">＋ 区分を追加</button></div>' +
+      '<div class="ctgap"><div class="note">以下は、全体の区分の区域から選択された建物の区分です</div></div>' + ha + '<div class="row"><button type="button" class="btn small" data-act="ad:ctAdd" data-v="A">＋ 区分を追加</button></div>';
   }
   function vsDraw() {
     var box = document.getElementById('vsBox'); if (!box) return;
@@ -469,7 +473,7 @@
       var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', showMarkMemo: 'false', frameColorK: '#1a73e8', frameFillK: '4', frameColorA: '#8e24aa', frameFillA: '6', frameColorUse: '#188038', frameFillUse: '12', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
       for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
       ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled', 'showMarkMemo'].forEach(function (k) { s[k] = String(s[k]); });
-      CT = JSON.parse(JSON.stringify(SADO.cats())).map(function (c) { c.old = c.name; return c; }); CT0 = JSON.stringify(ctList());
+      CT = JSON.parse(JSON.stringify(SADO.cats())).map(function (c) { c.old = c.name; return c; }); CT = CT.filter(function (c) { return c.kind !== 'A'; }).concat(CT.filter(function (c) { return c.kind === 'A'; })); CT0 = JSON.stringify(ctList());
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
       VS = VS.map(function (x) { x.color = x.color || COL_BY[x.id] || '#6b7280'; return x; });
       var sel = function (k, list) { return '<select id="st-' + k + '">' + list.map(function (o) { return '<option value="' + o[0] + '"' + (String(s[k]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
@@ -492,7 +496,7 @@
         stRow('更新の間隔', '間隔を短くするほど、アクセスが増えて重くなります。人数が多いときは15秒以上をおすすめします。', sel('autoRefreshIntervalSec', [['5', '5秒'], ['10', '10秒'], ['15', '15秒'], ['30', '30秒'], ['60', '60秒']])) +
         stSw('onboardingHelpEnabled', 'サイトを開いたときにヘルプを表示', 'はじめて開いた端末に、ヘルプ(使い方)を表示します。') +
         stSw('showMarkMemo', '拒否と注意のメモを全員に表示', 'オフのときは、拒否・注意の部屋のメモは区域係だけが見られます。オンにすると、奉仕者・編集者にも表示します(編集は区域係だけです)。') +
-        stRow('区域の分類と色と透過', '区域の分類(区分)の名前と、地図の枠の色・枠の中の色の濃さ(0〜60%)です。分類名を変えると、区域メニューのタブなど、分類名が出るすべての場所と、その分類の区域の区分がまとめて変わります。分類は追加・並べ替え・削除ができます(区域が残っている分類は削除できません)。いちばん上の分類は、区分が空の区域にも使われます。種類は追加するときだけ選べます(親区域・子区域: 大きな区域と小さな区域に分ける/建物の一覧を開く: 区域を開くと建物の一覧が出て、部屋ごとに記録する)。「設定を保存」で反映します。', '<div id="ctBox"></div><div class="row"><button type="button" class="btn small" data-act="ad:ctAdd">＋ 分類を追加</button></div>' + [['Use', '使用中の区域']].map(function (f) { return '<div class="row" style="margin-top:6px"><span style="min-width:6.5em">' + f[1] + '</span><input type="color" id="st-frameColor' + f[0] + '" value="' + esc(s['frameColor' + f[0]]) + '"> <span class="note">濃さ</span><input type="number" min="0" max="60" style="width:64px" id="st-frameFill' + f[0] + '" value="' + esc(s['frameFill' + f[0]]) + '"><span class="note">%</span></div>'; }).join('')) +
+        stRow('区域の分類と色と透過', '区域の区分の名称と、枠の色・枠の中の色の濃さ(0〜60%)の変更ができます。区分は追加・並べ替え・削除ができますが、区域が残っている分類は削除できません。', '<div id="ctBox"></div>' + [['Use', '使用中の区域']].map(function (f) { return '<div class="row" style="margin-top:6px"><span style="min-width:6.5em">' + f[1] + '</span><input type="color" id="st-frameColor' + f[0] + '" value="' + esc(s['frameColor' + f[0]]) + '"> <span class="note">濃さ</span><input type="number" min="0" max="60" style="width:64px" id="st-frameFill' + f[0] + '" value="' + esc(s['frameFill' + f[0]]) + '"><span class="note">%</span></div>'; }).join('')) +
         stSw('menuTitleEnabled', 'メニューのタイトル', '各メニューの上に、アプリの名前(例: 佐渡区域)を表示します。オフにすると表示しません。') +
         stSw('mapRotationEnabled', 'マップの回転', '2本指で地図を回したり、現在地の向きに合わせて地図を回したりする機能です。') +
         stSw('pinShadowEnabled', 'ピンの影', '地図のピンに影をつけます。オフにすると、地図の拡大・縮小が軽くなります。') +
@@ -687,10 +691,10 @@
       case 'groupDel': if (window.confirm('このグループを削除します。よろしいですか？')) after(api('deleteGroup', { groupId: v }), '削除しました。', function () { bump(); loadAccounts(true); }); break;
       case 'saveSettings': saveSettingsNow(); break;
       case 'seg': ST[t.getAttribute('data-k')] = v; [].slice.call(t.parentNode.children).forEach(function (x) { x.classList.toggle('on', x === t); }); break;
-      case 'ctUp': ctSync(); f = +v; if (f > 0) { var ct1 = CT[f - 1]; CT[f - 1] = CT[f]; CT[f] = ct1; } ctDraw(); break;
-      case 'ctDn': ctSync(); f = +v; if (f < CT.length - 1) { var ct2 = CT[f + 1]; CT[f + 1] = CT[f]; CT[f] = ct2; } ctDraw(); break;
+      case 'ctUp': ctSync(); f = +v; if (f > 0 && (CT[f - 1].kind === 'A') === (CT[f].kind === 'A')) { var ct1 = CT[f - 1]; CT[f - 1] = CT[f]; CT[f] = ct1; } ctDraw(); break;
+      case 'ctDn': ctSync(); f = +v; if (f < CT.length - 1 && (CT[f + 1].kind === 'A') === (CT[f].kind === 'A')) { var ct2 = CT[f + 1]; CT[f + 1] = CT[f]; CT[f] = ct2; } ctDraw(); break;
       case 'ctDel': ctSync(); if (CT.length > 1) CT.splice(+v, 1); ctDraw(); break;
-      case 'ctAdd': ctSync(); if (CT.length >= 12) { toast('分類は12個までです。'); break; } CT.push({ name: '', old: '', kind: 'K', color: '#0b8043', fill: 4 }); ctDraw(); (function () { var r = document.querySelectorAll('.ctrow .cn'); if (r.length) r[r.length - 1].focus(); })(); break;
+      case 'ctAdd': ctSync(); if (CT.length >= 12) { toast('区分は12個までです。'); break; } (function () { var ka = v === 'A', nx = { name: '', old: '', kind: ka ? 'A' : 'K', color: ka ? '#c2185b' : '#0b8043', fill: ka ? 6 : 4 }, at = ka ? CT.length : CT.filter(function (c) { return c.kind !== 'A'; }).length; CT.splice(at, 0, nx); ctDraw(); var r = document.querySelector('.ctrow[data-i="' + at + '"] .cn'); if (r) r.focus(); })(); break;
       case 'vsUp': vsSync(); f = +v; if (f > 0) { var tmp = VS[f - 1]; VS[f - 1] = VS[f]; VS[f] = tmp; } vsDraw(); break;
       case 'vsDn': vsSync(); f = +v; if (f < VS.length - 1) { var tm2 = VS[f + 1]; VS[f + 1] = VS[f]; VS[f] = tm2; } vsDraw(); break;
       case 'vsDel': vsSync(); VS.splice(+v, 1); vsDraw(); break;
