@@ -663,7 +663,7 @@ html[data-theme="dark"][data-sat="1"] .leaflet-tile-pane{-webkit-filter:none!imp
 
 /* v98: 地図の枠の表示スイッチ(右下)・ダークモードの読み込み中 */
 #frameSw{position:absolute;right:10px;bottom:calc(var(--nav) + var(--safe-b) + 40px);z-index:900;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:6px;align-items:stretch}
-body.area-chosen #frameSw,body.editing #frameSw{display:none!important}
+body.area-chosen:not(.editing) #frameSw{display:none!important}
 #frameSw button{background:var(--surface);color:var(--text-2);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:.78em;font-weight:700;box-shadow:var(--shadow-1);white-space:nowrap;text-align:left;opacity:.75}
 #frameSw button.on{opacity:1;color:var(--text);border-color:var(--primary)}
 #frameSw button i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
@@ -714,3 +714,7 @@ html[data-ui="3"] #home:not(.hidden),html[data-ui="3"] #menu:not(.hidden),html[d
 #admin input[type=color]{width:46px;height:40px;padding:3px;border-radius:8px;cursor:pointer;vertical-align:middle}
 .ctrow .ctcol{display:-webkit-inline-flex;display:inline-flex;-webkit-align-items:center;align-items:center;gap:6px;white-space:nowrap}
 .ctgap{margin:18px 0 8px;padding-top:12px;border-top:1px dashed var(--border)}
+/* v108: 画面レイアウト2 は、右下のスイッチをいちばん下に、その上に現在地・検索ボタン */
+html[data-ui="2"] #frameSw{bottom:calc(var(--nav) + var(--safe-b) + 30px)}
+html[data-ui="2"] #locBtn{bottom:calc(var(--nav) + var(--safe-b) + 30px + var(--fsw, 0px))}
+html[data-ui="2"] #searchFab{bottom:calc(var(--nav) + var(--safe-b) + 86px + var(--fsw, 0px))}

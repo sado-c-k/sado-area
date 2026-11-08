@@ -375,7 +375,9 @@
     return { color: catColor(a), fillOpacity: (isFinite(f) ? Math.max(0, Math.min(60, f)) : 4) / 100, dashArray: '6 4' };
   }
   function frameShown(a) { return getPrefs()['frc_' + catName(a)] !== '0'; } // 右下のスイッチ(地図だけ・分類ごと)
-  function renderFrameSw() { var p = getPrefs(), el = $('#frameSw'); if (!el) return; el.innerHTML = cats().map(function (c) { return '<button class="' + (p['frc_' + c.name] === '0' ? '' : 'on') + '" data-act="frameSw" data-v="' + esc(c.name) + '"><i style="background:' + esc(c.color) + '"></i>' + esc(c.name) + '</button>'; }).join(''); }
+  SADO.frameShown = frameShown;
+  var fswRO = null; function watchFsw() { var el = $('#frameSw'); if (!el || fswRO || !window.ResizeObserver) return; fswRO = new ResizeObserver(function () { document.documentElement.style.setProperty('--fsw', el.offsetHeight ? (el.offsetHeight + 10) + 'px' : '0px'); }); fswRO.observe(el); } // 画面レイアウト2: 右下のスイッチの上に、現在地・検索ボタンを積む
+  function renderFrameSw() { watchFsw(); var p = getPrefs(), el = $('#frameSw'); if (!el) return; el.innerHTML = cats().map(function (c) { return '<button class="' + (p['frc_' + c.name] === '0' ? '' : 'on') + '" data-act="frameSw" data-v="' + esc(c.name) + '"><i style="background:' + esc(c.color) + '"></i>' + esc(c.name) + '</button>'; }).join(''); }
   function lbCls(inUse, assigned, ar) { return 'area-label lb-c' + (ar ? catIdx(ar) : 0) + (inUse ? (assigned === false ? ' lb-gray' : ' lb-use') : ''); } // 名前の色は、分類の色(使用中は使用中の色)
   function applyFrameVars() {
     var st = document.documentElement.style; st.setProperty('--lbK', (cats()[0] || {}).color || '#1a73e8'); st.setProperty('--lbUse', cfg('frameColorUse', '#188038'));
@@ -433,7 +435,7 @@
     }
     frameFeatures().forEach(function (f) {
       var id = f.areaId, a = areaById(id); if (!a || mapAreas().indexOf(a) < 0) return; // 地図には全区域の枠を出す(設定で「担当の区域だけ」にできる)
-      if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
+      if (S.edit) { if (SADO.hideFrame && SADO.hideFrame(id)) return; if (!frameShown(a)) return; frameLayer.addLayer(L.polygon(geomToLatLngs(f.geometry), { color: '#ef6c00', weight: 2, dashArray: '2 5', fill: false, interactive: false })); return; }
       if (!frameShown(a)) return; var fs = frameStyle(a);
       var poly = L.polygon(geomToLatLngs(f.geometry), { color: fs.color, weight: 2, dashArray: fs.dashArray, fillOpacity: fs.fillOpacity });
       if (!map || map.getZoom() >= FRAME_PARENT_BELOW) poly.bindTooltip(a.areaName, { permanent: true, direction: 'center', offset: [0, a.parentId ? 8 : 0], className: lbCls(a.inUse, a.assigned, a) });
@@ -1139,12 +1141,22 @@
   // ---------- 報告(気づいたことを区域係へ。場所は「区分→区域→建物」の順に選ぶ) ----------
   var R = { cat: '', area: '', bld: '', place: '', text: '' };
   function renderReport(el) {
-    var areas = R.cat ? catAreas(R.cat).filter(function (a) { return !a.isParent; }) : [], blds = [], d = R.area && S.data[R.area];
+    var nc = function (x, y) { return String(x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); };
+    var areas = [], all = R.cat ? catAreas(R.cat) : [], ra = R.area && areaById(R.area), isPar = !!(ra && ra.isParent), d = R.area && !isPar && S.data[R.area], blds = [];
+    if (R.cat) { // 親区域(全体)のすぐ下に、その子区域を番号順に並べる
+      var used = {};
+      all.filter(function (a) { return a.isParent; }).sort(nc).forEach(function (p) {
+        var kids = all.filter(function (a) { return !a.isParent && a.parentId === p.areaId; }).sort(nc);
+        areas.push({ areaId: p.areaId, areaName: p.areaName + (kids.length ? '(全体)' : '') }); used[p.areaId] = 1;
+        kids.forEach(function (k) { areas.push({ areaId: k.areaId, areaName: '　' + k.areaName }); used[k.areaId] = 1; });
+      });
+      all.filter(function (a) { return !used[a.areaId] && !a.isParent; }).sort(nc).forEach(function (a) { areas.push({ areaId: a.areaId, areaName: a.areaName }); });
+    }
     if (d) blds = d.buildings.slice().sort(function (x, y) { return String(x.buildingName).localeCompare(String(y.buildingName), 'ja', { numeric: true }); });
     var sel = function (id, list, cur, blank, vk, lk) { return '<select id="' + id + '"><option value="">' + blank + '</option>' + list.map(function (x) { return '<option value="' + esc(x[vk]) + '"' + (x[vk] === cur ? ' selected' : '') + '>' + esc(x[lk] || '(名前なし)') + '</option>'; }).join('') + '</select>'; };
     el.innerHTML = '<div class="card"><h3>気づいたことを報告</h3><div class="note">建物や部屋で気づいたことを区域係に送れます。場所はわかる範囲でかまいません。</div>' +
       '<div class="subcard"><div class="fl">場所</div><div class="segrow">' + catPairs().map(function (c) { return '<button class="' + (R.cat === c[0] ? 'on' : '') + '" data-act="rpCat" data-v="' + esc(c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
-      (R.cat ? '<div class="fl">区域</div>' + sel('rpArea', areas, R.area, '未選択', 'areaId', 'areaName') + (R.area ? '<div class="fl">建物</div>' + sel('rpBld', blds, R.bld, d ? '未選択' : '読み込み中…', 'buildingId', 'buildingName') + '<div class="fl">部屋番号・場所</div><input id="rpPlace" placeholder="例: 101号室 / 1F廊下 / エントランス" value="' + esc(R.place) + '">' : '') : '<div class="note" style="margin-top:6px">まず、場所の区分を選んでください。</div>') + '</div>' +
+      (R.cat ? '<div class="fl">区域</div>' + sel('rpArea', areas, R.area, '未選択', 'areaId', 'areaName') + (R.area ? (isPar ? '<div class="note">建物を選ぶときは、子区域を選んでください。</div>' : '<div class="fl">建物</div>' + sel('rpBld', blds, R.bld, d ? '未選択' : '読み込み中…', 'buildingId', 'buildingName')) + '<div class="fl">部屋番号・場所</div><input id="rpPlace" placeholder="例: 101号室 / 1F廊下 / エントランス" value="' + esc(R.place) + '">' : '') : '<div class="note" style="margin-top:6px">まず、場所の区分を選んでください。</div>') + '</div>' +
       '<div class="subcard"><div class="fl">内容 <span class="req">必須</span></div><textarea id="rpText" rows="5" placeholder="例: 建物がなくなっていました。">' + esc(R.text) + '</textarea><div class="note" style="text-align:right" id="rpCnt">' + R.text.length + '文字</div></div>' +
       '<div class="row"><button class="btn secondary grow" data-act="rpClear">クリア</button><button class="btn primary grow" data-act="rpSend">報告を送信</button></div></div>';
   }
@@ -1175,7 +1187,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v107　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v108　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1354,7 +1366,7 @@
     if (t.classList && t.classList.contains('memo')) patchRoom(t.getAttribute('data-room'), { memo: t.value });
     else if (t.classList && t.classList.contains('rstatus')) setStatusUi(t.getAttribute('data-room'), t.value);
     else if (t.classList && t.classList.contains('rmark')) patchRoom(t.getAttribute('data-room'), { mark: t.value });
-    else if (t.id === 'rpArea') { R.area = t.value; R.bld = ''; renderMenuBody(); if (R.area && !S.data[R.area]) loadAreaData(R.area).then(function () { if (R.area === t.value) renderMenuBody(); }, function () {}); }
+    else if (t.id === 'rpArea') { R.area = t.value; R.bld = ''; renderMenuBody(); var ra0 = R.area && areaById(R.area); if (R.area && !(ra0 && ra0.isParent) && !S.data[R.area]) loadAreaData(R.area).then(function () { if (R.area === t.value) renderMenuBody(); }, function () {}); }
     else if (t.id === 'rpBld') R.bld = t.value;
     else if (t.id === 'rpPlace') R.place = t.value;
     else if (t.id === 'rpText') R.text = t.value;

@@ -37,9 +37,9 @@
     var polys = g.type === 'Polygon' ? [g.coordinates] : (g.type === 'MultiPolygon' ? g.coordinates : []);
     return polys.some(function (p) { return p.length && inRing(lat, lng, p[0]) && !p.slice(1).some(function (h) { return inRing(lat, lng, h); }); });
   }
-  function areaAt(lat, lng) {
+  function areaAt(lat, lng, shownOnly) { // shownOnly: 右下のスイッチで消した区分の区域は選ばない(重なった枠から選びやすくする)
     var f = SADO.frameFeatures ? SADO.frameFeatures() : [];
-    for (var i = 0; i < f.length; i++) { var fa = SADO.areaById(f[i].areaId); if (fa && !fa.isParent && inGeom(lat, lng, f[i].geometry)) return f[i].areaId; }
+    for (var i = 0; i < f.length; i++) { var fa = SADO.areaById(f[i].areaId); if (fa && !fa.isParent && (!shownOnly || !SADO.frameShown || SADO.frameShown(fa)) && inGeom(lat, lng, f[i].geometry)) return f[i].areaId; }
     return '';
   }
   SADO.areaAt = areaAt;
@@ -201,7 +201,7 @@
     } else if (E.mode === 'house') addHousePoint(ll.lat, ll.lng);
     else if (E.mode === 'area') { E.av.push({ lat: ll.lat, lng: ll.lng }); drawAv(); paint(); }
     else if (!E.mode) { // 何も選んでいないとき: 区域の枠の中をタップして、編集する区域を選ぶ(ほかの区域へも切り替えられる)
-      var id = areaAt(ll.lat, ll.lng); if (!id || id === S.cur) return;
+      var id = areaAt(ll.lat, ll.lng, true); if (!id || id === S.cur) return;
       if (count()) { toast('先に「保存して終了」か「戻す」で、いまの変更を片づけてください。', 3000); return; }
       SADO.selectArea(id).then(paint);
     }
