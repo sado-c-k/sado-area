@@ -5,6 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
+  var APP_VER = 'v110'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
   var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {}, bLabels = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
@@ -191,17 +192,27 @@
     // 読み込みが終わるまで、全画面の「読み込み中」を出したままにする(最長6秒)
     S.bootHold = true; clearTimeout(S.bootT); S.bootT = setTimeout(bootDone, 6000);
     $('#hdrTitle').textContent = (S.settings && S.settings.appTitle) || '佐渡住宅GAS';
-    initMap(); updateTitle(); renderLegend(); showNav(); if (SADO.onEnter) SADO.onEnter(canEditMode());
+    initMap(); updateTitle(); renderLegend(); showNav(); if (SADO.onEnter) SADO.onEnter(canEditMode()); loadStaff();
     if (!S.bootAt || Date.now() - S.bootAt > 4000) { var rb = refreshBootstrap(); rb.then(bootDone, bootDone); } else { schedulePrefetch(); bootDone(); } countPending(); if (isAdmin()) setTimeout(function () { if (SADO.prefetchAdmin) SADO.prefetchAdmin(); }, 1500);
     loadFrames(); loadParentFrames(); goHome();
   }
+  // 管理・編集の画面のコード(admin.js・edit.js)は、区域係と編集者の端末だけで読み込む(奉仕者の端末では通信しない)
+  var staffP = null;
+  function loadStaff() {
+    if (!canEditMode()) return Promise.resolve(false);
+    if (staffP) return staffP;
+    var one = function (src) { return new Promise(function (ok, ng) { var sc = document.createElement('script'); sc.src = src + '?v=' + APP_VER; sc.onload = function () { ok(); }; sc.onerror = function () { ng(new Error(src)); }; document.head.appendChild(sc); }); };
+    staffP = one('admin.js').then(function () { return one('edit.js'); }).then(function () { if (SADO.onEnter) SADO.onEnter(canEditMode()); showNav(); return true; }, function () { staffP = null; return false; });
+    return staffP;
+  }
+  SADO.loadStaff = loadStaff;
   function bootDone() { S.bootHold = false; clearTimeout(S.bootT); var e = $('#boot'); if (e) e.classList.add('hidden'); }
   function refreshBootstrap() {
     return api('getBootstrap').then(function (b) {
       S.settings = b.settings; S.areas = b.areas; S.user = b.user; mergePrefs(b.prefs); applySettings(); S.areasLoading = false; schedulePrefetch();
       idb.set('kv', 'bootstrap', { settings: b.settings, areas: b.areas });
       $('#hdrTitle').textContent = b.settings.appTitle || '佐渡住宅GAS';
-      renderLegend(); drawFrames(); showNav();
+      renderLegend(); drawFrames(); showNav(); loadStaff();
       if (S.cur) { var a = areaById(S.cur); if (a && S.data[S.cur]) { S.data[S.cur].area = a; drawBuildings(); renderSheet(); } }
       if (!$('#home').classList.contains('hidden')) renderHome();
       try { if (cfg('onboardingHelpEnabled', false) && !localStorage.getItem('sado-help-seen')) { localStorage.setItem('sado-help-seen', '1'); openMenu('prefs'); } } catch (e2) {}
@@ -265,7 +276,7 @@
     if (!tileLayer || !td) return;
     markSat(td);
     try {
-      tileLayer.options.maxZoom = td.opt.maxZoom; tileLayer.options.maxNativeZoom = td.opt.maxNativeZoom;
+      tileLayer.options.maxZoom = td.opt.maxZoom; tileLayer.options.maxNativeZoom = td.opt.maxNativeZoom; tileLayer.options.crossOrigin = td.opt.crossOrigin ? true : false;
       tileLayer.setUrl(td.url);
       if (map) { if (map._updateZoomLevels) map._updateZoomLevels(); if (map.getZoom() > td.opt.maxZoom) map.setZoom(td.opt.maxZoom); }
     } catch (e) { try { tileLayer.setUrl(td.url); } catch (e2) {} }
@@ -273,8 +284,8 @@
   function tileDef(src) {
     var st = S.settings || {};
     if (src === 'custom' && st.mapTileUrl) return { url: st.mapTileUrl, opt: { maxZoom: 20, maxNativeZoom: 19, attribution: st.mapTileAttribution || '' } };
-    var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 19, maxNativeZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; };
-    if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap contributors' } };
+    var G = function (k, z, name) { return { url: 'https://cyberjapandata.gsi.go.jp/xyz/' + k + '/{z}/{x}/{y}.' + (k === 'seamlessphoto' ? 'jpg' : 'png'), opt: { maxZoom: 19, maxNativeZoom: 18, crossOrigin: true, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">' + name + '</a>' } }; }; // crossOrigin: 端末に保存したとき、容量を実際の大きさで数えてもらうため(付けないと1枚が約7MB扱いになる)
+    if (src === 'osm') return { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 20, maxNativeZoom: 19, crossOrigin: true, attribution: '&copy; OpenStreetMap contributors' } };
     if (src === 'gsiphoto') return G('seamlessphoto', 18, '地理院タイル(航空写真)');
     return G('pale', 18, '地理院タイル'); // 国土地理院
   }
@@ -453,7 +464,7 @@
     });
   }
   function applyOp(d, op) {
-    var i;
+    var i; d.ver = ''; // 手元で書き換えたら、次の自動更新では必ず中身を受け取る
     if (op.type === 'status') for (i = 0; i < d.rooms.length; i++) if (d.rooms[i].roomId === op.roomId) {
       var r = d.rooms[i];
       if (op.status !== undefined) { r.status = op.status; r.updatedAt = op.t; }
@@ -494,8 +505,8 @@
       d._loaded = Date.now(); S.data[areaId] = d; idb.set('area', areaId, d); applyQueue(areaId).then(function () { if (S.merged && S.kids && S.kids.indexOf(areaId) >= 0 && !S.edit && !(S.sheetBid && draftCount())) { selectParent(S.cur, true).then(function () { drawBuildings(false); if (S.sheetBid) renderSheet(); }); return; } if (S.cur === areaId && !S.edit) { drawBuildings(false); if (S.sheetBid) renderSheet(); } if (!$('#home').classList.contains('hidden')) renderHome(); });
     }, function () {});
   }
-  function loadAreaData(areaId, force) {
-    if (S.merged && areaId === S.cur) return selectParent(areaId, true); // 大きな区域を開いているときは、小さな区域をまとめ直す(まとめたデータを空の親データで上書きしない)
+  function loadAreaData(areaId, force, lite) { // lite: 自動更新。サーバーの内容が手元と同じなら、中身を受け取らない
+    if (S.merged && areaId === S.cur) return selectParent(areaId, true, lite); // 大きな区域を開いているときは、小さな区域をまとめ直す(まとめたデータを空の親データで上書きしない)
     // 一括クリアなどのあとは、それより前に読み込んだデータを使わず、サーバーから読み直す(古い訪問状況を一瞬でも見せない)
     if (!force && S.freshAfter && (!S.data[areaId] || (S.data[areaId]._loaded || 0) < S.freshAfter)) { var fresh = function (d) { return !d || (d._loaded || 0) < S.freshAfter; }; if (!S.data[areaId] || fresh(S.data[areaId])) { if (S.online) force = true; } }
     if (!force) {
@@ -503,11 +514,12 @@
       if (S.data[areaId]) return fast();
       return idb.get('area', areaId).then(function (d) { if (!d) return loadAreaData0(areaId, force); S.data[areaId] = d; return fast(); });
     }
-    return loadAreaData0(areaId, force);
+    return loadAreaData0(areaId, force, lite);
   }
-  function loadAreaData0(areaId, force) {
+  function loadAreaData0(areaId, force, lite) {
     var local = function () { return idb.get('area', areaId).then(function (d) { if (!d) throw new Error('この区域は、まだ端末に保存されていません。電波のあるところで一度開いてください。'); S.data[areaId] = d; }); };
-    var p = (S.online || force) ? api('getAreaData', { areaId: areaId }, force).then(function (d) { d._loaded = Date.now(); S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
+    var cur0 = S.data[areaId], prm = { areaId: areaId }; if (lite && cur0 && cur0.ver && !cur0.merged) prm.ifVer = cur0.ver;
+    var p = (S.online || force) ? api('getAreaData', prm, force).then(function (d) { if (d && d.same) { if (S.data[areaId]) S.data[areaId]._loaded = Date.now(); return; } d._loaded = Date.now(); S.data[areaId] = d; return idb.set('area', areaId, d); }, function (e) { if (e.server) throw e; return local(); }) : local();
     return p.then(function () { return applyQueue(areaId); }).then(function () { return loadGeo(areaId); });
   }
   // 区域を選んだら、その区域の枠(なければ建物)に合わせて、地図を動かして拡大する
@@ -538,11 +550,11 @@
     })['catch'](function (e) { toast(e.message, 5000); });
   }
   // 大きな区域(親区域)を開く: 中の小さな区域を、すべていっしょに地図に出す
-  function selectParent(pid, quiet) {
+  function selectParent(pid, quiet, lite) {
     var pa = areaById(pid), kids = mapAreas().filter(function (a) { return a.parentId === pid; });
     if (!kids.length) { toast('開ける小さな区域がありません。'); return Promise.resolve(); }
     var ml = null; // 読み込み中の表示は、通信の表示(全画面のくるくる)だけにする。二重に出さない
-    return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet); })).then(function () {
+    return Promise.all(kids.map(function (k) { return loadAreaData(k.areaId, quiet, lite); })).then(function () {
       var m = { area: pa || { areaId: pid, areaName: '', canEdit: false }, buildings: [], rooms: [], merged: true };
       kids.forEach(function (k) {
         var d = S.data[k.areaId]; if (!d) return;
@@ -766,7 +778,7 @@
   function sheetRefresh(quiet) {
     if (!S.cur || !S.online) { if (!quiet) toast('電波がないため、更新できません。'); return; }
     if (draftCount() && !quiet) { toast('保存していない変更があります。先に保存してください。'); return; }
-    lastAuto = Date.now(); SADO.reloadCur().then(function () { if (!quiet) toast('最新の情報に更新しました。', 1200); });
+    lastAuto = Date.now(); SADO.reloadCur(!!quiet).then(function () { if (!quiet) toast('最新の情報に更新しました。', 1200); });
   }
   // 建物の詳細を開いている間、ほかの人の入力を自動で反映する(動作設定で入/切・間隔を決める)
   setInterval(function () {
@@ -946,7 +958,6 @@
     S.homeCat = null; S.homeParent = null; closeSheet(true); $('#menu').classList.add('hidden'); $('#home').classList.remove('hidden'); activeNav('areas'); renderHome();
   }
   // ---------- 大きな区域(親区域)→ 小さな区域(子区域) ----------
-  function hasParents() { return S.areas.some(function (a) { return a.isParent; }); }
   function parentsOf(cat) {
     var kids = catAreasShown(cat), by = {};
     kids.forEach(function (k) { if (k.parentId) (by[k.parentId] = by[k.parentId] || []).push(k); });
@@ -985,7 +996,6 @@
   }
   function progLegend() { return '<div class="plegend">' + statusList().filter(function (x) { return x.visited || x.done; }).map(function (x) { return '<span><i style="background:' + stColor(x) + '"></i>' + esc(x.label) + '</span>'; }).join('') + '<span><i style="background:var(--surface-3);border:1px solid var(--border)"></i>未訪問</span></div>'; }
   function fmtJa(d) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[1] + '年' + m[2] + '月' + m[3] + '日' : String(d || ''); }
-  function periodHtml(a) { return a.inUse && a.useStartDate ? '<div class="pmeta">' + esc(fmtJa(a.useStartDate)) + '〜' + esc(fmtJa(a.expiry)) + '</div>' : ''; }
   function isAptCat(a) { return isAptName(catName(a)); }
   // 訪問済みの件数(左)と、使用期間(右下)を同じ行に。幅がせまいと、期間は次の行へ。親区域単位で使用を決めた場合、期間は親のカードにだけ出す
   function metaRow(a, p) {
@@ -1008,7 +1018,6 @@
     var bs = d.buildings.slice().sort(function (x, y) { return String(x.buildingName || '~').localeCompare(String(y.buildingName || '~'), 'ja'); });
     return bs.map(function (b) { var p = by[b.buildingId] || { total: 0, visited: 0, c: {} }; return '<div class="bld" data-act="pickBuilding" data-a="' + esc(a.areaId) + '" data-v="' + esc(b.buildingId) + '"><b>' + esc(b.buildingName || '(名前なしの建物)') + '</b>' + (p.total ? progBar(p) + '<div class="pmeta">訪問済み ' + p.visited + ' / ' + p.total + '件(' + pctOf(p.visited, p.total) + '%)</div>' : '<div class="pmeta">部屋の登録なし</div>') + '</div>'; }).join('') || '<div class="note" style="margin:6px 0 0 14px">建物がありません。</div>';
   }
-  function expBtn(a) { return '<button class="xchev" data-act="areaExp" data-v="' + esc(a.areaId) + '" aria-label="建物の一覧">' + (S.areaOpen && S.areaOpen[a.areaId] ? '▾' : '▸') + '</button>'; }
   function canExp(a) { return isAptCat(a); } // 建物の一覧を出せるのは、アパートだけ(国仲・遠方は、小さな区域まで)
   function areaCard(a, plain) {
     if (!plain) return '<div class="card' + (canExp(a) ? ' tap' : '') + (a.inUse ? ' inuse' : '') + (canExp(a) && S.areaOpen && S.areaOpen[a.areaId] ? ' open' : '') + '"' + (canExp(a) ? ' data-act="areaExp" data-v="' + esc(a.areaId) + '"' : '') + '><div class="row"><div class="grow"><div class="pname"><b>' + esc(a.areaName) + '</b>' + pctHtml(a) + '</div></div>' +
@@ -1020,7 +1029,6 @@
   function onlyUseBox() { return '<span class="onlyuse" data-act="toggleOnly" style="display:inline-flex;align-items:center;gap:6px;margin:0 10px 0 0;cursor:pointer;white-space:nowrap;font-size:.9em"><input type="checkbox" style="pointer-events:none;width:18px;height:18px;margin:0"' + (S.onlyUse ? ' checked' : '') + '><span>使用中の区域のみ表示</span></span>'; }
   var CLOUD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H17"/><path d="M12 11v9"/><path d="m9 17 3 3 3-3"/></svg>';
   var DOCI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>';
-  function dlBtn(id) { return S.settings && S.settings.hasDownloads ? '<button class="btn small" data-act="dlPick" data-v="' + esc(id) + '" title="印刷用の地図(PDF・PNG)" aria-label="印刷用の地図(PDF・PNG)" style="padding:6px 9px">' + DOCI + '</button>' : ''; }
   var SPIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" class="cspin" style="display:block"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
   function saveBtn(act, id) {
     var ka = areaById(id), j = S.tile && (S.tile[id] || (ka && ka.parentId && S.tile[ka.parentId]));
@@ -1035,11 +1043,6 @@
   function tileText(j) { var pc = j.total ? Math.round(j.n / j.total * 100) : 0; return j.total ? '地図を保存中… ' + j.n + ' / ' + j.total + '枚(' + pc + '%)・約' + mbStr(j.n) + ' / 約' + mbStr(j.total) + ' MB' : '地図の範囲を調べています…'; }
   function tileBar(id) { var j = S.tile && S.tile[id]; if (!j) return ''; var pc = j.total ? Math.round(j.n / j.total * 100) : 0; return '<div class="tprog" data-tk="' + esc(id) + '"><div class="pbar"><i style="width:' + pc + '%;background:var(--primary)"></i></div><div class="note">' + tileText(j) + '</div></div>'; }
   // 親区域の下の小さな区域: 許可された数/全体の数
-  function kidCounts(pid) {
-    var all = S.areas.filter(function (a) { return !a.isParent && a.parentId === pid; }).length;
-    var ok = visibleAreas().filter(function (a) { return a.parentId === pid; }).length;
-    return ok + '/' + all;
-  }
   function parentRowHtml(p, open, extra) {
     return '<div class="card pcard' + (p.inUse ? ' inuse' : '') + '" data-act="' + (extra ? 'homeParent' : 'homeToggle') + '" data-v="' + esc(p.areaId) + '"><div class="row"><div class="grow"><div class="pname"><b>' + esc(p.areaName) + '</b>' + pctHtml(p) + '</div>' +
       (extra && p.inUse ? '<span class="badge use" style="margin:2px 0 0">使用中</span><span class="note">　' + esc(p.assigneeName) + '</span>' : '') + '</div>' +
@@ -1096,7 +1099,6 @@
 
   // ---------- メニュー(設定・ダウンロード) ----------
   function openMenu(tab) { SADO.menuTab = tab || 'prefs'; $('#home').classList.add('hidden'); $('#menu').classList.remove('hidden'); activeNav(tab === 'report' ? 'report' : 'settings'); renderMenu(); }
-  function closeMenu() { $('#menu').classList.add('hidden'); if ($('#home').classList.contains('hidden')) activeNav('map'); }
   var TILES = [['areas', '区域一覧', '区域と建物を選ぶ', '<path d="M12 21s-7-7.2-7-12a7 7 0 0 1 14 0c0 4.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>', ''], ['report', '報告', '気づいたことを送る', '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/>', ''], ['settings', '表示設定', '文字の大きさ・画面モード', '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>', ''], ['editmenu', '編集', '建物や区域を編集', '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', ''], ['admin', '管理', '管理者向けの画面', '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/>', 'tile-admin']];
   function tilesHtml() {
     return '<div class="menu-home-grid">' + TILES.filter(function (x) { return (x[0] !== 'admin' || isAdmin()) && (x[0] !== 'editmenu' || canEditMode()); }).map(function (x) { return '<button type="button" class="menu-tile ' + x[4] + '" data-act="nav" data-v="' + x[0] + '"><span class="menu-tile-icon"><svg viewBox="0 0 24 24">' + x[3] + '</svg></span><span><span class="menu-tile-title">' + x[1] + '</span><br><span class="menu-tile-sub">' + x[2] + '</span></span></button>'; }).join('') + '</div>' +
@@ -1187,7 +1189,7 @@
         '<div class="card"><h3>ヘルプ</h3><div class="note">使い方の説明を、別のウィンドウで開きます。</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="helpOpen">ヘルプを表示</button></div></div>' +
         '<div class="card"><h3>このアプリを共有</h3><div class="note">ほかの人のスマホのカメラでQRコードを読み取ると、このアプリが開きます。</div><div class="qrbox" id="qrBox"><span class="note">QRコードを準備中…</span></div><input id="shareUrl" readonly style="width:100%" value="' + esc(shareUrl()) + '"><div class="row" style="margin-top:8px"><button class="btn small" data-act="copyUrl">URLをコピー</button>' + (navigator.share ? '<button class="btn small" data-act="shareUrl">共有</button>' : '') + '</div></div>' +
         '<div class="card"><h3>パスワードの変更</h3><div class="row"><input id="pwOld" type="password" placeholder="今のパスワード"><input id="pwNew" type="password" placeholder="新しいパスワード(6文字以上)"><button class="btn small" data-act="changePw">変更</button></div></div>' +
-        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 v109　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
+        '<div class="card"><h3>端末の状態</h3><div class="note">未送信の記録: ' + S.pending + '件　/　' + (S.online ? 'オンライン' : 'オフライン') + '<br>画面 ' + APP_VER + '　/　GAS ' + esc((S.settings && S.settings.gasVersion) || '未確認') + '</div><div class="row" style="margin-top:6px"><button class="btn small" data-act="syncNow">今すぐ送信する</button><button class="btn small danger" data-act="clearCache">キャッシュを削除して更新</button></div></div>';
       setTimeout(drawQr, 350);
     }
   }
@@ -1218,6 +1220,7 @@
   // ---------- 地図タイルの事前保存(地理院タイルのみ) ----------
   function lonToX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
   function latToY(lat, z) { var r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); }
+  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v110: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
   function tileDone() { try { return JSON.parse(localStorage.getItem('sado-tiles-done') || '{}'); } catch (e) { return {}; } }
   function tileMark(key) { var d = tileDone(); d[key] = Date.now(); try { localStorage.setItem('sado-tiles-done', JSON.stringify(d)); } catch (e) {} }
   var tileRT = null; function tileRender() { if (tileRT) return; tileRT = setTimeout(function () { tileRT = null; if ($('#home').classList.contains('hidden')) return;
@@ -1248,9 +1251,9 @@
         for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) urls.push('https://cyberjapandata.gsi.go.jp/xyz/pale/' + z + '/' + x + '/' + y + '.png');
       }
       S.tile[key].total = urls.length; renderHome();
-      return caches.open('tiles-v1').then(function (cache) {
+      return caches.open('tiles-v2').then(function (cache) {
         var i = 0, ok = 0;
-        function next() { if (i >= urls.length) return Promise.resolve(); var u = urls[i++]; return fetch(u, { mode: 'no-cors' }).then(function (r) { return cache.put(u, r); }).then(function () { ok++; }, function () {}).then(function () { S.tile[key].n++; tileRender(); }).then(next); }
+        function next() { if (i >= urls.length) return Promise.resolve(); var u = urls[i++]; return fetch(u, { mode: 'cors' }).then(function (r) { if (!r.ok) throw new Error('x'); return cache.put(u, r); }).then(function () { ok++; }, function () {}).then(function () { S.tile[key].n++; tileRender(); }).then(next); }
         return Promise.all([next(), next(), next(), next()]).then(function () { if (ok >= urls.length * 0.95) { tileMark(key); areaIds.forEach(tileMark); toast('地図を保存しました。圏外でも見られます。', 3500); } else toast('地図を ' + ok + '/' + urls.length + ' 枚保存しました。もう一度押すと、残りを保存できます。', 5000); });
       });
     }).then(function () { delete S.tile[key]; renderHome(); }, function (e) { delete S.tile[key]; renderHome(); toast(e.message, 5000); });
@@ -1271,8 +1274,7 @@
         $('#admin').classList.add('hidden'); // 管理画面が開いていたら閉じてから、選んだ画面へ移る
         if (document.documentElement.getAttribute('data-ui') !== '3' && v !== 'map' && curOn && curOn.getAttribute('data-v') === v && !(v === 'admin' && !wasAdmin)) { closePanels(); break; } // 開いているタブをもう一度押すと閉じる(旧GASと同じ)
         if (v === 'map') closePanels(); else if (v === 'areas') goHome(); else if (v === 'settings') openMenu('prefs'); else if (v === 'report') openMenu('report');
-        else if (v === 'admin' && SADO.openAdmin) { closePanels(); activeNav('admin'); SADO.openAdmin('admin'); }
-        else if (v === 'editmenu' && SADO.openAdmin) { closePanels(); activeNav('editmenu'); SADO.openAdmin('edit'); }
+        else if (v === 'admin' || v === 'editmenu') { var navGo = function () { if (!SADO.openAdmin) return; closePanels(); activeNav(v); SADO.openAdmin(v === 'admin' ? 'admin' : 'edit'); }; if (SADO.openAdmin) navGo(); else if (canEditMode()) { toast('読み込み中…', 1500); loadStaff().then(function (ok) { if (ok) navGo(); else toast('読み込めませんでした。電波のあるところで、もう一度押してください。', 4000); }); } }
         break;
       case 'navClose': closePanels(); break;
       case 'menuHome': $('#admin').classList.add('hidden'); closeSheet(true); $('#home').classList.add('hidden'); openMenu('home'); break;
@@ -1328,7 +1330,6 @@
       case 'copyUrl': copyText(shareUrl()); break;
       case 'shareUrl': try { navigator.share({ title: (S.settings && S.settings.appTitle) || document.title, url: shareUrl() }); } catch (e) { copyText(shareUrl()); } break;
       case 'changePw': api('changeMyPassword', { oldPassword: $('#pwOld').value, newPassword: $('#pwNew').value }).then(function () { toast('パスワードを変更しました。'); $('#pwOld').value = ''; $('#pwNew').value = ''; }, function (e) { toast(e.message); }); break;
-      case 'syncNow': flush().then(function () { return countPending(); }).then(function () { toast(S.pending ? '送信できなかった分が残っています。' : '送信しました。'); renderMenuBody(); }); break;
       case 'saveTiles': saveTiles([v]); break;
       case 'saveTilesParent': saveTiles(visibleAreas().filter(function (a) { return a.parentId === v; }).map(function (a) { return a.areaId; }), true, v); break;
       case 'cloudPick': (function () {
@@ -1357,7 +1358,8 @@
         toast('ダウンロード中…', 2000);
         api('downloadAreaFile', { areaId: v, fileType: t.getAttribute('data-t') }).then(function (r) { SADO.saveBlob(b64Blob(r.base64, r.mime), r.name); }, function (e) { toast(e.message, 5000); });
         break;
-      default: if (SADO.onAdminClick) SADO.onAdminClick(act, t, v); if (SADO.onEditClick) SADO.onEditClick(act, t, v);
+      default: if (!SADO.onEditClick && canEditMode() && /^(ad|ed):/.test(act)) { loadStaff().then(function (ok) { if (ok && SADO.onAdminClick) { SADO.onAdminClick(act, t, v); SADO.onEditClick(act, t, v); } }); break; } // 管理・編集のコードがまだ届いていなければ、読み込んでから実行する
+        if (SADO.onAdminClick) SADO.onAdminClick(act, t, v); if (SADO.onEditClick) SADO.onEditClick(act, t, v);
     }
   }
   // メモと建物名は、入力欄から離れたときに保存する
@@ -1390,6 +1392,6 @@
   // 次に区域を開くとき、端末の古い記録を見せないために、覚えていたデータを(開いていない区域ぶんも)捨てておく。bgRefreshの結果が戻るまで古い表示が残るのを防ぐ
 
   SADO.getMap = function () { return map; };
-  SADO.reloadCur = function () { if (!S.cur) return Promise.resolve(); return (S.merged ? selectParent(S.cur, true) : loadAreaData(S.cur, true)).then(function () { drawBuildings(false); renderSheet(); }); };
+  SADO.reloadCur = function (lite) { if (!S.cur) return Promise.resolve(); return (S.merged ? selectParent(S.cur, true, lite) : loadAreaData(S.cur, true, lite)).then(function () { drawBuildings(false); renderSheet(); }); };
   boot();
 })();

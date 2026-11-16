@@ -13,7 +13,6 @@
   function fail(e) { toast(e && e.message ? e.message : String(e), 6000); }
   function count() { return Object.keys(E.pend).length; }
   // 保存したあと、地図への反映に数秒かかるので、終わるまで「反映中」を出す
-  function reflect() { toast('地図に反映中です…', 30000); return SADO.reloadCur().then(function (r) { toast('反映しました。', 1200); return r; }, function (e) { fail(e); }); }
   // 保存したあとの地図は、サーバーから読み直さず、手元のデータを書き換えてすぐ反映する(アクセスを増やさない)
   function stash() { try { if (S.cur && S.data[S.cur]) SADO.idb.set('area', S.cur, S.data[S.cur]); } catch (e) {} }
   function localAdd(areaId, nb, rooms) {
@@ -179,7 +178,6 @@
   function parentsList() { return S.areas.filter(function (a) { return a.isParent; }); }
   function areaName(id) { var a = SADO.areaById(id); return a ? a.areaName : ''; }
   function num(id, def, lo, hi) { var v = parseInt((document.getElementById(id) || {}).value, 10); return isNaN(v) ? def : Math.max(lo, Math.min(hi, v)); }
-  function defaultArea(lat, lng) { return areaAt(lat, lng) || S.cur || ''; }
 
   // ---------- モードの切り替えと、地図のタップ ----------
   function endMode() {

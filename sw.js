@@ -2,9 +2,9 @@
    ・アプリ本体と地図ライブラリは、いったん端末に保存し、次回からは保存したものを先に出す(裏で最新版を取り直す)
    ・地図の画像(タイル)は、一度見たもの・「地図を端末に保存」したものを端末から出す
    ※ アプリを更新したら、下の VERSION の数字を上げると、全員の端末が新しい版に入れ替わる */
-var VERSION = 'v109';
-var SHELL = 'shell-' + VERSION, TILES = 'tiles-v1';
-var FILES = ['./', 'index.html', 'style.css', 'config.js', 'app.js', 'maprot.js', 'lib/leaflet-rotate.js', 'admin.js', 'edit.js', 'manifest.json', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'data/areas.geojson'];
+var VERSION = 'v110';
+var SHELL = 'shell-' + VERSION, TILES = 'tiles-v2'; // v2: 地図の画像を、容量を正しく数えられる形(CORS)で保存する。v1 は1枚が約7MB扱いになるため、消す
+var FILES = ['./', 'index.html', 'style.css', 'config.js', 'app.js', 'maprot.js', 'lib/leaflet-rotate.js', 'manifest.json', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'data/areas.geojson', 'data/areas_parent.geojson']; // admin.js・edit.js は、区域係と編集者の端末が読み込んだときに保存する
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(SHELL).then(function (c) {
@@ -14,7 +14,7 @@ self.addEventListener('install', function (e) {
 });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k.indexOf('shell-') === 0 && k !== SHELL; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return (k.indexOf('shell-') === 0 && k !== SHELL) || (k.indexOf('tiles-') === 0 && k !== TILES); }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 self.addEventListener('fetch', function (e) {
@@ -24,7 +24,7 @@ self.addEventListener('fetch', function (e) {
   if (/(^|\.)(cyberjapandata\.gsi\.go\.jp|tile\.openstreetmap\.org)$/.test(url.hostname)) {
     e.respondWith(caches.open(TILES).then(function (c) {
       return c.match(req).then(function (hit) {
-        return hit || fetch(req).then(function (r) { try { c.put(req, r.clone()); } catch (x) {} return r; })['catch'](function () { return new Response('', { status: 504 }); });
+        return hit || fetch(req).then(function (r) { try { if (r && r.ok && r.type !== 'opaque') c.put(req, r.clone()); } catch (x) {} return r; }) // 中身の見えない応答(opaque)は保存しない(1枚が約7MB扱いになるため)['catch'](function () { return new Response('', { status: 504 }); });
       });
     }));
     return;
