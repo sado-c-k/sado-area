@@ -718,3 +718,52 @@ html[data-ui="3"] #home:not(.hidden),html[data-ui="3"] #menu:not(.hidden),html[d
 html[data-ui="2"] #frameSw{bottom:calc(var(--nav) + var(--safe-b) + 30px)}
 html[data-ui="2"] #locBtn{bottom:calc(var(--nav) + var(--safe-b) + 30px + var(--fsw, 0px))}
 html[data-ui="2"] #searchFab{bottom:calc(var(--nav) + var(--safe-b) + 86px + var(--fsw, 0px))}
+/* v111: 分析 */
+.an-filter{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0 10px}
+.an-filter .seg button{border:0;background:transparent;color:var(--text-2);padding:6px 12px;border-radius:99px;font-weight:700;font-size:.9em}
+.an-filter .seg button.on{background:var(--primary);color:var(--on-primary)}
+.an-filter select{width:auto;min-width:9em}
+.an-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0}
+.an-tile{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface-2)}
+.an-tile b{display:block;font-size:1.6em;line-height:1.2;color:var(--text)}
+.an-tile span{font-size:.8em;color:var(--text-2)}
+.an-bars{display:-webkit-flex;display:flex;align-items:flex-end;gap:2px;height:150px;padding:4px 0 20px;border-bottom:1px solid var(--border);position:relative;margin-top:6px}
+.an-rate{height:110px}
+.an-week{height:120px}
+.an-col{-webkit-flex:1;flex:1;height:100%;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;justify-content:flex-end;align-items:stretch;position:relative;min-width:0;cursor:default}
+.an-col:hover{background:var(--surface-2)}
+.an-stack{display:-webkit-flex;display:flex;-webkit-flex-direction:column-reverse;flex-direction:column-reverse;gap:2px;min-height:0;border-radius:4px 4px 0 0;overflow:hidden}
+.an-stack i{display:block;min-height:2px}
+.an-one{background:var(--primary);border-radius:4px 4px 0 0;min-height:0}
+.an-x{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.7em;color:var(--text-3);white-space:nowrap;overflow:hidden}
+.an-v{font-size:.68em;color:var(--text-2);text-align:center;margin-bottom:2px;order:-1}
+.an-rate .an-col{justify-content:flex-end}
+.an-legend{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:4px 12px;font-size:.82em;color:var(--text-2);margin:6px 0 2px}
+.an-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.an-heat{display:grid;gap:2px;margin-top:8px;font-size:.72em}
+.an-hx,.an-hy{color:var(--text-3);text-align:center;align-self:center}
+.an-cell{aspect-ratio:1/1;min-height:18px;border-radius:4px;background:var(--surface-2);display:-webkit-flex;display:flex;align-items:center;justify-content:center;color:var(--text);font-variant-numeric:tabular-nums}
+.an-cell.dark{color:#fff}
+.an-scale{display:-webkit-flex;display:flex;align-items:center;gap:8px;font-size:.75em;color:var(--text-3);margin-top:8px}
+.an-scale i{-webkit-flex:0 0 120px;flex:0 0 120px;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(26,115,232,.12),rgba(26,115,232,.9))}
+.an-hrow{display:-webkit-flex;display:flex;align-items:center;gap:8px;margin:6px 0}
+.an-hl{min-width:5em;font-size:.9em}
+.an-hbar{-webkit-flex:1;flex:1;display:-webkit-flex;display:flex;gap:2px;height:14px;border-radius:0 4px 4px 0;overflow:hidden;background:var(--surface-2)}
+.an-hbar i{display:block}
+.an-hn{font-size:.82em;color:var(--text-2);min-width:6em;text-align:right;white-space:nowrap}
+.an-tbl{overflow-x:auto}
+.an-tbl table.t td,.an-tbl table.t th{white-space:nowrap;text-align:right}
+.an-tbl table.t td:first-child,.an-tbl table.t th:first-child{text-align:left}
+#adBody h4{margin:12px 0 0;font-size:.9em}
+/* v111: 利用ガイド */
+.gd-sec{margin-bottom:14px}
+.gd-sec>h3{font-size:1em;margin:14px 4px 8px;color:var(--text-2)}
+details.gd{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
+details.gd>summary{cursor:pointer;padding:12px 14px;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px}
+details.gd>summary::-webkit-details-marker{display:none}
+details.gd>summary::before{content:'›';display:inline-block;transition:transform .15s;color:var(--text-3);font-size:1.2em;width:.8em}
+details.gd[open]>summary::before{transform:rotate(90deg)}
+.gd-b{padding:0 14px 12px 32px;line-height:1.7;font-size:.94em}
+.gd-b ul,.gd-b ol{margin:0;padding-left:1.2em}
+.gd-b li{margin:4px 0}
+#gdQ{margin-top:8px;width:100%}

@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
-  var APP_VER = 'v110'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
+  var APP_VER = 'v111'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
   var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {}, bLabels = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
@@ -1220,7 +1220,7 @@
   // ---------- 地図タイルの事前保存(地理院タイルのみ) ----------
   function lonToX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
   function latToY(lat, z) { var r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); }
-  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v110: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
+  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v111: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
   function tileDone() { try { return JSON.parse(localStorage.getItem('sado-tiles-done') || '{}'); } catch (e) { return {}; } }
   function tileMark(key) { var d = tileDone(); d[key] = Date.now(); try { localStorage.setItem('sado-tiles-done', JSON.stringify(d)); } catch (e) {} }
   var tileRT = null; function tileRender() { if (tileRT) return; tileRT = setTimeout(function () { tileRT = null; if ($('#home').classList.contains('hidden')) return;
@@ -1334,13 +1334,13 @@
       case 'saveTilesParent': saveTiles(visibleAreas().filter(function (a) { return a.parentId === v; }).map(function (a) { return a.areaId; }), true, v); break;
       case 'cloudPick': (function () {
         var m = document.getElementById('modal'); if (m) m.parentNode.removeChild(m);
-        var ca = S.areas.filter(function (x) { return x.areaId === v; })[0] || {}, nm = ca.areaName || '', isPar = !!ca.isParent, done = tileDone()[v];
+        var ca = S.areas.filter(function (x) { return x.areaId === v; })[0] || {}, nm = ca.areaName || '', isPar = !!ca.isParent, done = tileDone()[v], noDl = isAptName(catName(ca)); // アパートの仲間(建物の一覧を開く区分)には、印刷用のPDF・画像がない
         m = document.createElement('div'); m.id = 'modal';
         m.innerHTML = '<div class="mb"><h3>' + esc(nm) + '</h3><div class="cloudopts">' +
           '<button class="btn primary" data-act="' + (isPar ? 'saveTilesParent' : 'saveTiles') + '" data-v="' + esc(v) + '">オフラインでも使用' + (done ? '(保存済み・更新)' : '') + '</button>' +
-          '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDFをダウンロード</button>' +
-          '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">画像をダウンロード</button>' +
-          '<button class="btn" id="dlNo">キャンセル</button></div><div class="note">PDF・画像のダウンロードは、電波が必要です。</div></div>';
+          (noDl ? '' : '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="pdf">PDFをダウンロード</button>' +
+          '<button class="btn primary" data-act="dlFile" data-v="' + esc(v) + '" data-t="png">画像をダウンロード</button>') +
+          '<button class="btn" id="dlNo">キャンセル</button></div>' + (noDl ? '' : '<div class="note">PDF・画像のダウンロードは、電波が必要です。</div>') + '</div>';
         document.body.appendChild(m);
         var cl = function () { if (m.parentNode) m.parentNode.removeChild(m); };
         m.querySelector('#dlNo').onclick = cl; m.addEventListener('click', function (e) { var t2 = e.target; if (t2 === m || (t2.getAttribute && /^(saveTiles|saveTilesParent|dlFile)$/.test(t2.getAttribute('data-act') || ''))) setTimeout(cl, 0); });

@@ -532,26 +532,131 @@
 
 
   // ---------- 分析 ----------
+  // 訪問ログから、時間帯・曜日ごとの訪問数と「会えた」割合などを、グラフと表で見る。グラフは手書きのHTML(外部のライブラリは使わない)
+  var AN = { days: 0, cat: '', view: 'chart' };
+  var WD = ['日', '月', '火', '水', '木', '金', '土'], WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  function pct(a, b) { return b ? Math.round(a / b * 100) : null; }
+  function sum(a) { var t = 0; for (var i = 0; i < a.length; i++) t += a[i]; return t; }
+  function anStacked(rows, st, label) { // rows: [[ラベル, [状況ごとの件数]]]。縦の積み上げ棒(状況の色)
+    var mx = Math.max.apply(null, rows.map(function (r) { return sum(r[1]); }).concat([1]));
+    return '<div class="an-bars">' + rows.map(function (r) {
+      var n = sum(r[1]), tip = label(r[0]) + ': ' + n + '件' + st.map(function (x, i) { return r[1][i] ? '\n' + x.label + ' ' + r[1][i] + '件' : ''; }).join('');
+      return '<div class="an-col" title="' + esc(tip) + '"><div class="an-stack" style="height:' + (n / mx * 100) + '%">' + st.map(function (x, i) { return r[1][i] ? '<i style="flex:' + r[1][i] + ';background:' + esc(x.color) + '"></i>' : ''; }).join('') + '</div><span class="an-x">' + esc(r[0]) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function anRate(rows, label) { // rows: [[ラベル, 会えた数, 訪問数]]。会えた割合の棒(1色)
+    return '<div class="an-bars an-rate">' + rows.map(function (r) {
+      var p = pct(r[1], r[2]);
+      return '<div class="an-col" title="' + esc(label(r[0]) + ': ' + (p == null ? '記録なし' : '会えた ' + r[1] + ' / 訪問 ' + r[2] + '件(' + p + '%)')) + '"><div class="an-one" style="height:' + (p || 0) + '%"></div><span class="an-v">' + (p == null ? '' : p) + '</span><span class="an-x">' + esc(r[0]) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function anTable(head, rows) { return '<div class="an-tbl"><table class="t"><tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>'; }
   function loadAnalysis() {
-    api('getAnalysis').then(function (r) {
-      body('<div class="card"><h3>次に訪問する区域の目安</h3><div class="note">「おすすめ度」は、まだ終わっていない部屋の割合と、前回完了からの日数をもとにした点数です(高いほど優先)。「再訪候補」は、留守などで再訪すると会えそうな部屋の数です(拒否の部屋は除く)。</div><table class="t"><tr><th>区域</th><th>おすすめ度</th><th>進み具合</th><th>残り</th><th>再訪候補</th><th>拒否/注意</th><th>前回完了</th></tr>' +
-        r.map(function (a) { return '<tr><td>' + esc(a.areaName) + (a.inUse ? '<span class="badge use">使用中</span>' : '') + '</td><td><b>' + a.score + '</b></td><td><div class="bar"><i style="width:' + Math.round(a.rate * 100) + '%"></i></div>' + Math.round(a.rate * 100) + '% (' + a.done + '/' + a.total + ')</td><td>' + a.remaining + '</td><td>' + a.revisit + '</td><td>' + a.reject + '/' + a.caution + '</td><td>' + esc(a.lastDoneDate || '—') + (a.daysSince != null ? '<div class="note">' + a.daysSince + '日前</div>' : '') + '</td></tr>'; }).join('') + '</table></div>');
-    }, fail);
+    busy(true);
+    Promise.all([api('getVisitStats', { days: AN.days, cat: AN.cat }), api('getAnalysis')]).then(function (rr) { AN.last = rr; drawAnalysis(rr[0], rr[1]); }, fail);
+  }
+  function drawAnalysis(v, r) {
+    var st = v.statuses, mi = st.map(function (x) { return x.id; }).indexOf(v.metId), metL = mi >= 0 ? st[mi].label : '会えた', vis = st.filter(function (x) { return x.visited; });
+    var visIdx = st.map(function (x, i) { return x.visited ? i : -1; }).filter(function (i) { return i >= 0; }), pick = function (a) { return visIdx.map(function (i) { return a[i]; }); };
+    var met = function (a) { return mi >= 0 ? a[mi] : 0; };
+    // 時間帯: 記録のある時間の前後をふくめ、最低でも 8時〜20時を出す
+    var hs = []; for (var h = 0; h < 24; h++) if (sum(v.hour[h])) hs.push(h);
+    var h0 = Math.min(8, hs.length ? hs[0] : 8), h1 = Math.max(20, hs.length ? hs[hs.length - 1] : 20), HR = []; for (h = h0; h <= h1; h++) HR.push(h);
+    var tot = v.total, metAll = sum(v.hour.map(met));
+    var tabs = [[0, '全期間'], [365, '1年'], [90, '90日'], [30, '30日']];
+    var h = '<div class="card"><h3>訪問の分析</h3><div class="an-filter"><div class="seg">' + tabs.map(function (t) { return '<button class="' + (AN.days === t[0] ? 'on' : '') + '" data-act="ad:anDays" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<select id="anCat"><option value="">すべての区分</option>' + v.cats.map(function (c) { return '<option value="' + esc(c) + '"' + (AN.cat === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
+      '<div class="seg"><button class="' + (AN.view === 'chart' ? 'on' : '') + '" data-act="ad:anView" data-v="chart">グラフ</button><button class="' + (AN.view === 'table' ? 'on' : '') + '" data-act="ad:anView" data-v="table">表</button></div></div>' +
+      '<div class="an-tiles"><div class="an-tile"><b>' + tot + '</b><span>訪問の記録</span></div><div class="an-tile"><b>' + (pct(metAll, tot) == null ? '—' : pct(metAll, tot) + '%') + '</b><span>' + esc(metL) + 'の割合</span></div>' +
+      '<div class="an-tile"><b>' + (pct(v.revisit.met, v.revisit.tries) == null ? '—' : pct(v.revisit.met, v.revisit.tries) + '%') + '</b><span>再訪で' + esc(metL) + '(' + v.revisit.met + '/' + v.revisit.tries + ')</span></div><div class="an-tile"><b>' + v.people + '</b><span>記録した人</span></div></div>' +
+      '<div class="note">訪問の記録は、訪問状況を「' + esc(vis.map(function (x) { return x.label; }).join('・')) + '」にした回数です(未訪問に戻した操作は数えません)。時刻は、端末で入力した時刻です。' + (v.logFrom ? '訪問ログは ' + esc(String(v.logFrom).slice(0, 10)) + ' から記録しています。' : '訪問ログは、これからの入力で記録されます。') + (v.legacy ? 'それより前の分は、部屋ごとの最後の1回(' + v.legacy + '件)だけを数えています。' : '') + '</div></div>';
+    if (!tot) { body(h + '<div class="card"><div class="note">この条件の訪問の記録は、まだありません。</div></div>' + anNext(r)); return; }
+    var legend = '<div class="an-legend">' + vis.map(function (x) { return '<span><i style="background:' + esc(x.color) + '"></i>' + esc(x.label) + '</span>'; }).join('') + '</div>';
+    var hl = function (x) { return x + '時台'; }, wl = function (x) { return x + '曜日'; };
+    var hourRows = HR.map(function (x) { return [String(x), v.hour[x]]; }), wdRows = WD_ORDER.map(function (d) { return [WD[d], v.wd[d]]; });
+    if (AN.view === 'table') {
+      var head = ['', '訪問'].concat(vis.map(function (x) { return x.label; })).concat([metL + 'の割合']);
+      var tr = function (lab, a) { var n = sum(a), p = pct(met(a), n); return [lab, n].concat(pick(a)).concat([p == null ? '—' : p + '%']); };
+      h += '<div class="card"><h3>時間帯ごと</h3>' + anTable(head, HR.map(function (x) { return tr(x + '時台', v.hour[x]); })) + '</div>';
+      h += '<div class="card"><h3>曜日ごと</h3>' + anTable(head, WD_ORDER.map(function (d) { return tr(WD[d], v.wd[d]); })) + '</div>';
+      h += '<div class="card"><h3>週ごとの訪問数</h3>' + anTable(['週(月曜から)', '訪問'], v.weeks.slice().reverse().map(function (w) { return [w[0], w[1]]; })) + '</div>';
+      h += '<div class="card"><h3>区分ごと</h3>' + anTable(head, Object.keys(v.byCat).map(function (c) { return tr(c, v.byCat[c]); })) + '</div>';
+      body(h + anNext(r)); return;
+    }
+    h += '<div class="card"><h3>時間帯ごとの訪問</h3><div class="note">何時ごろに訪問していて、どの時間帯に' + esc(metL) + '割合が高いかがわかります。棒に指を置く(マウスを乗せる)と件数が出ます。</div>' + legend + anStacked(hourRows, st, hl) +
+      '<h4>' + esc(metL) + '割合(%)</h4>' + anRate(HR.map(function (x) { return [String(x), met(v.hour[x]), sum(v.hour[x])]; }), hl) + '</div>';
+    h += '<div class="card"><h3>曜日ごとの訪問</h3>' + legend + anStacked(wdRows, st, wl) + '<h4>' + esc(metL) + '割合(%)</h4>' + anRate(WD_ORDER.map(function (d) { return [WD[d], met(v.wd[d]), sum(v.wd[d])]; }), wl) + '</div>';
+    // 曜日×時間帯: 色の濃さ=会えた割合、数字=訪問数
+    var hm = '<div class="an-heat" style="grid-template-columns:2.2em repeat(' + HR.length + ',1fr)"><span></span>' + HR.map(function (x) { return '<span class="an-hx">' + x + '</span>'; }).join('');
+    WD_ORDER.forEach(function (d) {
+      hm += '<span class="an-hy">' + WD[d] + '</span>' + HR.map(function (x) {
+        var n = v.heat[d][x], m = v.heatMet[d][x], p = pct(m, n), al = p == null ? 0 : 0.12 + p / 100 * 0.78;
+        return '<span class="an-cell' + (p != null && p >= 55 ? ' dark' : '') + '" style="' + (n ? 'background:rgba(26,115,232,' + al.toFixed(2) + ')' : '') + '" title="' + esc(WD[d] + '曜日 ' + x + '時台: ' + (n ? '訪問 ' + n + '件・' + metL + ' ' + m + '件(' + p + '%)' : '記録なし')) + '">' + (n || '') + '</span>';
+      }).join('');
+    });
+    hm += '</div>';
+    h += '<div class="card"><h3>曜日と時間帯の組み合わせ</h3><div class="note">数字は訪問数、色の濃さは' + esc(metL) + '割合です(濃いほど会えています)。訪問数が少ないマスの割合は、ぶれやすいので参考程度に見てください。</div>' + hm + '<div class="an-scale"><span>' + esc(metL) + '割合 0%</span><i></i><span>100%</span></div></div>';
+    var wmx = Math.max.apply(null, v.weeks.map(function (w) { return w[1]; }).concat([1]));
+    h += '<div class="card"><h3>週ごとの訪問数</h3><div class="note">直近26週(今週まで)。週は月曜から日曜です。</div><div class="an-bars an-week">' + v.weeks.map(function (w, wi) { return '<div class="an-col" title="' + esc(w[0] + ' の週: ' + w[1] + '件') + '"><div class="an-one" style="height:' + (w[1] / wmx * 100) + '%"></div><span class="an-x">' + (wi % 4 === 1 || wi === v.weeks.length - 1 ? esc(w[0].slice(5).replace('-', '/')) : '') + '</span></div>'; }).join('') + '</div></div>';
+    var cs = Object.keys(v.byCat);
+    h += '<div class="card"><h3>区分ごとの訪問</h3>' + legend + cs.map(function (c) { var a = v.byCat[c], n = sum(a), p = pct(met(a), n); return '<div class="an-hrow" title="' + esc(c + ': ' + n + '件' + st.map(function (x, i) { return a[i] ? '\n' + x.label + ' ' + a[i] + '件' : ''; }).join('')) + '"><span class="an-hl">' + esc(c) + '</span><div class="an-hbar">' + st.map(function (x, i) { return a[i] ? '<i style="flex:' + a[i] + ';background:' + esc(x.color) + '"></i>' : ''; }).join('') + '</div><span class="an-hn">' + n + '件' + (p == null ? '' : '・' + p + '%') + '</span></div>'; }).join('') + '</div>';
+    body(h + anNext(r));
+  }
+  function anNext(r) {
+    return '<div class="card"><h3>次に訪問する区域の目安</h3><div class="note">「おすすめ度」は、まだ終わっていない部屋の割合と、前回完了からの日数をもとにした点数です(高いほど優先)。「再訪候補」は、留守などで再訪すると会えそうな部屋の数です(拒否の部屋は除く)。</div><table class="t"><tr><th>区域</th><th>おすすめ度</th><th>進み具合</th><th>残り</th><th>再訪候補</th><th>拒否/注意</th><th>前回完了</th></tr>' +
+        r.map(function (a) { return '<tr><td>' + esc(a.areaName) + (a.inUse ? '<span class="badge use">使用中</span>' : '') + '</td><td><b>' + a.score + '</b></td><td><div class="bar"><i style="width:' + Math.round(a.rate * 100) + '%"></i></div>' + Math.round(a.rate * 100) + '% (' + a.done + '/' + a.total + ')</td><td>' + a.remaining + '</td><td>' + a.revisit + '</td><td>' + a.reject + '/' + a.caution + '</td><td>' + esc(a.lastDoneDate || '—') + (a.daysSince != null ? '<div class="note">' + a.daysSince + '日前</div>' : '') + '</td></tr>'; }).join('') + '</table></div>';
   }
 
-  // ---------- 利用ガイド ----------
+  // ---------- 利用ガイド(アプリの使い方・各機能の解説・困ったとき) ----------
+  var GD = { open: 'start' };
   function loadGuide() {
-    var items = [['区域管理', '区域の使用の開始・終了、担当グループ・担当者の設定、区分(' + CN().join('・') + ')の変更、区域の追加ができます。期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わります。'],
-      ['一括クリア', '年度の切り替えなどで、区域の訪問状況やメモをまとめて消します。直前の1回は、元に戻せます。'],
-      ['報告一覧', '奉仕者から送られた報告を読み、対応したら削除します。'],
-      ['区域編集', '建物と部屋を、1件ずつ追加・編集・非表示・削除します。建物の位置(緯度・経度)は、地図の中心や現在地から入れられます。'],
-      ['アカウント', 'ログイン用のユーザー(奉仕者・区域係)、グループを管理(担当者とアカウントは同じデータです。「会衆」は全員が入る特別なグループ)します。グループの責任者は、そのグループに所属するアカウントから選びます。'],
-      ['動作設定', 'アプリの名前、地図の最初の位置、自動終了までの月数、記録用ドキュメントや印刷用ファイルのフォルダを設定します。'],
-      ['履歴・ログ', '区域の使用記録と、データの更新履歴を見られます(閲覧のみ)。'],
-      ['記録', '新しい年度の記録ドキュメントを作ります。'],
-      ['分析', '次に訪問する区域の目安(おすすめ度・残り・再訪候補)を表で見られます。'],
-      ['取込・書出', 'QGISなどで作ったCSVを取り込みます。建物・部屋の記録を、uuid2つきのCSVで書き出して、QGISに戻せます。']];
-    body(items.map(function (x) { return '<div class="card"><h3>' + esc(x[0]) + '</h3>' + esc(x[1]) + '</div>'; }).join(''));
+    var cn = CN().join('・'), apt = (SADO.cats().filter(function (c) { return c.kind === 'A'; })[0] || { name: 'アパート' }).name;
+    var sec = function (title, items) { return '<div class="gd-sec"><h3>' + esc(title) + '</h3>' + items.map(function (x) { return '<details class="gd"' + (GD.open === x[0] ? ' open' : '') + ' data-gd="' + x[0] + '"><summary>' + esc(x[1]) + '</summary><div class="gd-b">' + x[2] + '</div></details>'; }).join('') + '</div>'; };
+    var ul = function (a) { return '<ul>' + a.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'; };
+    var ol = function (a) { return '<ol>' + a.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol>'; };
+    var h = '<div class="card"><h3>利用ガイド</h3><div class="note">このアプリの使い方、各機能のくわしい説明、困ったときの対処をまとめています。項目を押すと開きます。奉仕者向けの説明は、各自の「設定」→「使い方」にもあります。</div><input type="search" id="gdQ" placeholder="ガイドを検索(例: オフライン、パスワード)"></div>';
+    h += sec('はじめに', [
+      ['start', 'このアプリでできること', ul(['地図で担当の区域を開き、建物・部屋ごとに訪問状況(会えた・留守など)を記録します。', '電波がない場所でも記録でき、電波が戻ると自動で送信されます(画面上の「送信待ち n件」「同期済み」で確認できます)。', '区域係は、区域の使用開始・終了、担当の割り当て、建物・部屋の編集、分析などを行います。'])],
+      ['roles', '権限の違い(奉仕者・編集者・区域係)', ul(['<b>奉仕者</b>: 担当になっている使用中の区域で、訪問状況を記録します。気づいたことを「報告」で送れます。', '<b>編集者</b>: 奉仕者のことに加えて、親区域以外のすべての区域で、建物・部屋の追加や変更ができます(地図の編集モード・編集メニュー)。', '<b>区域係</b>: すべての操作ができます。区域の追加・境界線・使用開始と終了・担当・アカウント・動作設定・分析などは、区域係だけです。'])],
+      ['login', 'ログインと端末への追加', ol(['配られたIDとパスワードでログインします。5回続けて間違えると、15分ロックされます。', 'ホーム画面に追加すると、アプリのように使えます(iPhone: 共有ボタン →「ホーム画面に追加」/ Android: メニュー →「アプリをインストール」または「ホーム画面に追加」)。', 'ログインは30日間保たれます。共用の端末では、使い終わったら「設定」→「ログアウト」を押してください。'])]
+    ]);
+    h += sec('ふだんの使い方', [
+      ['area', '区域を開く', ol(['画面下の「区域」を押し、「会衆」「グループ」「個人」のタブから担当の区域を選びます。「区域一覧」ではすべての区域を見られ、区分(' + esc(cn) + ')で切り替えます。', '大きな区域(親区域)を開くと、中の小さな区域(子区域)の枠が地図に出ます。記録するときは、地図の枠をタップして子区域を選びます。', '左上の矢印(‹)で、区域の選択を解除して全体の地図に戻ります。'])],
+      ['record', '訪問状況を記録する', ul(['一軒家などの丸は、設定によって、タップするたびに状況が進むか、詳細ウィンドウが開きます(管理 → 動作設定「一軒家のタップ」/各自の「設定」)。', 'ピンの建物(集合住宅)は、タップすると詳細ウィンドウが開き、部屋ごとに状況を選びます。', '保存のしかたは動作設定で決まります。「すぐ保存」なら押した時点で、「保存ボタンで保存」なら「保存(n)」を押したときに送信されます。', '区域係は、部屋ごとに「拒否」「注意」の印とメモを付けられます。'])],
+      ['offline', '電波のない場所で使う', ul(['一度開いた区域は、端末に保存されます。電波がない間の記録は端末に残り、電波が戻ると自動で送信されます。', '地図の画像も見られるようにするには、電波のある場所で、区域カードの雲のマーク →「オフラインでも使用」を押します(保存が終わると書類のマークに変わります)。', '「' + esc(apt) + '」など建物の一覧を開く区分では、雲のマークは「オフラインでも使用」だけです(印刷用のPDF・画像はありません)。'])],
+      ['report', '気づいたことを報告する', ul(['画面下の「報告」から、区分 → 区域 → 建物 の順に場所を選び、内容を書いて送ります。場所はわかる範囲でかまいません。', '親区域の「(全体)」も選べます。建物を選ぶときは、子区域を選んでください。', '送った報告は、区域係が「管理」→「報告一覧」で確認します。'])],
+      ['prefs', '各自の設定(見た目・使い方)', ul(['「設定」で、文字の大きさ・テーマ(明るい/暗い/自動)・画面のレイアウト(1〜3)・入力のスタイル・一軒家のタップ・地図に表示する区域(すべて/担当だけ)を変えられます。設定はアカウントごとに保存され、別の端末でも同じになります。', '地図右下のスイッチ(' + esc(cn) + ')で、区分ごとの枠の表示を切り替えられます(端末ごと)。編集モードでは、重なった枠から選びやすくするのに使えます。'])],
+      ['map', '地図の操作', ul(['右上(画面レイアウト2では右下)の◎で現在地へ移動し、現在地を追いかけます。追いかけている間にもう一度押すと、端末の向きに合わせて地図が回ります。もう一度押すと北が上に戻ります。', '2本指で回すと、地図を自由に回せます。北を上に戻すボタンが出ます。', '左下のボタンで、地図の種類(国土地理院・OpenStreetMap・航空写真など)を切り替えられます。', '建物詳細の「経路」で、Googleマップの道案内を開けます。'])]
+    ]);
+    h += sec('区域係・編集者の機能', [
+      ['edit', '地図の編集モード', ul(['画面下の「編集」または管理の「地図で編集する」で入ります。画面の外枠が赤くなります。', '区域を選ぶと、2行目に「＋一軒家」「＋集合住宅」「複数選択」(区域係は「境界変更」も)が出ます。地図をタップして建物を置き、ピンをドラッグして位置を直します。', '<b>複数選択</b>: 建物をタップして選ぶか、「四角で選ぶ」をオンにして地図をなぞると、まとめて選べます。「削除」でまとめて削除し、「削除済みを戻す」で元に戻せます。', '<b>境界変更</b>(区域係): 区域の枠の角をドラッグして形を直します。枠の中に入った建物は、自動でその区域に移ります(' + esc(apt) + 'の仲間の区分は除く)。', '1行目の「＋親区域」「＋子区域」「＋' + esc(apt) + '区域」で、新しい区域を描いて追加できます(区域係)。', '最後に「保存して終了」を押します。「戻す」で1つずつ取り消せます。'])],
+      ['admAreas', '管理: 区域管理', ul(['区域の使用開始・終了、担当(会衆・グループ・個人)、使用開始日を設定します。', '期限(終了日、または開始日から動作設定の月数)が来た区域は、自動で使用が終わります。', '「使用中の区域のみ表示」で、一覧を絞れます。'])],
+      ['admBulk', '管理: 一括クリア', ul(['年度の切り替えなどで、区域の訪問状況やメモをまとめて消します。対象範囲(区分・親区域・区域)を選んで実行します。', '直前の1回は「元に戻す」で戻せます。'])],
+      ['admReports', '管理: 報告一覧', ul(['奉仕者から届いた報告を読みます。対応したら削除してください。'])],
+      ['admEdit', '管理: 区域編集(メニュー内で編集する)', ul(['区域の名前・区分・所属の変更、建物のまとめての移動、非表示・元に戻す・完全に削除ができます。', '完全に削除すると、中の建物・部屋・記録ごと消え、元に戻せません。迷ったら「非表示」にしてください。'])],
+      ['admAcc', '管理: アカウント', ul(['ログインするユーザー(奉仕者・編集者・区域係)とグループを管理します。「会衆」は全員が入る特別なグループです。', 'パスワードを忘れた人は、ここで新しいパスワードを設定し直します。'])],
+      ['admSet', '管理: 動作設定', ul(['アプリの名前、読み込み中のロゴ、地図の種類と最初の位置、自動終了までの月数、訪問状況の選択肢(名前・色・順番)、保存のしかた、自動更新の間隔、ピンの表示、地図の回転などを決めます。全員の画面に反映されます。', '<b>区域の分類と色と透過</b>: 区分(' + esc(cn) + ')の名前の変更・追加・並べ替え・削除と、枠の色・濃さを決めます。名前を変えると、区域の区分もまとめて書き換わります。区域が残っている区分は削除できません。', '最後に「設定を保存」を押します。'])],
+      ['admLogs', '管理: 履歴・ログ / 記録', ul(['履歴・ログ: 区域の使用記録と、データの更新履歴を見られます。', '記録: 新しい年度の記録ドキュメント(Googleドキュメント)を作ります。'])],
+      ['admAna', '管理: 分析', ul(['<b>時間帯ごと・曜日ごと</b>: いつ訪問していて、どの時間帯・曜日に「会えた」割合が高いかを、グラフと表で見られます。', '<b>曜日と時間帯の組み合わせ</b>: 数字が訪問数、色の濃さが会えた割合です。訪問数が少ないマスは参考程度に。', '<b>再訪で会えた割合</b>: 留守などのあとに再訪して、会えた割合です。', '<b>週ごとの訪問数・区分ごと</b>: 活動量の推移と、区分ごとの内訳です。', '<b>次に訪問する区域の目安</b>: 残りの部屋と、前回完了からの日数をもとにした「おすすめ度」です。', '期間(全期間・1年・90日・30日)と区分で絞れます。訪問ログは v111 から記録しています。それより前は、部屋ごとの最後の1回だけを数えます。'])],
+      ['admIO', '管理: 取込・書出', ul(['QGISなどで作った区域・建物・部屋のCSVを取り込みます。同じIDの行は上書き、新しいIDの行は追加です。順番は 区域 → グループ → 担当者 → 建物 → 部屋 です。', '建物・部屋の記録を、uuid2つきのCSVで書き出して、QGISに戻せます。'])]
+    ]);
+    h += sec('困ったとき(トラブルシューティング)', [
+      ['tUpdate', '画面が古いまま・新しい機能が出ない', ol(['「設定」→「端末の状態」で、画面の版(例: 画面 v111)を確かめます。', '「設定」の「キャッシュを削除して更新」を押します。', 'それでも変わらないときは、アプリ(ブラウザ)をいったん完全に閉じて、開き直してください。'])],
+      ['tSync', '「送信待ち」が減らない・記録が反映されない', ul(['電波の良い場所で、「設定」→「今すぐ送信する」を押します。', '「送信できなかった記録があります」と出たときは、その区域が使用中でない・担当外などの理由です。区域係に確認してください。', '送信待ちの記録は端末に残っています。<b>アプリのデータ(サイトのデータ)を消すと失われる</b>ので、送信が終わるまで消さないでください。'])],
+      ['tOffline', '「オフライン」のまま戻らない', ul(['電波が戻ると、数秒で自動的にオンラインに戻ります。戻らないときは、画面を一度閉じて開き直してください。', '機内モードやWi-Fiの切り替え直後は、少し待ってから操作してください。'])],
+      ['tLogin', 'ログインできない・急にログイン画面になる', ul(['IDとパスワードを確かめます(大文字・小文字も区別します)。5回間違えると15分ロックされます。', 'アカウントが無効になった・ログインから30日たった、などのときはログイン画面に戻ります。もう一度ログインしてください。', 'パスワードを忘れたときは、区域係に設定し直してもらいます。'])],
+      ['tMap', '地図が表示されない・灰色のまま', ul(['電波がない場所では、保存していない地図の画像は出ません。電波のある場所で、雲のマーク →「オフラインでも使用」で保存しておきます。', '左下のボタンで地図の種類を切り替えてみてください。', 'とても大きく拡大すると、地図の種類によっては画像がない拡大率があります。少し縮小してください。'])],
+      ['tGps', '現在地が出ない・矢印の向きがおかしい', ul(['端末の設定で、ブラウザ(またはホーム画面のアプリ)に位置情報の利用を許可してください。', '建物の中や電波の弱い場所では、位置がずれることがあります。', '矢印の向きは端末の方位センサーを使います。向きがずれるときは、端末を8の字に動かすと直ることがあります(折りたたみ端末の横向きにも対応しています)。'])],
+      ['tEdit', '編集できない・「見るだけです」と出る', ul(['訪問状況の記録は、使用中で、自分(グループ・会衆を含む)が担当の区域だけです。', '建物・部屋の編集は、編集者と区域係だけです(編集者は親区域以外)。', '区域係の端末でも、使用中でない区域の訪問状況は記録できません。区域管理で使用を開始してください。'])],
+      ['tSlow', '読み込みが遅い', ul(['区域を開くときや保存のとき、サーバー(Googleのスプレッドシート)とのやりとりに数秒かかります。くるくるが消えるまで待ってください。', '一度開いた区域は端末に保存されるので、2回目からはすぐに表示されます。', '電波の弱い場所では、時間がかかることがあります。'])],
+      ['tAdmin', '区域係向け: データがおかしいとき', ul(['スプレッドシートの列は並べ替えても動きますが、1行目の見出しの名前は変えないでください。', '間違えて区域を「非表示」にしたときは、区域編集の「非表示も表示」から元に戻せます。完全に削除したものは戻せません。', 'GASのコード(Code.gs)を更新したときは、「デプロイを管理」から新しいバージョンにしないと反映されません。'])]
+    ]);
+    body(h);
+  }
+  function guideFilter(q) {
+    q = String(q || '').trim().toLowerCase();
+    [].slice.call(document.querySelectorAll('#adBody details.gd')).forEach(function (d) { var hit = !q || d.textContent.toLowerCase().indexOf(q) >= 0; d.style.display = hit ? '' : 'none'; if (q && hit) d.open = true; });
+    [].slice.call(document.querySelectorAll('#adBody .gd-sec')).forEach(function (s0) { s0.style.display = [].some.call(s0.querySelectorAll('details.gd'), function (d) { return d.style.display !== 'none'; }) ? '' : 'none'; });
   }
 
   // ---------- 取込・書出 ----------
@@ -637,6 +742,8 @@
     var a = act.slice(3), on = t.getAttribute('data-on'), f;
     switch (a) {
       case 'close': close(); break;
+      case 'anDays': AN.days = Number(v) || 0; loadAnalysis(); break;
+      case 'anView': AN.view = v; if (AN.last) drawAnalysis(AN.last[0], AN.last[1]); else loadAnalysis(); break;
       case 'editMode': close(); if (SADO.editToggle) SADO.editToggle(); break;
       case 'bkCat': B.cat = v; if (!isAptC(v)) B.scope = 'area'; B.id = ''; B.area = ''; C.bkB = null; drawBulk(); break;
       case 'tab': if (v === 'edit' && MODE !== 'edit') open('edit'); else go(v); break;
@@ -704,7 +811,7 @@
       case 'export': api('exportCsv', { kind: v }).then(function (r) { SADO.saveBlob(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }), r.filename); }, fail); break;
     }
   };
-  document.addEventListener('input', function (ev) { var t = ev.target; if (t.id === 'asgQ') { var q = t.value.trim().toLowerCase(), ls = document.querySelectorAll('#asgUser .asg'); for (var i = 0; i < ls.length; i++) ls[i].classList.toggle('hidden', !!q && ls[i].getAttribute('data-name').indexOf(q) < 0); } else if (t.id === 'usQ') { A.q = t.value; drawUsers(); } else if (t.id === 'arQ') { C.q = t.value; drawAreaList(); } else if (t.getAttribute && t.getAttribute('data-ue') && t.getAttribute('data-f') === 'displayName') { var k = t.getAttribute('data-ue'); (A.ud[k] = A.ud[k] || {}).displayName = t.value; t.closest('.urow').classList.add('chg'); } });
+  document.addEventListener('input', function (ev) { var t = ev.target; if (t.id === 'gdQ') { guideFilter(t.value); return; } if (t.id === 'asgQ') { var q = t.value.trim().toLowerCase(), ls = document.querySelectorAll('#asgUser .asg'); for (var i = 0; i < ls.length; i++) ls[i].classList.toggle('hidden', !!q && ls[i].getAttribute('data-name').indexOf(q) < 0); } else if (t.id === 'usQ') { A.q = t.value; drawUsers(); } else if (t.id === 'arQ') { C.q = t.value; drawAreaList(); } else if (t.getAttribute && t.getAttribute('data-ue') && t.getAttribute('data-f') === 'displayName') { var k = t.getAttribute('data-ue'); (A.ud[k] = A.ud[k] || {}).displayName = t.value; t.closest('.urow').classList.add('chg'); } });
   document.addEventListener('change', function (ev) {
     var t = ev.target;
     if (t.getAttribute && t.getAttribute('data-cat')) { api('setAreaCategory', { areaId: t.getAttribute('data-cat'), category: t.value }).then(function () { toast('区分を「' + t.value + '」にしました。'); if (C.ad) C.ad.areas.forEach(function (a) { if (a.areaId === t.getAttribute('data-cat')) a.category = t.value; }); }, fail); return; }
@@ -728,6 +835,7 @@
     if (t.id === 'mvAll') { [].slice.call(document.querySelectorAll('[data-mv]')).forEach(function (x) { x.checked = t.checked; }); return; }
     if (t.id === 'arQ') { C.q = t.value; drawAreaList(); return; }
     if (t.id === 'adOnly') { C.only = t.checked; try { localStorage.setItem('adOnlyInUse', t.checked ? '1' : '0'); } catch (e) {} drawAreaList(); return; }
+    if (t.id === 'anCat') { AN.cat = t.value; loadAnalysis(); return; }
     if (t.id === 'edArea') { C.editArea = t.value; if (C.editArea) loadEditBody(); else document.getElementById('edBody').innerHTML = ''; }
     else if (t.id === 'edHidden') { C.showHidden = t.checked; if (C.edit) renderEdit(); }
     else if (t.id === 'edFilter') { C.filter = t.value; renderEdit(); var e = document.getElementById('edFilter'); if (e) e.focus(); }
