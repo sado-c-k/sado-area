@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
-  var APP_VER = 'v113'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
+  var APP_VER = 'v115'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
   var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {}, bLabels = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
@@ -137,6 +137,9 @@
   SADO.userBox = userInline; SADO.userInline = userInline;
   function houseMode() { var h = getPrefs().houseTap; return h === 'sheet' || h === 'direct' ? h : cfg('houseTapMode', 'direct'); }
 
+  // iPhone・iPad の Safari は、ページの拡大禁止の指定を無視して、2本指で画面全体を拡大・縮小してしまう。
+  // その合図(gesturestart など)を止めて、UIが拡大されないようにする(地図の拡大・回転は、別のタッチ操作で処理しているので影響しない)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { document.addEventListener(n, function (e) { e.preventDefault(); }, { passive: false }); });
   function boot() {
     applyPrefs(getPrefs());
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')['catch'](function () {});
@@ -632,7 +635,7 @@
     return L.divIcon({ className: '', html: '<svg class="pin-sh" viewBox="0 0 25 41" width="20" height="33" style="display:block"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="' + color + '" stroke="rgba(0,0,0,.28)" stroke-width="1"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>', iconSize: [20, 33], iconAnchor: [10, 33] });
   }
   function labelIcon(b, below) {
-    return L.divIcon({ className: 'rot-with-map', html: '<div style="position:absolute;left:0;top:0;transform:translate(-50%,' + (below || 6) + 'px);white-space:nowrap;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none">' + esc(b.buildingName || '') + '</div>', iconSize: [0, 0], iconAnchor: [0, 0] });
+    return L.divIcon({ className: 'bld-label', html: '<div style="position:absolute;left:0;top:0;transform:translate(-50%,' + (below || 6) + 'px);white-space:nowrap;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none">' + esc(b.buildingName || '') + '</div>', iconSize: [0, 0], iconAnchor: [0, 0] });
   }
   function syncLabels() {
     if (!bLayer || !map) return; var show = map.getZoom() >= PIN_DOT_BELOW_ZOOM && !S.edit, d = S.data[S.cur]; if (!d) return;
@@ -1220,7 +1223,7 @@
   // ---------- 地図タイルの事前保存(地理院タイルのみ) ----------
   function lonToX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
   function latToY(lat, z) { var r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); }
-  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v113: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
+  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v115: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
   function tileDone() { try { return JSON.parse(localStorage.getItem('sado-tiles-done') || '{}'); } catch (e) { return {}; } }
   function tileMark(key) { var d = tileDone(); d[key] = Date.now(); try { localStorage.setItem('sado-tiles-done', JSON.stringify(d)); } catch (e) {} }
   var tileRT = null; function tileRender() { if (tileRT) return; tileRT = setTimeout(function () { tileRT = null; if ($('#home').classList.contains('hidden')) return;

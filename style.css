@@ -778,3 +778,6 @@ details.gd[open]>summary::before{transform:rotate(90deg)}
 .so-name{-webkit-flex:1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .so-row .btn.small{padding:4px 10px;min-width:2.4em}
 .so-foot{position:sticky;bottom:0;background:var(--surface);padding:8px 0;justify-content:flex-end;gap:8px}
+/* v114: 地図以外(メニュー・ボタンなど)の上で2本指で広げても、画面全体が拡大・縮小しないようにする。縦横のスクロールはできる。地図は Leaflet が自分で拡大する */
+html,body{touch-action:pan-x pan-y}
+.leaflet-container{touch-action:none}
