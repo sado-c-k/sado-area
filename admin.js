@@ -5,7 +5,8 @@
   var TABS = [['areas', '区域管理'], ['bulk', '一括クリア'], ['reports', '報告一覧'], ['edit', '区域編集'], ['accounts', 'アカウント'], ['settings', '動作設定'], ['logs', '履歴・ログ'], ['record', '記録'], ['analysis', '分析'], ['io', '取込・書出'], ['guide', '利用ガイド']];
   var MODE = 'admin'; // 'admin'=管理メニュー(区域編集を除く) / 'edit'=編集メニュー(区域編集だけ)
   function isMaint() { return !!(SADO.S && SADO.S.user && SADO.S.user.role === 'maintainer'); }
-  function tabsNow() { return MODE === 'edit' ? TABS.filter(function (t) { return t[0] === 'edit'; }) : TABS.filter(function (t) { return t[0] !== 'edit'; }); }
+  function anOn() { return !(SADO.S && SADO.S.settings && SADO.S.settings.analysisEnabled === false); } // 動作設定の「分析機能」
+  function tabsNow() { return MODE === 'edit' ? TABS.filter(function (t) { return t[0] === 'edit'; }) : TABS.filter(function (t) { return t[0] !== 'edit' && (t[0] !== 'analysis' || anOn()); }); }
   var tab = 'areas', C = { ad: null, editArea: '', showHidden: false, filter: '', seq: 0, cat: '', q: '', exp: {} };
   function CN() { return SADO.catNames(); } // 区域の分類名(動作設定の「区域の分類と色と透過」)
   function isAptC(n) { return SADO.isAptName(n); }
@@ -69,7 +70,7 @@
   function isOff(v) { return v === false || String(v).toLowerCase() === 'false'; }
 
   function open(mode) {
-    MODE = mode === 'edit' ? 'edit' : 'admin'; tab = MODE === 'edit' ? 'edit' : (tab === 'edit' ? 'areas' : tab);
+    MODE = mode === 'edit' ? 'edit' : 'admin'; tab = MODE === 'edit' ? 'edit' : (tab === 'edit' || (tab === 'analysis' && !anOn()) ? 'areas' : tab);
     var a = $('#admin'), u = SADO.S && SADO.S.user; a.classList.remove('hidden');
     a.innerHTML = '<div class="mhead"><button class="menu-back" data-act="menuHome">‹ メニュー</button><div class="t">' + (SADO.S.settings && SADO.S.settings.menuTitleEnabled === false ? '' : esc(MODE === 'edit' ? '編集' : ((SADO.S.settings && SADO.S.settings.appTitle) || '佐渡住宅GAS'))) + '</div>' + SADO.userInline() + '<button data-act="ad:close" aria-label="閉じる">✕</button></div>' +
       
@@ -93,14 +94,58 @@
     return api('getAdminAreas').then(function (d) { C.ad = d; C.adT = Date.now(); return d; });
   }
 
+  // ---------- 区域の並び替え(区域管理の「並び替え」) ----------
+  // 親区域どうし(区分ごと)と、同じ親区域の子区域どうしを、↑↓で並べ替える。保存すると、区域メニュー・区域管理・報告などの並びに反映される
+  var SO = null; // { cat, pid(子区域を並べている親区域。空=親区域の並び), lists: { key: [areaId…] }, dirty: { key: true } }
+  function soKey(pid) { return pid ? 'p:' + pid : 'c:' + SO.cat; }
+  function soBase(pid) {
+    var all = C.ad.areas.filter(function (a) { return a.active; });
+    if (pid) return all.filter(function (a) { return !a.isParent && a.parentId === pid; });
+    var hasPar = all.some(function (a) { return a.isParent; }); // 親区域がないときは、区分のタブも出ない(区域管理の一覧と同じく、すべてを1つの並びにする)
+    return all.filter(function (a) { return (!hasPar || okCat(a.category) === SO.cat) && (a.isParent || !a.parentId); });
+  }
+  function soList(pid) { var k = soKey(pid); if (!SO.lists[k]) SO.lists[k] = soBase(pid).map(function (a) { return a.areaId; }); return SO.lists[k]; }
+  function soDraw() {
+    var el = document.getElementById('apList'); if (!el || !SO) return;
+    var by = {}; C.ad.areas.forEach(function (a) { by[a.areaId] = a; });
+    var ids = soList(SO.pid), par = SO.pid && by[SO.pid], nDirty = Object.keys(SO.dirty).length;
+    var h = '<div class="so-head">' + (par ? '<button class="btn small" data-act="ad:sortBack">‹ 戻る</button><b>' + esc(par.areaName) + ' の子区域</b>' : '<b>' + (document.querySelector('#apCats .chip') ? esc(SO.cat) + ' の並び' : '区域の並び') + '</b>') + '</div>' +
+      '<div class="note">↑↓で順番を入れ替えます。' + (par ? '' : '「子区域 ›」で、その中の子区域を並べ替えます。') + '「保存」を押すまで、ほかの人の画面には反映されません。</div>' +
+      '<div class="row"><button class="btn small" data-act="ad:sortNat">番号順にそろえる</button></div><div class="so-list">';
+    h += ids.map(function (id, i) {
+      var a = by[id] || { areaName: id }, kids = a.isParent ? soBase(id).length : 0;
+      return '<div class="so-row' + (SO.flash === id ? ' flash' : '') + '"><span class="so-n">' + (i + 1) + '</span><span class="so-name">' + esc(a.areaName) + (a.inUse ? ' <span class="badge use">使用中</span>' : '') + '</span>' +
+        (kids ? '<button class="btn small" data-act="ad:sortKids" data-v="' + esc(id) + '">子区域 ' + kids + ' ›</button>' : '') +
+        '<button class="btn small" data-act="ad:sortMv" data-v="' + i + '" data-d="-1"' + (i ? '' : ' disabled') + ' aria-label="上へ">↑</button><button class="btn small" data-act="ad:sortMv" data-v="' + i + '" data-d="1"' + (i < ids.length - 1 ? '' : ' disabled') + ' aria-label="下へ">↓</button></div>';
+    }).join('') + '</div>';
+    h += '<div class="row so-foot"><button class="btn" data-act="ad:sortCancel">キャンセル</button><button class="btn primary" data-act="ad:sortSave"' + (nDirty ? '' : ' disabled') + '>保存' + (nDirty ? '(' + nDirty + 'か所)' : '') + '</button></div>';
+    el.innerHTML = h;
+    var cc = document.getElementById('apCats'); if (cc) [].forEach.call(cc.querySelectorAll('button'), function (b) { b.disabled = !!SO.pid; });
+  }
+  function soOpen() { if (!C.ad) return; SO = { cat: okCat(C.cat), pid: '', lists: {}, dirty: {} }; var r = document.querySelector('.arOnlyRow'); if (r) r.classList.add('hidden'); var q = document.getElementById('arQ'); if (q) q.classList.add('hidden'); soDraw(); }
+  function soClose() { SO = null; var r = document.querySelector('.arOnlyRow'); if (r) r.classList.remove('hidden'); var q = document.getElementById('arQ'); if (q) q.classList.remove('hidden'); var cc = document.getElementById('apCats'); if (cc) [].forEach.call(cc.querySelectorAll('button'), function (b) { b.disabled = false; }); drawAreaList(); }
+  function soMove(i, d) { var l = soList(SO.pid), j = i + d; if (j < 0 || j >= l.length) return; var x = l[i]; l[i] = l[j]; l[j] = x; SO.dirty[soKey(SO.pid)] = true; SO.flash = x; soDraw(); }
+  function soNat() { var by = {}; C.ad.areas.forEach(function (a) { by[a.areaId] = a; }); var l = soList(SO.pid); l.sort(function (x, y) { return String(by[x].areaName).localeCompare(String(by[y].areaName), 'ja', { numeric: true }); }); SO.dirty[soKey(SO.pid)] = true; SO.flash = ''; soDraw(); }
+  function soSave() {
+    var groups = Object.keys(SO.dirty).map(function (k) { return SO.lists[k]; }); if (!groups.length) return;
+    busy(true);
+    api('saveAreaOrder', { groups: groups }).then(function () {
+      var pos = {}; groups.forEach(function (g) { g.forEach(function (id, i) { pos[id] = i + 1; }); });
+      C.ad.areas.forEach(function (a) { if (pos[a.areaId] !== undefined) a.sortOrder = pos[a.areaId]; });
+      C.ad.areas.sort(function (x, y) { return (Number(x.sortOrder) || 0) - (Number(y.sortOrder) || 0) || String(x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); });
+      busy(false); toast('並び順を保存しました。'); SADO.adminInvalidate && SADO.adminInvalidate(); SADO.refreshBootstrap(); soClose();
+    }, fail);
+  }
+
   // ---------- 管理(区域の使用・担当) ----------
   function loadAreas(openId) {
+    SO = null;
     C.openArea = '';
     loadAd().then(function (d) {
       var only = true; try { var sv = localStorage.getItem('adOnlyInUse'); only = sv === null ? true : sv === '1'; } catch (e) {}
       C.only = only;
       var h = '<div class="card"><h3>区域管理</h3>' + SADO.progLegend() +
-        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><label style="display:block;margin:6px 0"><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域のみ表示</label><div id="apList" class="ptree"></div></div>' +
+        '<div id="apCats"></div><input type="search" id="arQ" class="homeq" placeholder="区域名で探す" value="' + esc(C.q || '') + '"><div class="arOnlyRow"><label><input type="checkbox" id="adOnly"' + (only ? ' checked' : '') + '> 使用中の区域のみ表示</label><button class="btn small" data-act="ad:sortOpen">並び替え</button></div><div id="apList" class="ptree"></div></div>' +
         '<details class="card" id="arMore"><summary><b>その他の操作</b></summary>' +
         '<div class="note" style="margin-top:10px">期限(終了日、または開始日から○か月)が来た区域は、自動で使用が終わり、記録ドキュメントに完了日が書かれます。</div>' +
         '<div class="row"><button class="btn small" data-act="ad:autoEnd">今すぐ期限を確認する</button></div></details>';
@@ -123,6 +168,7 @@
     var all = C.ad.areas.filter(function (a) { return a.active; }), hasPar = all.some(function (a) { return a.isParent; });
     var cats = CN(), cc = document.getElementById('apCats'); C.cat = okCat(C.cat);
     if (cc) cc.innerHTML = !hasPar ? '' : '<div class="seg">' + cats.map(function (c) { return '<button class="chip' + (C.cat === c ? ' on' : '') + '" data-act="ad:catTab" data-v="' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>';
+    if (SO) { if (!SO.pid) SO.cat = C.cat; return soDraw(); }
     var q = (C.q || '').replace(/[\s　]/g, '').toLowerCase(), hit = function (a) { return !q || a.areaName.replace(/[\s　]/g, '').toLowerCase().indexOf(q) >= 0; };
     var P = C.prog || {}, empty = { total: 0, visited: 0, buildings: 0, doneBuildings: 0, c: {} }, h = '', n = 0;
     var inCatA = function (a) { return !hasPar || a.category === C.cat; };
@@ -470,9 +516,9 @@
   }
   function loadSettings() {
     api('getSettings').then(function (s) {
-      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', showMarkMemo: 'false', frameColorK: '#1a73e8', frameFillK: '4', frameColorA: '#8e24aa', frameFillA: '6', frameColorUse: '#188038', frameFillUse: '12', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
+      var DF = { areaProgressView: 'graph', mapProgressMode: 'simple', pinDoneThreshold: '100', pinRejectCautionDone: 'true', houseTapMode: 'direct', statusSaveMode: 'inline', autoRefreshEnabled: 'true', showMarkMemo: 'false', analysisEnabled: 'true', frameColorK: '#1a73e8', frameFillK: '4', frameColorA: '#8e24aa', frameFillA: '6', frameColorUse: '#188038', frameFillUse: '12', autoRefreshIntervalSec: '15', mapRotationEnabled: 'true', menuTitleEnabled: 'true', pinShadowEnabled: 'true', onboardingHelpEnabled: 'false', inputTheme: '3', logoMode: 'default', logoImage: '', mapTileSource: 'gsipale', mapInitMode: 'all', mapTileUrl: '', mapTileAttribution: '' };
       for (var dk in DF) if (s[dk] === undefined || s[dk] === null || s[dk] === '' && dk !== 'logoImage' && dk !== 'mapTileUrl' && dk !== 'mapTileAttribution') s[dk] = DF[dk];
-      ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled', 'showMarkMemo'].forEach(function (k) { s[k] = String(s[k]); });
+      ['pinRejectCautionDone', 'autoRefreshEnabled', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'onboardingHelpEnabled', 'showMarkMemo', 'analysisEnabled'].forEach(function (k) { s[k] = String(s[k]); });
       CT = JSON.parse(JSON.stringify(SADO.cats())).map(function (c) { c.old = c.name; return c; }); CT = CT.filter(function (c) { return c.kind !== 'A'; }).concat(CT.filter(function (c) { return c.kind === 'A'; })); CT0 = JSON.stringify(ctList());
       ST = s; try { VS = JSON.parse(s.visitStatusList); } catch (e) { VS = DEF_VS.slice(); } if (!VS || !VS.length) VS = DEF_VS.slice();
       VS = VS.map(function (x) { x.color = x.color || COL_BY[x.id] || '#6b7280'; return x; });
@@ -500,6 +546,7 @@
         stSw('menuTitleEnabled', 'メニューのタイトル', '各メニューの上に、アプリの名前(例: 佐渡区域)を表示します。オフにすると表示しません。') +
         stSw('mapRotationEnabled', 'マップの回転', '2本指で地図を回したり、現在地の向きに合わせて地図を回したりする機能です。') +
         stSw('pinShadowEnabled', 'ピンの影', '地図のピンに影をつけます。オフにすると、地図の拡大・縮小が軽くなります。') +
+        stSw('analysisEnabled', '分析機能', '管理メニューに「分析」タブを表示します。オフにすると、タブが消えます(訪問の記録はオフの間も残るので、あとでオンにすると、その間の分も分析できます)。') +
         '</div><div class="card"><h3>運用の設定</h3>' + TXT.slice(4).map(function (f) { return stRow(f[1], f[2], '<input style="width:100%" id="st-' + f[0] + '" value="' + esc(s[f[0]]) + '">'); }).join('') + '</div>' +
         '<button class="btn primary block" data-act="ad:saveSettings">設定を保存</button><div class="note" style="margin-top:8px">ログインを必須にする設定は、このアプリでは常にオンです。電波が弱いときの一時保存と自動送信も、常にオンです。</div>';
       body(h); vsDraw(); ctDraw();
@@ -517,7 +564,7 @@
     ids.forEach(function (k) { vals[k] = val('st-' + k); });
     vals.logoImage = ST.logoImage || '';
     ['logoMode', 'mapInitMode', 'inputTheme', 'houseTapMode', 'areaProgressView', 'mapProgressMode', 'statusSaveMode'].forEach(function (k) { vals[k] = String(ST[k]); });
-    ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'showMarkMemo', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
+    ['pinRejectCautionDone', 'autoRefreshEnabled', 'onboardingHelpEnabled', 'showMarkMemo', 'mapRotationEnabled', 'menuTitleEnabled', 'pinShadowEnabled', 'analysisEnabled'].forEach(function (k) { var e = document.getElementById('sw-' + k); vals[k] = e && e.checked ? 'true' : 'false'; });
     vals.visitStatusList = JSON.stringify(VS.map(function (x) { return { id: x.id, label: x.label, visited: !!x.visited, done: !!x.done, color: x.color }; }));
     toast('保存しました。');
     api('saveSettings', { values: vals }).then(function () {
@@ -630,14 +677,14 @@
     ]);
     h += sec('区域係・編集者の機能', [
       ['edit', '地図の編集モード', ul(['画面下の「編集」または管理の「地図で編集する」で入ります。画面の外枠が赤くなります。', '区域を選ぶと、2行目に「＋一軒家」「＋集合住宅」「複数選択」(区域係は「境界変更」も)が出ます。地図をタップして建物を置き、ピンをドラッグして位置を直します。', '<b>複数選択</b>: 建物をタップして選ぶか、「四角で選ぶ」をオンにして地図をなぞると、まとめて選べます。「削除」でまとめて削除し、「削除済みを戻す」で元に戻せます。', '<b>境界変更</b>(区域係): 区域の枠の角をドラッグして形を直します。枠の中に入った建物は、自動でその区域に移ります(' + esc(apt) + 'の仲間の区分は除く)。', '1行目の「＋親区域」「＋子区域」「＋' + esc(apt) + '区域」で、新しい区域を描いて追加できます(区域係)。', '最後に「保存して終了」を押します。「戻す」で1つずつ取り消せます。'])],
-      ['admAreas', '管理: 区域管理', ul(['区域の使用開始・終了、担当(会衆・グループ・個人)、使用開始日を設定します。', '期限(終了日、または開始日から動作設定の月数)が来た区域は、自動で使用が終わります。', '「使用中の区域のみ表示」で、一覧を絞れます。'])],
+      ['admAreas', '管理: 区域管理', ul(['区域の使用開始・終了、担当(会衆・グループ・個人)、使用開始日を設定します。', '期限(終了日、または開始日から動作設定の月数)が来た区域は、自動で使用が終わります。', '「使用中の区域のみ表示」で、一覧を絞れます。', '<b>並び替え</b>: 同じ行の右端の「並び替え」で、区域の順番を↑↓で入れ替えます。親区域の並び(区分ごと)と、「子区域 ›」で開く子区域の並びを変えられます。「番号順にそろえる」で、名前の番号順に戻せます。保存すると、区域メニュー・区域管理・報告の並びに反映されます。'])],
       ['admBulk', '管理: 一括クリア', ul(['年度の切り替えなどで、区域の訪問状況やメモをまとめて消します。対象範囲(区分・親区域・区域)を選んで実行します。', '直前の1回は「元に戻す」で戻せます。'])],
       ['admReports', '管理: 報告一覧', ul(['奉仕者から届いた報告を読みます。対応したら削除してください。'])],
       ['admEdit', '管理: 区域編集(メニュー内で編集する)', ul(['区域の名前・区分・所属の変更、建物のまとめての移動、非表示・元に戻す・完全に削除ができます。', '完全に削除すると、中の建物・部屋・記録ごと消え、元に戻せません。迷ったら「非表示」にしてください。'])],
       ['admAcc', '管理: アカウント', ul(['ログインするユーザー(奉仕者・編集者・区域係)とグループを管理します。「会衆」は全員が入る特別なグループです。', 'パスワードを忘れた人は、ここで新しいパスワードを設定し直します。'])],
       ['admSet', '管理: 動作設定', ul(['アプリの名前、読み込み中のロゴ、地図の種類と最初の位置、自動終了までの月数、訪問状況の選択肢(名前・色・順番)、保存のしかた、自動更新の間隔、ピンの表示、地図の回転などを決めます。全員の画面に反映されます。', '<b>区域の分類と色と透過</b>: 区分(' + esc(cn) + ')の名前の変更・追加・並べ替え・削除と、枠の色・濃さを決めます。名前を変えると、区域の区分もまとめて書き換わります。区域が残っている区分は削除できません。', '最後に「設定を保存」を押します。'])],
       ['admLogs', '管理: 履歴・ログ / 記録', ul(['履歴・ログ: 区域の使用記録と、データの更新履歴を見られます。', '記録: 新しい年度の記録ドキュメント(Googleドキュメント)を作ります。'])],
-      ['admAna', '管理: 分析', ul(['<b>時間帯ごと・曜日ごと</b>: いつ訪問していて、どの時間帯・曜日に「会えた」割合が高いかを、グラフと表で見られます。', '<b>曜日と時間帯の組み合わせ</b>: 数字が訪問数、色の濃さが会えた割合です。訪問数が少ないマスは参考程度に。', '<b>再訪で会えた割合</b>: 留守などのあとに再訪して、会えた割合です。', '<b>週ごとの訪問数・区分ごと</b>: 活動量の推移と、区分ごとの内訳です。', '<b>次に訪問する区域の目安</b>: 残りの部屋と、前回完了からの日数をもとにした「おすすめ度」です。', '期間(全期間・1年・90日・30日)と区分で絞れます。訪問ログは v111 から記録しています。それより前は、部屋ごとの最後の1回だけを数えます。'])],
+      ['admAna', '管理: 分析', ul(['<b>時間帯ごと・曜日ごと</b>: いつ訪問していて、どの時間帯・曜日に「会えた」割合が高いかを、グラフと表で見られます。', '<b>曜日と時間帯の組み合わせ</b>: 数字が訪問数、色の濃さが会えた割合です。訪問数が少ないマスは参考程度に。', '<b>再訪で会えた割合</b>: 留守などのあとに再訪して、会えた割合です。', '<b>週ごとの訪問数・区分ごと</b>: 活動量の推移と、区分ごとの内訳です。', '<b>次に訪問する区域の目安</b>: 残りの部屋と、前回完了からの日数をもとにした「おすすめ度」です。', '期間(全期間・1年・90日・30日)と区分で絞れます。訪問ログは v111 から記録しています。それより前は、部屋ごとの最後の1回だけを数えます。', '動作設定の「分析機能」をオフにすると、分析タブが消えます(訪問ログの記録は続きます)。'])],
       ['admIO', '管理: 取込・書出', ul(['QGISなどで作った区域・建物・部屋のCSVを取り込みます。同じIDの行は上書き、新しいIDの行は追加です。順番は 区域 → グループ → 担当者 → 建物 → 部屋 です。', '建物・部屋の記録を、uuid2つきのCSVで書き出して、QGISに戻せます。'])]
     ]);
     h += sec('困ったとき(トラブルシューティング)', [
@@ -742,6 +789,13 @@
     var a = act.slice(3), on = t.getAttribute('data-on'), f;
     switch (a) {
       case 'close': close(); break;
+      case 'sortOpen': soOpen(); break;
+      case 'sortCancel': if (SO && Object.keys(SO.dirty).length && !window.confirm('並べ替えを保存せずに戻りますか?')) break; soClose(); break;
+      case 'sortSave': soSave(); break;
+      case 'sortNat': soNat(); break;
+      case 'sortKids': SO.pid = v; SO.flash = ''; soDraw(); break;
+      case 'sortBack': SO.pid = ''; SO.flash = ''; soDraw(); break;
+      case 'sortMv': soMove(+v, +t.getAttribute('data-d')); break;
       case 'anDays': AN.days = Number(v) || 0; loadAnalysis(); break;
       case 'anView': AN.view = v; if (AN.last) drawAnalysis(AN.last[0], AN.last[1]); else loadAnalysis(); break;
       case 'editMode': close(); if (SADO.editToggle) SADO.editToggle(); break;

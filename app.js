@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var S = { token: null, user: null, settings: null, areas: [], data: {}, geo: {}, frames: null, cur: null, online: navigator.onLine !== false, pending: 0, pub: null, mapReady: false, sheetBid: null };
-  var APP_VER = 'v111'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
+  var APP_VER = 'v113'; // 画面の版(sw.js の VERSION・index.html の ?v= と同じ番号にする)
   var map, tileLayer, frameLayer, bLayer, posMarker, watchId = null, bShapes = {}, bPins = {}, bLabels = {};
   var SADO = window.SADO = { S: S, esc: esc, $: $ };
 
@@ -1143,7 +1143,7 @@
   // ---------- 報告(気づいたことを区域係へ。場所は「区分→区域→建物」の順に選ぶ) ----------
   var R = { cat: '', area: '', bld: '', place: '', text: '' };
   function renderReport(el) {
-    var nc = function (x, y) { return String(x.areaName == null ? '' : x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); };
+    var nc = function (x, y) { return ((Number(x.sortOrder) || 0) - (Number(y.sortOrder) || 0)) || String(x.areaName == null ? '' : x.areaName).localeCompare(String(y.areaName), 'ja', { numeric: true }); };
     var areas = [], all = R.cat ? catAreas(R.cat) : [], ra = R.area && areaById(R.area), isPar = !!(ra && ra.isParent), d = R.area && !isPar && S.data[R.area], blds = [];
     if (R.cat) { // 親区域(全体)のすぐ下に、その子区域を番号順に並べる
       var used = {};
@@ -1220,7 +1220,7 @@
   // ---------- 地図タイルの事前保存(地理院タイルのみ) ----------
   function lonToX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
   function latToY(lat, z) { var r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); }
-  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v111: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
+  try { if (localStorage.getItem('sado-tiles-ver') !== '2') { localStorage.removeItem('sado-tiles-done'); localStorage.setItem('sado-tiles-ver', '2'); } } catch (e) {} // v113: 地図の保存方法を変えたので、以前の「保存済み」の印を消す(保存し直してもらう)
   function tileDone() { try { return JSON.parse(localStorage.getItem('sado-tiles-done') || '{}'); } catch (e) { return {}; } }
   function tileMark(key) { var d = tileDone(); d[key] = Date.now(); try { localStorage.setItem('sado-tiles-done', JSON.stringify(d)); } catch (e) {} }
   var tileRT = null; function tileRender() { if (tileRT) return; tileRT = setTimeout(function () { tileRT = null; if ($('#home').classList.contains('hidden')) return;

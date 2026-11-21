@@ -767,3 +767,14 @@ details.gd[open]>summary::before{transform:rotate(90deg)}
 .gd-b ul,.gd-b ol{margin:0;padding-left:1.2em}
 .gd-b li{margin:4px 0}
 #gdQ{margin-top:8px;width:100%}
+/* v112: 区域の並び替え */
+.arOnlyRow{display:-webkit-flex;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+.arOnlyRow label{display:-webkit-flex;display:flex;align-items:center;gap:6px}
+.so-head{display:-webkit-flex;display:flex;align-items:center;gap:10px;margin:4px 0 6px}
+.so-list{margin:8px 0}
+.so-row{display:-webkit-flex;display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--surface)}
+.so-row.flash{border-color:var(--primary);background:var(--primary-soft)}
+.so-n{min-width:2em;text-align:right;color:var(--text-3);font-variant-numeric:tabular-nums;font-size:.85em}
+.so-name{-webkit-flex:1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.so-row .btn.small{padding:4px 10px;min-width:2.4em}
+.so-foot{position:sticky;bottom:0;background:var(--surface);padding:8px 0;justify-content:flex-end;gap:8px}
